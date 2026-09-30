@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build Float v0.2 as specified in `PRD.md` and `SRS.md`, one working, tested slice per day from 30 September to 4 October 2026.
+**Goal:** Build Float v0.2 as specified in `PRD.md` and `SRS.md`, one working, tested slice per day from 30 September to 3 October 2026, with 4 October reserved for testing, bug fixes, and polish.
 
 **Architecture:** A modular monolith with one FastAPI process, one SQLite file, and server-rendered Jinja2 pages (plus a JSON API in P1). Three domains (Ledger, Planning, Households) and two supporting modules (Identity, Insights) never import each other. An application layer runs cross-domain workflows in one `BEGIN IMMEDIATE` transaction. All money is integer cents and every date-dependent rule receives an injected clock.
 
@@ -59,13 +59,13 @@ Each day follows the same loop:
 | `app/shared/recurrence.py` | `Rule`, `expand`, `candidate`, `count_before`, `split_rule` | 0 (`split_rule` on day 2) |
 | `app/identity/{rules,repository,service,api}.py` | Usernames, scrypt, tokens, throttling, sessions | 1 |
 | `app/ledger/{rules,repository,service,api}.py` | Ledger settings, transactions, balance, expense rows, linked writes | 1 |
-| `app/planning/{rules,repository,service,api}.py` | Planning settings, bill series/occurrences, goals, budgets, goal plan | 1–4 |
+| `app/planning/{rules,repository,service,api}.py` | Planning settings, bill series/occurrences, goals, budgets, goal plan | 1–2 |
 | `app/households/{rules,repository,service,api}.py` | Households, invitations, shared expenses, splits, nets, settlements, household bills | 3 |
-| `app/insights/{safe_to_spend,forecast,consumption,anomaly,alerts,repository,api}.py` | Pure composition rules plus alert persistence | 2–4 |
-| `app/application/{context,audit,authz,accounts,setup,transactions,bills,goals,households,dashboard,alerts}.py` | Use cases, coordinators, authorization, audit | 1–4 |
-| `app/web/{templating,middleware,security,deps,forms,routes,auth,setup,transactions,bills,goals,households,dashboard,alerts}.py` | HTML routes, sessions, CSRF, headers, request IDs | 0–4 |
-| `app/web/templates/*.html`, `app/web/static/float.css` | Jinja2 templates and one stylesheet | 0–4 |
-| `app/api/v1/*.py` | JSON API routers, problem+json, idempotency keys (P1) | 4 |
+| `app/insights/{safe_to_spend,forecast,consumption,anomaly,alerts,repository,api}.py` | Pure composition rules plus alert persistence | 2–3 |
+| `app/application/{context,audit,authz,accounts,setup,transactions,bills,goals,households,dashboard,alerts}.py` | Use cases, coordinators, authorization, audit | 1–3 |
+| `app/web/{templating,middleware,security,deps,forms,routes,auth,setup,transactions,bills,goals,households,dashboard,alerts}.py` | HTML routes, sessions, CSRF, headers, request IDs | 0–3, polished on 4 |
+| `app/web/templates/*.html`, `app/web/static/float.css` | Jinja2 templates and one stylesheet | 0–3, polished on 4 |
+| `app/api/v1/*.py` | JSON API routers, problem+json, idempotency keys (P1) | 3 |
 | `tests/…` | Mirrors `app/`; plus `tests/factories.py`, `tests/scenarios/flat_3b.py`, and `tests/test_architecture.py` | 0–4 |
 | `ADR.md`, `docs/report.md` | Five ADRs; the 4–5 page report | 1–4 |
 
@@ -2417,9 +2417,13 @@ CREATE TABLE planning_settings (
 
 ---
 
-## Day 2 — Friday 2 October: Planning and safe-to-spend (P0)
+## Day 2 — Friday 2 October: Planning, safe-to-spend, and personal insight (P0 + P1)
 
-**Deliverable:** recurring personal bills with idempotent materialization, pay/undo/skip/edit/split, savings goals, and a dashboard showing safe-to-spend per day with its breakdown, shortfall, allowance reminder, and purchase preview. Household terms are zero until day 3. Covers FR-09–14 and FR-27–29. Tests: AT-06–10, AT-19 (personal part), and AT-20 (bill payment).
+**Deliverable:**
+- *P0:* recurring personal bills with idempotent materialization; pay, undo, skip, edit, and split; savings goals; and a dashboard showing safe-to-spend per day with its breakdown, shortfall, allowance reminder, and purchase preview.
+- *P1, in priority order:* the insight that needs only personal data, namely pace, runway, the cash projection, the next-cycle outlook, goal contribution plans, budgets, and unusual-expense flags.
+
+Household terms are zero until day 3 wires them in. Covers FR-09–16 and FR-27–31. Tests: AT-06–12, AT-19 (personal part), AT-20 (bill payment), AT-22 (pure rules), and AT-23.
 
 ### Task 2.1: Bill series and materialization (FR-09–11)
 
@@ -2618,7 +2622,7 @@ def split_rule(rule: Rule, split_date: date) -> tuple[Rule, int | None]:
   - `update_goal(conn, *, user_id, goal_id, version, name, target_cents, target_date, priority, auto_reserve) -> Goal`, which rejects a target below the protected amount
   - `move(conn, *, user_id, goal_id, delta_cents, moved_on, note, now) -> Goal`, where positive protects and negative releases
   - `list_goals(conn, *, user_id) -> list[Goal]`
-  - `movements(conn, *, user_id, goal_id) -> list[tuple[date, int]]`, used by the day 4 goal plan
+  - `movements(conn, *, user_id, goal_id) -> list[tuple[date, int]]`, used by the goal plan in Task 2.6
 
 - [ ] **Step 1: Failing tests (AT-10).**
   - Protecting €50 lowers `protected_savings_cents` by €50 and leaves the ledger balance unchanged.
@@ -2709,22 +2713,144 @@ def preview(result: SafeToSpend, cost_cents: int) -> Preview:
   - `test_safe_to_spend.py`, using SRS Fixture A without the household (this is also the v0.1 fixture): balance €500, bills €120, protected €50, today 20 September → discretionary €330 and **€30.00/day**. Preview €110 → €220 and **€20.00/day**. Preview €350 → **€20.00 shortfall** and €0.00/day. €10 over 3 days → €3.33/day (rounded down). A negative discretionary amount shows zero per day plus the exact shortfall. Then the full Fixture A inputs: 50000, 12000, 1200, 5000, 1000 → 30800 and **2800/day**.
   - `test_dashboard.py`: the page shows every term of the breakdown with links (to bills, goals, and transactions). A shortfall banner uses text as well as colour. `GET /?cost=110` shows the preview and leaves the database unchanged; compare a `SELECT` of every table before and after (AT-19).
 - [ ] **Step 2: Implement.**
-  - The dashboard use case: open `transaction()`; `ensure_materialized(horizon_end)`; get the balance, obligations, and cycle; build `SafeToSpendInputs` with household terms 0 (day 3 fills them) and the goal reserve 0 (day 4); then `compute`.
+  - The dashboard use case: open `transaction()`; `ensure_materialized(horizon_end)`; get the balance, obligations, and cycle; build `SafeToSpendInputs` with household terms 0 (day 3 fills them) and the goal reserve 0 (Task 2.6 fills it); then `compute`.
   - The preview comes from the query parameter `cost`, parsed with `parse_money(field="cost")`, because it is read-only and allowed on GET.
   - The template labels planned allowance as expected, not counted.
 - [ ] **Step 3: Run** `pytest -q`. Expected: all pass. **Commit:** `Compute safe-to-spend with breakdown, reminder, and purchase preview`.
 
-### Task 2.5: Schema decision, AI log, and delivery
+### Task 2.5: Forecast, pace, and next-cycle outlook (FR-30, §4.7)
+
+**Files:**
+- Create: `app/insights/forecast.py`, `app/insights/consumption.py`, `app/web/templates/forecast.html`
+- Modify: `app/insights/api.py`, `app/application/dashboard.py` (adds `forecast(conn, user_id, clock)`), `app/web/dashboard.py` (`GET /forecast`)
+- Test: `tests/insights/test_forecast.py`, `tests/insights/test_consumption.py`, `tests/web/test_forecast_page.py`
+
+**Interfaces:**
+- Produces:
+  - `consumption_by_category(expense_rows, share_rows) -> dict[int, int]`, which counts origins `manual`, `bill`, and `import` plus shares
+  - `variable_consumption(expense_rows, share_rows) -> int`, which excludes bills, household-bill shares, and one-off items
+  - `ForecastInputs(cycle, tracking_start, allowance_day, discretionary_cents, daily_cents, recorded_balance_cents, protected_savings_cents, household_payables_cents, planned_allowance_cents, commitments: tuple[tuple[date, int], ...], variable_consumption_cents, next_cycle_goal_plan_cents=0)`
+  - `DayProjection(day, conservative_cents, expected_cents)`
+  - `Forecast(pace_cents | None, effective_pace_cents, runway_days | None, run_out_date | None, status, carry_over_cents, lowest_expected: DayProjection, conservative_goes_negative: bool, dips_into_savings: bool, next_free_cents, next_daily_cents, next_shortfall_cents, timeline: tuple[DayProjection, ...])`
+  - `pace_window_days(today, tracking_start) -> int`; `compute_forecast(inputs) -> Forecast`
+
+Until Task 3.4, the application layer passes no share rows, no household commitments, and zero payables, so the page reflects personal data only. The pure `compute_forecast` tests already use the full Fixture A numbers.
+
+```python
+def compute_forecast(inputs: ForecastInputs) -> Forecast:
+    cycle, today = inputs.cycle, inputs.cycle.today
+    window = pace_window_days(today, inputs.tracking_start)
+    pace = inputs.variable_consumption_cents // window if window >= 7 else None
+    effective = pace if pace is not None else inputs.daily_cents
+    if inputs.discretionary_cents < 0:
+        runway = 0
+    elif effective == 0:
+        runway = None  # unlimited
+    else:
+        runway = inputs.discretionary_cents // effective
+    run_out = today + timedelta(days=runway) if runway is not None else None
+    status = "on_track" if runway is None or runway >= cycle.days_remaining else "at_risk"
+    carry_over = max(0, inputs.discretionary_cents - effective * cycle.days_remaining)
+    paydays = allowance_dates(today + timedelta(days=1), cycle.horizon_end, inputs.allowance_day)
+    timeline, day = [], today
+    while day < cycle.horizon_end:
+        committed = sum(cents for due, cents in inputs.commitments if due <= day) + inputs.household_payables_cents
+        conservative = inputs.recorded_balance_cents - committed - effective * ((day - today).days + 1)
+        expected = conservative + inputs.planned_allowance_cents * sum(1 for payday in paydays if payday <= day)
+        timeline.append(DayProjection(day, conservative, expected))
+        day += timedelta(days=1)
+    lowest = min(timeline, key=lambda point: (point.expected_cents, point.day))
+    next_commitments = inputs.next_cycle_goal_plan_cents + sum(
+        cents for due, cents in inputs.commitments if cycle.next_allowance <= due < cycle.horizon_end
+    )
+    next_free = carry_over + inputs.planned_allowance_cents - next_commitments
+    next_days = (cycle.horizon_end - cycle.next_allowance).days
+    return Forecast(
+        pace, effective, runway, run_out, status, carry_over, lowest,
+        any(point.conservative_cents < 0 for point in timeline),
+        lowest.expected_cents < inputs.protected_savings_cents,
+        next_free, max(0, next_free) // next_days, max(0, -next_free), tuple(timeline),
+    )
+```
+
+- [ ] **Step 1: Failing tests (AT-22).**
+  - Fixture A base state: window 19, pace 1200, runway 25, run-out 2026-10-15, `on_track`, carry-over 17600.
+  - Lowest expected projection is 22600 on 2026-09-30; conservative on 2026-10-31 is −27800, so `conservative_goes_negative`; `next_daily_cents` is 2561 over 31 days.
+  - Fixture C: daily 1000, runway 6, `at_risk`, carry-over 0.
+  - With 6 complete days of history, pace is `None`, the page says "not enough history", and `effective_pace == daily`.
+  - Consumption: Ana's €30 groceries she paid count €10 in groceries, and settlement transfers count nothing.
+- [ ] **Step 2: Implement.** The forecast page shows the pace against safe-to-spend, the run-out date, and a small inline SVG with two lines (conservative and expected) marking the lowest point. Colour is never the only signal.
+- [ ] **Step 3: Run** `pytest -q`. Expected: all pass. **Commit:** `Forecast pace, runway, cash projection, and next-cycle outlook`.
+
+### Task 2.6: Goal plan, budgets, and unusual expenses (FR-15, FR-16, FR-31, §4.6, §4.8)
+
+**Files:**
+- Modify: `app/planning/rules.py`, `service.py`, `api.py` (goal plan, budget templates and overrides); `app/application/dashboard.py` (goal reserve term and next-cycle goal plan)
+- Create: `app/insights/anomaly.py`, `app/web/budgets.py`, template `budgets.html`
+- Test: `tests/planning/test_goal_plan.py`, `tests/planning/test_budgets.py`, `tests/insights/test_anomaly.py`, `tests/web/test_budgets_page.py`
+
+**Interfaces:**
+- Produces:
+  - `GoalPlan(cycles_left, planned_cents, pending_reserve_cents, status)`
+  - `goal_plan(*, target_cents, target_date, movements, cycle, allowance_day) -> GoalPlan`
+  - `next_cycle_contribution(plan, *, target_cents, protected_now_cents) -> int`
+  - `effective_limit(conn, *, user_id, category_id, cycle_start) -> int | None`, `set_template(...)`, `set_override(...)`
+  - `budget_state(consumption_cents, limit_cents) -> str | None`
+  - `lower_median(values) -> int`, `unusual_threshold(history) -> int | None`, `is_unusual(amount_cents, history) -> bool`
+
+```python
+def goal_plan(*, target_cents, target_date, movements, cycle, allowance_day) -> GoalPlan:
+    protected_now = sum(delta for moved_on, delta in movements if moved_on <= cycle.today)
+    if protected_now >= target_cents:
+        return GoalPlan(0, 0, 0, "complete")
+    if target_date is None:
+        return GoalPlan(0, 0, 0, "no_target_date")
+    cycles_left = len(allowance_dates(cycle.start, target_date, allowance_day))
+    if cycles_left == 0:
+        return GoalPlan(0, 0, 0, "overdue")
+    protected_at_start = sum(delta for moved_on, delta in movements if moved_on < cycle.start)
+    planned = -(-max(0, target_cents - protected_at_start) // cycles_left)  # ceiling division
+    this_cycle = sum(delta for moved_on, delta in movements if cycle.start <= moved_on <= cycle.today)
+    pending = min(planned, max(0, planned - this_cycle), max(0, target_cents - protected_now))
+    return GoalPlan(cycles_left, planned, pending, "on_plan" if pending == 0 else "behind")
+
+
+def budget_state(consumption_cents: int, limit_cents: int | None) -> str | None:
+    if limit_cents is None:
+        return None
+    if consumption_cents > limit_cents:
+        return "over"
+    if limit_cents > 0 and consumption_cents * 10 >= limit_cents * 8:
+        return "warning"
+    return "ok"
+```
+
+- [ ] **Step 1: Failing tests.**
+  - Fixture B (AT-11): 6 cycles, planned 10000, pending 5000. Protecting 5000 more leaves discretionary unchanged; a further 3000 lowers it by 3000. October's plan is 9400. A target date on or before the cycle start is `overdue` with no reserve. Releasing re-reserves the undone part of this cycle's plan.
+  - Budgets (AT-12): €60 against a €50 limit is `over` by €10; 80% gives `warning`; a template applies to a new cycle; an override beats the template; no limit differs from a zero limit, and a zero limit with any consumption is `over`.
+  - Fixture F (AT-23): threshold 1300; 1400 is flagged and 1300 is not; 7 samples flag nothing.
+- [ ] **Step 2: Implement.**
+  - The dashboard's `goal_plan_reserve_cents` becomes the sum of `pending_reserve_cents` over auto-reserve goals.
+  - The goals page shows status and plan.
+  - The budgets page shows consumption, limit, and state per category, with text labels.
+  - Unusual expenses get a flag and plain-language reason in the transactions list.
+- [ ] **Step 3: Run** `pytest -q`. Expected: all pass. **Commit:** `Plan goal contributions, budgets, and unusual-expense flags`.
+
+### Task 2.7: Schema decision, AI log, and delivery
 
 - [ ] **Step 1:** Add **ADR-3 Schema**, dated 2026-10-02: integer cents, STRICT tables, payment links instead of status flags, `scheduled_date` versus `due_date`, append-only movements and audit, cross-domain foreign keys as a documented monolith tradeoff. Update the SRS §7 ER diagram if the real schema differs.
 - [ ] **Step 2:** Add AI log rows and tick `planned-commits.md`.
-- [ ] **Step 3:** Run `pytest -q`, the coverage command, and `git diff --check`. **Commit** `Record the schema decision and log AI use`, then push, create the PR `Build recurring bills, goals, and safe-to-spend`, and merge it.
+- [ ] **Step 3:** Run `pytest -q`, the coverage command, and `git diff --check`. **Commit** `Record the schema decision and log AI use`, then push, create the PR `Build recurring bills, goals, safe-to-spend, and the forecast`, and merge it.
 
 ---
 
-## Day 3 — Saturday 3 October: Households (P0)
+## Day 3 — Saturday 3 October: Households, alerts, and the report draft (P0 + P1)
 
-**Deliverable:** flatmates create or join a household, record shared expenses with four split methods, see net balances and a settle-up plan, confirm settlements into both ledgers, and share recurring household bills. Safe-to-spend now includes household bill shares and payables, and the full SRS Fixture A passes, including every conservation step. Covers FR-17–26. Tests: AT-13–20.
+**Deliverable:**
+- *P0:* flatmates create or join a household, record shared expenses with four split methods, see net balances and a settle-up plan, confirm settlements into both ledgers, and share recurring household bills. Safe-to-spend and the forecast now include household terms, and the full SRS Fixture A passes, including every conservation step.
+- *Then:* the alert centre and activity feed, the JSON API if time remains, the last two ADRs, and a full first draft of the report.
+
+Covers FR-17–26 and FR-32–35. Tests: AT-13–20, AT-22 (end to end), and AT-24–26.
 
 ### Task 3.1: Households, invitations, and membership (FR-17–19)
 
@@ -3043,137 +3169,10 @@ def simplify(nets: Mapping[int, int]) -> list[Transfer]:
     - `max(0, −net)` into payables and `max(0, net)` into receivables;
     - the user's `allocate(...)` share of every unpaid, unskipped household occurrence due before `window_end` in a series where they are a participant.
   - The dashboard passes `bill_shares_cents` and `payables_cents` into `SafeToSpendInputs` and links both terms to the household page.
-- [ ] **Step 3: Run** `pytest -q`. Expected: all pass. **Commit:** `Reserve and pay household bills and complete the conservation tests`.
+- [ ] **Step 3: Wire households into insight.** The forecast and consumption now receive `get_share_rows`, the user's shares of unpaid household occurrences as commitments, and `household_payables_cents`. Add an end-to-end test (AT-22): Ana's forecast page in Fixture A shows pace €12.00/day, runway 25 days, lowest expected cash €226.00 on 30 September, and €25.61/day for October.
+- [ ] **Step 4: Run** `pytest -q`. Expected: all pass. **Commit:** `Reserve and pay household bills and complete the conservation tests`.
 
-### Task 3.5: Testing decision, AI log, and delivery
-
-- [ ] **Step 1:** Add **ADR-4 Testing strategy**, dated 2026-10-03: a pure-rule unit layer, Hypothesis properties for allocation, nets, recurrence, and conservation, integration tests on temporary SQLite files with fault injection, HTTP authorization matrices, and a coverage target of 70% over business modules only. Explain why Hypothesis was chosen over hand-picked examples alone.
-- [ ] **Step 2:** Add AI log rows and tick `planned-commits.md`.
-- [ ] **Step 3:** Run `pytest -q`, the coverage command, and `git diff --check`. **Commit** `Record the testing decision and log AI use`, then push, create the PR `Build households, splits, and settlements`, and merge it.
-
----
-
-## Day 4 — Sunday 4 October: P1 insight and submission (deadline 23:59)
-
-**Deliverable:** as many P1 capabilities as fit before 19:00, in this order: forecast, then goal plan and budgets with anomalies, then alerts and the activity feed, then the JSON API. After that come the measured performance check, final coverage, README, ADR-5, report, AI log, and the final merge. Anything not finished is listed as not implemented (PRD §7). Tests: AT-11, AT-12, AT-22–27, AT-29–31.
-
-### Task 4.1: Forecast, pace, and next-cycle outlook (FR-30, §4.7)
-
-**Files:**
-- Create: `app/insights/forecast.py`, `app/insights/consumption.py`, `app/web/templates/forecast.html`
-- Modify: `app/insights/api.py`, `app/application/dashboard.py` (adds `forecast(conn, user_id, clock)`), `app/web/dashboard.py` (`GET /forecast`)
-- Test: `tests/insights/test_forecast.py`, `tests/insights/test_consumption.py`, `tests/web/test_forecast_page.py`
-
-**Interfaces:**
-- Produces:
-  - `consumption_by_category(expense_rows, share_rows) -> dict[int, int]`, which counts origins `manual`, `bill`, and `import` plus shares
-  - `variable_consumption(expense_rows, share_rows) -> int`, which excludes bills, household-bill shares, and one-off items
-  - `ForecastInputs(cycle, tracking_start, allowance_day, discretionary_cents, daily_cents, recorded_balance_cents, protected_savings_cents, household_payables_cents, planned_allowance_cents, commitments: tuple[tuple[date, int], ...], variable_consumption_cents, next_cycle_goal_plan_cents=0)`
-  - `DayProjection(day, conservative_cents, expected_cents)`
-  - `Forecast(pace_cents | None, effective_pace_cents, runway_days | None, run_out_date | None, status, carry_over_cents, lowest_expected: DayProjection, conservative_goes_negative: bool, dips_into_savings: bool, next_free_cents, next_daily_cents, next_shortfall_cents, timeline: tuple[DayProjection, ...])`
-  - `pace_window_days(today, tracking_start) -> int`; `compute_forecast(inputs) -> Forecast`
-
-```python
-def compute_forecast(inputs: ForecastInputs) -> Forecast:
-    cycle, today = inputs.cycle, inputs.cycle.today
-    window = pace_window_days(today, inputs.tracking_start)
-    pace = inputs.variable_consumption_cents // window if window >= 7 else None
-    effective = pace if pace is not None else inputs.daily_cents
-    if inputs.discretionary_cents < 0:
-        runway = 0
-    elif effective == 0:
-        runway = None  # unlimited
-    else:
-        runway = inputs.discretionary_cents // effective
-    run_out = today + timedelta(days=runway) if runway is not None else None
-    status = "on_track" if runway is None or runway >= cycle.days_remaining else "at_risk"
-    carry_over = max(0, inputs.discretionary_cents - effective * cycle.days_remaining)
-    paydays = allowance_dates(today + timedelta(days=1), cycle.horizon_end, inputs.allowance_day)
-    timeline, day = [], today
-    while day < cycle.horizon_end:
-        committed = sum(cents for due, cents in inputs.commitments if due <= day) + inputs.household_payables_cents
-        conservative = inputs.recorded_balance_cents - committed - effective * ((day - today).days + 1)
-        expected = conservative + inputs.planned_allowance_cents * sum(1 for payday in paydays if payday <= day)
-        timeline.append(DayProjection(day, conservative, expected))
-        day += timedelta(days=1)
-    lowest = min(timeline, key=lambda point: (point.expected_cents, point.day))
-    next_commitments = inputs.next_cycle_goal_plan_cents + sum(
-        cents for due, cents in inputs.commitments if cycle.next_allowance <= due < cycle.horizon_end
-    )
-    next_free = carry_over + inputs.planned_allowance_cents - next_commitments
-    next_days = (cycle.horizon_end - cycle.next_allowance).days
-    return Forecast(
-        pace, effective, runway, run_out, status, carry_over, lowest,
-        any(point.conservative_cents < 0 for point in timeline),
-        lowest.expected_cents < inputs.protected_savings_cents,
-        next_free, max(0, next_free) // next_days, max(0, -next_free), tuple(timeline),
-    )
-```
-
-- [ ] **Step 1: Failing tests (AT-22).**
-  - Fixture A base state: window 19, pace 1200, runway 25, run-out 2026-10-15, `on_track`, carry-over 17600.
-  - Lowest expected projection is 22600 on 2026-09-30; conservative on 2026-10-31 is −27800, so `conservative_goes_negative`; `next_daily_cents` is 2561 over 31 days.
-  - Fixture C: daily 1000, runway 6, `at_risk`, carry-over 0.
-  - With 6 complete days of history, pace is `None`, the page says "not enough history", and `effective_pace == daily`.
-  - Consumption: Ana's €30 groceries she paid count €10 in groceries, and settlement transfers count nothing.
-- [ ] **Step 2: Implement.** The forecast page shows the pace against safe-to-spend, the run-out date, and a small inline SVG with two lines (conservative and expected) marking the lowest point. Colour is never the only signal.
-- [ ] **Step 3: Run** `pytest -q`. Expected: all pass. **Commit:** `Forecast pace, runway, cash projection, and next-cycle outlook`.
-
-### Task 4.2: Goal plan, budgets, and unusual expenses (FR-15, FR-16, FR-31, §4.6, §4.8)
-
-**Files:**
-- Modify: `app/planning/rules.py`, `service.py`, `api.py` (goal plan, budget templates and overrides); `app/application/dashboard.py` (goal reserve term and next-cycle goal plan)
-- Create: `app/insights/anomaly.py`, `app/web/budgets.py`, template `budgets.html`
-- Test: `tests/planning/test_goal_plan.py`, `tests/planning/test_budgets.py`, `tests/insights/test_anomaly.py`, `tests/web/test_budgets_page.py`
-
-**Interfaces:**
-- Produces:
-  - `GoalPlan(cycles_left, planned_cents, pending_reserve_cents, status)`
-  - `goal_plan(*, target_cents, target_date, movements, cycle, allowance_day) -> GoalPlan`
-  - `next_cycle_contribution(plan, *, target_cents, protected_now_cents) -> int`
-  - `effective_limit(conn, *, user_id, category_id, cycle_start) -> int | None`, `set_template(...)`, `set_override(...)`
-  - `budget_state(consumption_cents, limit_cents) -> str | None`
-  - `lower_median(values) -> int`, `unusual_threshold(history) -> int | None`, `is_unusual(amount_cents, history) -> bool`
-
-```python
-def goal_plan(*, target_cents, target_date, movements, cycle, allowance_day) -> GoalPlan:
-    protected_now = sum(delta for moved_on, delta in movements if moved_on <= cycle.today)
-    if protected_now >= target_cents:
-        return GoalPlan(0, 0, 0, "complete")
-    if target_date is None:
-        return GoalPlan(0, 0, 0, "no_target_date")
-    cycles_left = len(allowance_dates(cycle.start, target_date, allowance_day))
-    if cycles_left == 0:
-        return GoalPlan(0, 0, 0, "overdue")
-    protected_at_start = sum(delta for moved_on, delta in movements if moved_on < cycle.start)
-    planned = -(-max(0, target_cents - protected_at_start) // cycles_left)  # ceiling division
-    this_cycle = sum(delta for moved_on, delta in movements if cycle.start <= moved_on <= cycle.today)
-    pending = min(planned, max(0, planned - this_cycle), max(0, target_cents - protected_now))
-    return GoalPlan(cycles_left, planned, pending, "on_plan" if pending == 0 else "behind")
-
-
-def budget_state(consumption_cents: int, limit_cents: int | None) -> str | None:
-    if limit_cents is None:
-        return None
-    if consumption_cents > limit_cents:
-        return "over"
-    if limit_cents > 0 and consumption_cents * 10 >= limit_cents * 8:
-        return "warning"
-    return "ok"
-```
-
-- [ ] **Step 1: Failing tests.**
-  - Fixture B (AT-11): 6 cycles, planned 10000, pending 5000. Protecting 5000 more leaves discretionary unchanged; a further 3000 lowers it by 3000. October's plan is 9400. A target date on or before the cycle start is `overdue` with no reserve. Releasing re-reserves the undone part of this cycle's plan.
-  - Budgets (AT-12): €60 against a €50 limit is `over` by €10; 80% gives `warning`; a template applies to a new cycle; an override beats the template; no limit differs from a zero limit, and a zero limit with any consumption is `over`.
-  - Fixture F (AT-23): threshold 1300; 1400 is flagged and 1300 is not; 7 samples flag nothing.
-- [ ] **Step 2: Implement.**
-  - The dashboard's `goal_plan_reserve_cents` becomes the sum of `pending_reserve_cents` over auto-reserve goals.
-  - The goals page shows status and plan.
-  - The budgets page shows consumption, limit, and state per category, with text labels.
-  - Unusual expenses get a flag and plain-language reason in the transactions list.
-- [ ] **Step 3: Run** `pytest -q`. Expected: all pass. **Commit:** `Plan goal contributions, budgets, and unusual-expense flags`.
-
-### Task 4.3: Alert centre and activity feed (FR-32, FR-33)
+### Task 3.5: Alert centre and activity feed (FR-32, FR-33)
 
 **Files:**
 - Create: `app/db/migrations/0008_alerts.sql`, `app/insights/alerts.py` (pure `desired_alerts`), `app/insights/repository.py` (`sync_alerts`, `list_alerts`, `mark_read`, `dismiss`), `app/application/alerts.py`, `app/web/alerts.py`, templates `alerts.html` and the household activity tab
@@ -3217,7 +3216,7 @@ CREATE TABLE alert_cursors (
   Evaluation runs when the dashboard or alerts page loads, and after each successful write, as a separate transaction after the write commits.
 - [ ] **Step 3: Run** `pytest -q`. Expected: all pass. **Commit:** `Add the alert centre and household activity feed`.
 
-### Task 4.4: JSON API and idempotency keys (FR-34–35), only if time remains
+### Task 3.6: JSON API and idempotency keys (FR-34–35), only if time remains
 
 **Files:**
 - Create: `app/db/migrations/0009_idempotency.sql`, `app/api/__init__.py`, `app/api/v1/__init__.py`, `app/api/v1/problems.py`, `app/api/v1/idempotency.py`, `app/api/v1/routes.py`
@@ -3246,22 +3245,66 @@ CREATE TABLE idempotency_keys (
 - [ ] **Step 2: Implement.** Each use case exists as an inner function `_name(conn, …)` that runs inside an open transaction, plus the public `name(conn, …)` that wraps it in `transaction()`. The idempotency layer calls the inner function inside the same transaction that stores the key, so the response and the effect commit together. Endpoints follow SRS §8.2.
 - [ ] **Step 3: Run** `pytest -q`. Expected: all pass. **Commit:** `Expose the JSON API with idempotency keys`.
 
-### Task 4.5: Measurements, documentation, and final delivery
+### Task 3.7: Final decisions, report draft, and delivery
 
-**Files:** Create `scripts/perf_smoke.py`, `docs/report.md`, and the final `ADR.md` entry. Modify `README.md`, `AI_USAGE.md`, `planned-commits.md`, and `SRS.md` (diagrams, if the real code differs).
-
-- [ ] **Step 1: Performance (NFR-05, AT-31).** `scripts/perf_smoke.py` builds the synthetic dataset in a temporary database: a 3-member household, 5,000 transactions per member, 1,000 shared expenses, and 20 bill series. It times 50 dashboard use-case runs, prints p50 and p95, and times startup. Record the machine model, Python version, and numbers in the README; never quote a number that was not measured.
-- [ ] **Step 2: Coverage (NFR-08).** Run the full SRS §11 command and paste its real output summary into the README. If a module is under target, add tests for real rules. Do not exclude code to raise the figure.
-- [ ] **Step 3: Fresh-clone check (AT-29).** Clone to a temporary folder, create a virtualenv, install, start with `python app.py`, and register with no `.env`. Restart and confirm the data is kept. Run `PRAGMA integrity_check` and `PRAGMA foreign_key_check`, which should report no problems.
-- [ ] **Step 4: Manual check (AT-30).** In a browser: a cross-site POST is rejected, notes are escaped, the security headers are present, keyboard-only navigation works, the layout holds at a narrow width, and the stale-edit conflict message appears. Write the results in the report.
-- [ ] **Step 5:** Add **ADR-5 Deliberate omission**, dated 2026-10-04, for example "no background scheduler: occurrences are materialized lazily and idempotently". Write `docs/report.md` (4–5 pages) covering:
+- [ ] **Step 1:** Add **ADR-4 Testing strategy**, dated 2026-10-03: a pure-rule unit layer, Hypothesis properties for allocation, nets, recurrence, and conservation, integration tests on temporary SQLite files with fault injection, HTTP authorization matrices, mutation spot-checks, and a coverage target of 70% over business modules only. Explain why Hypothesis was chosen over hand-picked examples alone.
+- [ ] **Step 2:** Add **ADR-5 Deliberate omission**, dated 2026-10-03, for example "no background scheduler: occurrences are materialized lazily and idempotently". The five ADRs now span three commit dates (1, 2, and 3 October).
+- [ ] **Step 3:** Draft `docs/report.md` (4–5 pages) covering:
   - SMART goals and the planned SDLC compared with what actually happened, citing `planned-commits.md` and the git log;
-  - architecture and schema diagrams matching the code;
-  - testing results and coverage;
+  - architecture and schema diagrams that match the code;
+  - the testing approach and current results;
   - risks and unfinished items;
   - the prescribed AI disclosure summary.
-- [ ] **Step 6:** Finalize the README (run, test, coverage result, features, **not implemented** list, backup instructions), the AI log rows, and the `planned-commits.md` status.
-- [ ] **Step 7:** Run `pytest -q` and `git diff --check`. **Commit** `Document setup, coverage, measurements, and final decisions`, then push, create the PR `Add insight features and submission documents`, and merge it before 23:59.
+
+  Mark every measured number "to refresh on 4 October".
+- [ ] **Step 4:** Add AI log rows and tick `planned-commits.md`.
+- [ ] **Step 5:** Run `pytest -q`, the coverage command, and `git diff --check`. **Commit** `Record the testing decision, final ADR, and report draft`, then push, create the PR `Build households, alerts, and the report draft`, and merge it.
+
+---
+
+## Day 4 — Sunday 4 October: testing, fixes, polish, and final checks (deadline 23:59)
+
+**Deliverable:** no new features. The whole product is checked against the PRD and SRS, every bug found is fixed test-first, the interface is polished after the student's own review, and the final measurements and documents are brought up to date. Merge by 20:00 to leave a buffer before 23:59. This is one of the six required commit days, so its fixes and improvements are real pushed commits.
+
+The only feature work allowed today is finishing a P0 capability that slipped from 2 or 3 October, first thing, before the acceptance pass. P1 work that did not fit is cut and reported as not implemented, not squeezed in here.
+
+### Task 4.1: Acceptance pass
+
+**Files:** Create `scripts/perf_smoke.py` and `docs/acceptance-2026-10-04.md`.
+
+- [ ] **Step 1: Fresh-clone check (AT-29).** Clone the repository into a temporary folder, create a virtualenv, `pip install -r requirements.txt`, start with `python app.py`, and register with no `.env`. Restart and confirm the data is kept. Run `PRAGMA integrity_check` and `PRAGMA foreign_key_check`; both must report no problems.
+- [ ] **Step 2: Full suite and coverage (NFR-08).** Run `pytest -q` and the SRS §11 coverage command, and record the real numbers.
+- [ ] **Step 3: Performance (NFR-05, AT-31).** `scripts/perf_smoke.py` builds the synthetic dataset in a temporary database: a 3-member household, 5,000 transactions per member, 1,000 shared expenses, and 20 bill series. It times 50 dashboard use-case runs, prints p50 and p95, and times startup. Record the machine model, Python version, and numbers; never quote a number that was not measured.
+- [ ] **Step 4: Walkthrough with the student.** In a browser, go through each PRD §6 journey:
+  - onboarding;
+  - daily use;
+  - recurring bills;
+  - living with flatmates, using two accounts in two browsers;
+  - goals;
+  - understanding spending;
+  - alerts.
+
+  Then do the AT-30 checks: a cross-site POST is rejected, notes are escaped, the security headers are present, keyboard-only use works, the layout holds at phone width, and the stale-edit conflict message appears. Write every problem in `docs/acceptance-2026-10-04.md` as a numbered issue with a severity: data or security, broken flow, or cosmetic.
+- [ ] **Step 5: Commit** `Record the acceptance pass and performance measurements`.
+
+### Task 4.2: Fix bugs test-first
+
+- [ ] Handle each issue in severity order: data correctness and security first, then broken flows, then cosmetic.
+  1. Write a test that reproduces it and watch it fail.
+  2. Fix the code and run the whole suite.
+  3. Commit `Fix <symptom>`, one commit per bug or small related group, and mark the issue fixed in `docs/acceptance-2026-10-04.md`.
+
+### Task 4.3: UI enhancements
+
+- [ ] Make the changes the student asks for after the walkthrough: layout, wording, navigation, empty states, charts, and narrow-screen behaviour. Keep NFR-07: every input has a label, everything works by keyboard, and warnings use text as well as colour.
+- [ ] Each change keeps the suite green. Add or update a test where the change affects behaviour, for example a new link or form field. Commit `Improve <page or flow>` for each coherent change.
+
+### Task 4.4: Final numbers, documents, and delivery
+
+- [ ] **Step 1:** After all fixes, rerun the suite, the coverage command, and the performance script, and put the final numbers in the README and the report.
+- [ ] **Step 2:** Finish the README (run, test, coverage and performance results, features, **not implemented** list, backup instructions). Update the report's numbers and its "what actually happened" section. Add AI log rows, and set the final status in `planned-commits.md`.
+- [ ] **Step 3:** Check `git log --date=short --format=%ad main | sort | uniq -c`: there are six or more dates, and no date is above 40% of the total.
+- [ ] **Step 4:** Run `pytest -q` and `git diff --check`. **Commit** `Record final measurements and verification results`, then push, create the PR `Verify, fix, and polish Float for submission`, and merge it by 20:00.
 
 ---
 
@@ -3331,41 +3374,41 @@ CREATE INDEX transactions_by_fingerprint ON transactions (user_id, fingerprint);
 | Requirement | Task(s) | Acceptance tests |
 |---|---|---|
 | FR-01–03 Identity | 1.1, 1.2 | AT-01, AT-02 |
-| FR-04 Authorization | 1.2, plus matrix rows in 1.4, 2.2, 2.3, 3.1–3.4, 4.4 | AT-03 |
+| FR-04 Authorization | 1.2, plus matrix rows in 1.4, 2.2, 2.3, 3.1–3.4, 3.6 | AT-03 |
 | FR-05 Setup | 1.4 | AT-04, AT-29 |
 | FR-06–07 Transactions and linked guard | 1.3, 1.4 | AT-04, AT-05 |
 | FR-08 Categories | 0.3 (seed and triggers), 1.3 | AT-05 |
 | FR-09–11 Bill series, materialization, status | 0.7, 2.1 | AT-07, AT-08 |
 | FR-12–13 Pay/undo and edits | 2.2 | AT-08, AT-09 |
 | FR-14 Goals | 2.3 | AT-10 |
-| FR-15 Goal plan | 4.2 | AT-11 |
-| FR-16 Budgets | 2.1 (tables), 4.2 | AT-12 |
+| FR-15 Goal plan | 2.6 | AT-11 |
+| FR-16 Budgets | 2.1 (tables), 2.6 | AT-12 |
 | FR-17–19 Households and membership | 3.1 | AT-13 |
 | FR-20–22 Shared expenses and splits | 3.2 | AT-14, AT-15 |
 | FR-23–24 Balances and settlements | 3.3 | AT-16, AT-17 |
 | FR-25–26 Household bills | 3.4 | AT-18 |
 | FR-27, FR-29 Dashboard and preview | 2.4, 3.4 | AT-19, AT-20 |
 | FR-28 Allowance reminder | 1.4 | AT-21 |
-| FR-30 Forecast | 4.1 | AT-22 |
-| FR-31 Consumption and anomalies | 4.1, 4.2 | AT-12, AT-23 |
-| FR-32 Alerts | 4.3 | AT-24 |
-| FR-33 Audit trail and feed | 1.3 (table and writes), 4.3 (feed) | AT-25 |
-| FR-34–35 API and idempotency | 4.4 | AT-26 |
+| FR-30 Forecast | 2.5, 3.4 (household terms) | AT-22 |
+| FR-31 Consumption and anomalies | 2.5, 2.6 | AT-12, AT-23 |
+| FR-32 Alerts | 3.5 | AT-24 |
+| FR-33 Audit trail and feed | 1.3 (table and writes), 3.5 (feed) | AT-25 |
+| FR-34–35 API and idempotency | 3.6 | AT-26 |
 | FR-36–38 Stretch | P2.1–P2.3 | AT-28 |
 | FR-39 Persistence | 0.3, 0.4, 1.4 | AT-29 |
 | §4.1 cycles / §4.2 recurrence | 0.6 / 0.7, 2.2 | AT-06 / AT-07, AT-09 |
 | §6.1 dependency rule | 0.4 | AT-27 |
 | NFR-01–04, NFR-06 | 0.2–0.4 | AT-29 |
-| NFR-05 performance | 4.5 | AT-31 |
-| NFR-07 accessibility | every template; checked in 4.5 | AT-30 |
-| NFR-08 coverage | measured daily; final in 4.5 | — |
-| NFR-09 integrity | 4.5 | AT-29 |
+| NFR-05 performance | 4.1 | AT-31 |
+| NFR-07 accessibility | every template; checked in 4.1 | AT-30 |
+| NFR-08 coverage | measured daily; final in 4.4 | — |
+| NFR-09 integrity | 4.1 | AT-29 |
 | NFR-10 request IDs and logs | 1.2 | AT-30 |
 
 ## Self-review
 
 - **Spec coverage.** Every FR, NFR, and acceptance test in the SRS maps to a task above. P2 is planned but optional.
-- **Level of detail.** Day 0 is written out in full, because it is executed today. Days 1–4 give the complete SQL, the pure rules as code, exact interfaces, test cases with SRS fixture values, and algorithm code. Service and template code is specified by those interfaces and tests, not written in advance. That code is written on its own day, test-first, which is also what `planned-commits.md` requires.
+- **Level of detail.** Day 0 is written out in full, because it is executed today. Days 1–3 give the complete SQL, the pure rules as code, exact interfaces, test cases with SRS fixture values, and algorithm code. Service and template code is specified by those interfaces and tests, not written in advance. That code is written on its own day, test-first, which is also what `planned-commits.md` requires. Day 4 adds no features: it is for acceptance testing, test-first bug fixes, UI polish, and final measurements.
 - **Decisions this plan adds to the SRS:**
   - Materialization and alert evaluation may run inside GET requests, as idempotent bookkeeping.
   - The purchase preview uses `GET /?cost=` because it never writes.

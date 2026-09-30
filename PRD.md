@@ -183,7 +183,7 @@ These are targets, not achieved results. Record actual test results and usabilit
 
 ## 11. Delivery plan and risks
 
-Work in thin vertical increments with tests in each: requirements v0.2 (30 Sep) → Identity + Ledger + database infrastructure (1 Oct) → Planning with the recurrence engine and safe-to-spend (2 Oct) → Households, splits, and settlements (3 Oct) → P1 insights, documentation, and verification (4 Oct). No commits were made on 29 September, so every remaining day through 4 October needs meaningful pushed work to reach the six-day minimum. Record departures from this plan in the final SDLC report.
+Work in thin vertical increments with tests in each: requirements v0.2 and the foundation (30 Sep) → Identity + Ledger (1 Oct) → Planning, safe-to-spend, and personal insight (2 Oct) → Households, alerts, and the report draft (3 Oct) → testing, bug fixes, UI polish, and final checks, with no new features (4 Oct). No commits were made on 29 September, so every remaining day through 4 October needs meaningful pushed work to reach the six-day minimum. Record departures from this plan in the final SDLC report.
 
 | Risk | Response |
 |---|---|

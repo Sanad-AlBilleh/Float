@@ -80,4 +80,4 @@ Deadline: **4 October 2026, 23:59**, in the course's deadline timezone.
 
 The assignment requires at least 12 meaningful commits across at least six calendar days, pushed to GitHub on those days. No single day may contain more than 40% of the final commit total. Never fabricate or backdate commits.
 
-Commits exist for 28 and 30 September. Nothing was pushed on 29 September, so reaching six days needs meaningful pushed work on every remaining date: 1, 2, 3, and 4 October. There is no buffer day left. Add truthful AI log entries and decisions as the work happens, not retrospectively.
+Commits exist for 28 and 30 September. Nothing was pushed on 29 September, so reaching six days needs meaningful pushed work on every remaining date: 1, 2, 3, and 4 October. Features are built from 1 to 3 October. 4 October is reserved for testing, bug fixes, and UI polish, and its fixes are still real pushed commits. Add truthful AI log entries and decisions as the work happens, not retrospectively.

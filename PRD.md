@@ -1,6 +1,6 @@
 # Float — Product Requirements Document
 
-Version: 0.2 · Date: 2026-09-30 · Status: revised proposal after professor feedback; professor approval pending.
+Version: 0.2 · Date: 2026-09-30 · Status: approved by the professor (reported by the student on 2026-09-30); implementation in progress.
 
 ## 1. Purpose
 
@@ -196,4 +196,4 @@ Work in thin vertical increments with tests in each: requirements v0.2 (30 Sep) 
 | AI-generated logic is not understood | The student explains each accepted implementation in the AI log and practices the calculations without notes |
 | Decisions appear retrospectively | Log ADR entries as choices are made, across at least three commit dates |
 
-The assignment requires approval of this use case before implementation. This revised proposal responds to the professor's feedback; it does not claim that approval has happened.
+The assignment requires approval of this use case before implementation. The student reported the professor's approval of this revised scope on 30 September 2026, and implementation began that day following `EXECUTION_PLAN.md` and `planned-commits.md`.

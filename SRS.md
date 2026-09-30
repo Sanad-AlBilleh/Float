@@ -1,6 +1,6 @@
 # Float — Software Requirements Specification
 
-Version: 0.2 · Date: 2026-09-30 · Status: revised proposal after professor feedback; not implemented.
+Version: 0.2 · Date: 2026-09-30 · Status: approved by the professor (reported by the student on 2026-09-30); implementation in progress per `EXECUTION_PLAN.md`.
 
 This document turns `PRD.md` v0.2 into observable behaviour. Requirements are implementation targets. Names below are proposed interfaces, not existing code. Schema and testing details must be re-evaluated during implementation and reflected honestly in the ADR entries and final diagrams.
 
@@ -567,7 +567,7 @@ Lists are paginated with `limit` (default 50, maximum 100) and an opaque cursor.
 |---|---|
 | NFR-01 | One process started by `python app.py`; binds `0.0.0.0`; reads `PORT` (default 8000); one Uvicorn worker and no reload subprocess. |
 | NFR-02 | The database is `DATA_DIR/float.sqlite3` (`DATA_DIR` defaults to `./data`). Startup creates the directory, enables WAL, applies migrations, and seeds categories idempotently. Existing records survive restarts. |
-| NFR-03 | Exactly one root dependency manifest, `requirements.txt`, and no per-folder manifests. Proposed direct dependencies: FastAPI, Uvicorn, Jinja2, python-multipart, pytest, pytest-cov, hypothesis, and httpx (for FastAPI's test client). Password hashing uses the standard library. |
+| NFR-03 | Exactly one root dependency manifest, `requirements.txt`, and no per-folder manifests. Proposed direct dependencies: FastAPI, Uvicorn, Jinja2, python-multipart, pytest, pytest-cov, hypothesis, and httpx2 (the HTTP transport used by Starlette's test client). Password hashing uses the standard library. |
 | NFR-04 | No mandatory network calls, managed database, cache, queue, background worker, separate frontend server, authored Dockerfile/Compose/CI/IaC, or public deployment. |
 | NFR-05 | Ready within 5 seconds on the documented development machine. Dashboard response, including materialization and alert evaluation, under 500 ms at p95 for a synthetic dataset: a 3-member household, 5,000 personal transactions per member, 1,000 shared expenses, and 20 bill series. Record the machine and measured timings; never claim an unmeasured result. |
 | NFR-06 | Environment configuration: `PORT`, `DATA_DIR`, `APP_TIMEZONE`, `COOKIE_SECURE`, `SESSION_IDLE_HOURS` (48), `SESSION_MAX_DAYS` (14). A missing `.env` is fine. Invalid configuration fails clearly without touching data. |
@@ -631,7 +631,7 @@ NFR-05 requires a measured smoke check, and NFR-08 requires the real coverage ou
 
 ## 12. Submission obligations
 
-- Obtain professor approval of this revised v0.2 scope before application implementation.
+- Professor approval of this v0.2 scope was reported by the student on 30 September 2026, before any application code was written.
 - Maintain exactly five ADR entries: stack, domain boundaries, schema, testing, and a deliberate omission. Entries must span at least three actual commit dates. This SRS proposes details; finalize decisions as evidence becomes available rather than writing fictional later dates.
 - Maintain the six-column AI usage log and student-written implementation explanations as code is accepted.
 - Reach 12+ meaningful commits on 6+ calendar days, with pushes on those days, and no day above 40% of final commits. Documentation and merge commits do not replace later work.

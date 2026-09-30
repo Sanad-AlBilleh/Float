@@ -6,7 +6,7 @@
 
 **Architecture:** A modular monolith with one FastAPI process, one SQLite file, and server-rendered Jinja2 pages (plus a JSON API in P1). Three domains (Ledger, Planning, Households) and two supporting modules (Identity, Insights) never import each other. An application layer runs cross-domain workflows in one `BEGIN IMMEDIATE` transaction. All money is integer cents and every date-dependent rule receives an injected clock.
 
-**Tech Stack:** Python 3.12+ (developed on 3.14), FastAPI 0.142, Starlette 1.7, Uvicorn, Jinja2, python-multipart, SQLite through the standard `sqlite3` module (STRICT tables, WAL), pytest, pytest-cov, Hypothesis, and httpx.
+**Tech Stack:** Python 3.12+ (developed on 3.14), FastAPI 0.142, Starlette 1.7, Uvicorn, Jinja2, python-multipart, SQLite through the standard `sqlite3` module (STRICT tables, WAL), pytest, pytest-cov, Hypothesis, and httpx2 (the transport Starlette's test client prefers).
 
 **Spec:** `SRS.md` v0.2 (exact rules, fixtures, schema) and `PRD.md` v0.2 (scope and priorities). `planned-commits.md` is the daily commit schedule this plan follows.
 
@@ -131,7 +131,7 @@ python-multipart==0.0.32
 pytest==9.1.1
 pytest-cov==7.1.0
 hypothesis==6.168.3
-httpx==0.28.1
+httpx2==2.13.1
 ```
 
 ```ini
@@ -1234,7 +1234,7 @@ The package `app/` and the script `app.py` share a name on purpose: the SRS fixe
 
 - [ ] **Step 5: Run everything and watch it pass**
 
-Run: `pytest -q`. Expected: all tests pass (`41 passed`). Then smoke-test the real server with `DATA_DIR=$(mktemp -d) PORT=8765 python app.py`, run `curl -s localhost:8765/healthz` in a second shell (expected `{"status":"ok"}`), and stop the server.
+Run: `pytest -q`. Expected: all tests pass (`38 passed`) with no warnings. Then smoke-test the real server with `DATA_DIR=$(mktemp -d) PORT=8765 python app.py`, run `curl -s localhost:8765/healthz` in a second shell (expected `{"status":"ok"}`), and stop the server.
 
 - [ ] **Step 6: Commit**
 

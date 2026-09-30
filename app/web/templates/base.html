@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Float{% endblock %} · Float</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='float.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">Float</a>
+    <nav aria-label="Main">{% block nav %}{% endblock %}</nav>
+  </header>
+  <main id="content" class="page">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">
+    <p>Estimates depend on complete, accurate records. Float never connects to a bank.</p>
+  </footer>
+</body>
+</html>

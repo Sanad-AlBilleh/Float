@@ -1,6 +1,6 @@
 # Float — Software Requirements Specification
 
-Version: 0.2 · Date: 2026-09-30 · Status: revised proposal after professor feedback; not implemented.
+Version: 0.2 · Date: 2026-09-30 · Status: approved by the professor (reported by the student on 2026-09-30); implementation in progress per `EXECUTION_PLAN.md`.
 
 This document turns `PRD.md` v0.2 into observable behaviour. Requirements are implementation targets. Names below are proposed interfaces, not existing code. Schema and testing details must be re-evaluated during implementation and reflected honestly in the ADR entries and final diagrams.
 
@@ -631,7 +631,7 @@ NFR-05 requires a measured smoke check, and NFR-08 requires the real coverage ou
 
 ## 12. Submission obligations
 
-- Obtain professor approval of this revised v0.2 scope before application implementation.
+- Professor approval of this v0.2 scope was reported by the student on 30 September 2026, before any application code was written.
 - Maintain exactly five ADR entries: stack, domain boundaries, schema, testing, and a deliberate omission. Entries must span at least three actual commit dates. This SRS proposes details; finalize decisions as evidence becomes available rather than writing fictional later dates.
 - Maintain the six-column AI usage log and student-written implementation explanations as code is accepted.
 - Reach 12+ meaningful commits on 6+ calendar days, with pushes on those days, and no day above 40% of final commits. Documentation and merge commits do not replace later work.

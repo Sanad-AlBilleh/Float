@@ -11,7 +11,7 @@ It does this with:
 
 ## Project status
 
-Requirements and design only. Version 0.2 of the requirements (30 September 2026) expands the original single-user allowance tracker after the professor's feedback that the idea and backend were too simple. No application has been implemented, no tests have been run, and professor approval of the revised scope has not yet been recorded. Obtain approval before writing application code, as Assignment 1 requires.
+Version 0.2 of the requirements (30 September 2026) expands the original single-user allowance tracker after the professor's feedback that the idea and backend were too simple. The student reported the professor's approval of the revised scope on 30 September 2026. Implementation follows [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md), one tested slice per day, on the schedule in [`planned-commits.md`](planned-commits.md).
 
 The proposed stack is Python/FastAPI with SQLite, server-rendered pages, and a JSON API, all in one process. It is organized as a modular monolith with three domains (Ledger, Planning, Households) plus Identity and Insights modules. Transactions are entered manually, EUR is the only currency, and the default allowance is €750 per month.
 
@@ -20,6 +20,8 @@ The proposed stack is Python/FastAPI with SQLite, server-rendered pages, and a J
 - `PRD.md`: user problem, v0.1 → v0.2 changes, product principles, scope and priorities (P0/P1/P2), and success criteria.
 - `SRS.md`: functional requirements, exact calculation rules with worked fixtures, state machines, architecture, schema, security, and acceptance tests.
 - `AI_USAGE.md`: meaningful AI interactions and the boundary between AI drafts and the student's own explanations.
+- `EXECUTION_PLAN.md`: the task-by-task implementation plan for every day, with interfaces, SQL, tests, and traceability.
+- `planned-commits.md`: the daily commit schedule and the rules that keep the history honest.
 - `ADR.md`: to be written as architecture decisions are finalized. Exactly five entries spanning at least three actual commit dates.
 
 Setup instructions and a measured coverage result will be added after implementation. The final submission also needs a 4–5-page report and the written comprehension check.

@@ -44,10 +44,10 @@ With 34 commits, the largest day (30 Sep) is 7/34 ≈ 21%. Even if every remaini
 
 Branch `build/2026-09-30-foundation`. Requirements were merged earlier today (PR #2).
 
-- [ ] `Plan the incremental v0.2 build and daily commit schedule`: this file, `EXECUTION_PLAN.md`, and approval status in PRD/SRS/README.
-- [ ] `Add FastAPI skeleton with configuration and SQLite migrations`: `app.py`, app factory, `.env`-aware settings, SQLite connection pragmas, `BEGIN IMMEDIATE` unit of work, migration runner, fixed categories, health check, base template, architecture test.
-- [ ] `Add exact money, allowance-cycle, and recurrence rules`: integer-cent parsing and formatting, cycle dates, injectable clock, recurrence expansion with property tests, README run instructions, and AI log rows.
-- [ ] Merge PR `Build the Float foundation`.
+- [x] `Plan the incremental v0.2 build and daily commit schedule`: this file, `EXECUTION_PLAN.md`, and approval status in PRD/SRS/README.
+- [x] `Add FastAPI skeleton with configuration and SQLite migrations`: `app.py`, app factory, `.env`-aware settings, SQLite connection pragmas, `BEGIN IMMEDIATE` unit of work, migration runner, fixed categories, health check, base template, architecture test.
+- [x] `Add exact money, allowance-cycle, and recurrence rules`: integer-cent parsing and formatting, cycle dates, injectable clock, recurrence expansion with property tests, README run instructions, and AI log rows.
+- [ ] Merge PR `Build the Float foundation`. (This box is ticked in the next day's first commit, so 30 September gets no extra commit.)
 
 Evidence: AI log rows for the planning discussion and the foundation build.
 

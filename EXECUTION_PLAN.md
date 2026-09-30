@@ -1751,6 +1751,13 @@ def test_once_produces_only_its_anchor():
     assert expand(rule, D(2026, 9, 26), D(2027, 1, 1)) == []
 
 
+def test_a_window_starting_on_an_occurrence_includes_it():
+    fortnightly = Rule("weekly", 2, D(2026, 9, 4))
+    assert expand(fortnightly, D(2026, 9, 18), D(2026, 10, 3)) == [D(2026, 9, 18), D(2026, 10, 2)]
+    gym = Rule("monthly", 1, D(2026, 7, 5))
+    assert expand(gym, D(2026, 9, 5), D(2026, 10, 6)) == [D(2026, 9, 5), D(2026, 10, 5)]
+
+
 def test_count_before_counts_valid_occurrences():
     gym = Rule("monthly", 1, D(2026, 7, 5))
     assert count_before(gym, D(2026, 10, 5)) == 3
@@ -1816,6 +1823,14 @@ def test_occurrences_are_the_rule_candidates_in_order(rule):
     assert dates == [candidate(rule, k) for k in range(len(dates))]
     if rule.freq == "monthly":
         assert all(day.day == min(rule.anchor.day, last_day_of_month(day.year, day.month)) for day in dates)
+
+
+@given(rules(), st.integers(0, 30))
+def test_every_occurrence_is_found_by_a_window_starting_on_it(rule, k):
+    occurrences = expand(rule, rule.anchor, rule.anchor + timedelta(days=3 * 366))
+    if k < len(occurrences):
+        day = occurrences[k]
+        assert expand(rule, day, day + timedelta(days=1)) == [day]
 
 
 @given(rules())

@@ -33,7 +33,7 @@ Copied from the SRS. Every task implicitly includes this section.
 
 Each day follows the same loop:
 
-1. `git checkout main && git pull --ff-only`, then `git checkout -b build/<date>-<slug>` using the branch name from `planned-commits.md`.
+1. `git checkout main && git pull --ff-only`, then `git checkout -b <branch>` using the day's branch name from `planned-commits.md` (`feature/…` for a build day, `release/…` for the testing day).
 2. Activate the environment: `source .venv/bin/activate`. If the virtualenv is missing, create it with `python3 -m venv .venv && pip install -r requirements.txt`.
 3. Work task by task. Write the failing test, run it and watch it fail for the expected reason, write the minimal implementation, then run it and watch it pass.
 4. Run the whole suite before each commit: `pytest -q`. Commit only when everything passes. Commit messages are the ones in `planned-commits.md`.
@@ -1953,7 +1953,7 @@ Run: `pytest tests/shared -q`. Expected: all pass. The Hypothesis properties run
 ```bash
 git add app tests README.md AI_USAGE.md planned-commits.md
 git commit -m "Add exact money, allowance-cycle, and recurrence rules"
-git push -u origin build/2026-09-30-foundation
+git push -u origin feature/project-foundation
 gh pr create --base main --title "Build the Float foundation" --body "<summary, verification output, not-yet-implemented list>"
 gh pr merge --merge
 ```

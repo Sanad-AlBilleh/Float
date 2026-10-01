@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% import "macros/forms.html" as forms %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+  <h1>Settings</h1>
+  {% if saved %}<p class="notice" role="status">Planned allowance saved.</p>{% endif %}
+  <h2>Fixed at setup</h2>
+  <dl class="facts">
+    <dt>Tracking started</dt><dd><time datetime="{{ ledger.tracking_start.isoformat() }}">{{ ledger.tracking_start.isoformat() }}</time></dd>
+    <dt>Opening balance</dt><dd>{{ ledger.opening_balance_cents|money }}</dd>
+    <dt>Allowance day</dt><dd>Day {{ planning.allowance_day }} of each month (the last day in shorter months)</dd>
+  </dl>
+  <p class="muted">These cannot be changed after setup, so your history always means the same thing.</p>
+  <h2>Planned allowance</h2>
+  {{ forms.error_summary(errors) }}
+  <form method="post" action="/settings/planned-allowance" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {{ forms.field("planned_allowance", "Planned allowance (€)", errors, values.planned_allowance, inputmode="decimal",
+                   hint="What you expect each month. Float never counts it until you record it as received.") }}
+    <button type="submit" class="button">Save</button>
+  </form>
+{% endblock %}

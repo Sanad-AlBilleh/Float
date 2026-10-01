@@ -79,3 +79,231 @@ select:focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* Navigation and layout */
+.skip-link {
+  position: absolute;
+  left: -999px;
+}
+
+.skip-link:focus {
+  left: 1rem;
+  top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius);
+}
+
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  align-items: center;
+}
+
+nav a { margin-left: 0; }
+
+.inline-form { display: inline; margin: 0; }
+
+h1 { line-height: 1.2; }
+
+/* Buttons */
+.button,
+button.button {
+  display: inline-block;
+  padding: 0.6rem 1.1rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--surface);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button-secondary {
+  background: transparent;
+  color: var(--accent);
+}
+
+.button-danger {
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+/* Forms */
+.stack {
+  display: grid;
+  gap: 1rem;
+  max-width: 28rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.field label,
+.field legend { font-weight: 600; }
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.field-has-error input,
+.field-has-error select { border: 2px solid var(--danger); }
+
+.hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.field-error {
+  margin: 0;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.error-summary {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--danger);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.error-summary h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.notice {
+  padding: 0.75rem 1rem;
+  border-left: 4px solid var(--accent);
+  background: var(--surface);
+}
+
+.warning {
+  padding: 0.75rem 1rem;
+  border-left: 4px solid var(--warning);
+  background: var(--surface);
+}
+
+/* Dashboard and lists */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.card {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.card h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+.figure {
+  margin: 0.25rem 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.table-scroll { overflow-x: auto; }
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+
+.table th,
+.table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table .num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.tag {
+  display: inline-block;
+  margin-left: 0.25rem;
+  padding: 0 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.choice {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-weight: 400;
+}
+
+fieldset.field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+}
+
+.facts dt { font-weight: 600; }
+
+.facts dd { margin: 0; }

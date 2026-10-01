@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+  <h1>Today, <time datetime="{{ view.cycle.today.isoformat() }}">{{ view.cycle.today.isoformat() }}</time></h1>
+  {% if view.allowance_reminder %}
+    <div class="warning" role="status">
+      <p><strong>No allowance recorded this cycle.</strong> If your {{ view.planned_allowance_cents|money }} has arrived,
+        <a href="/transactions/new?kind=income&amp;source=allowance">record it as income</a>. Float never assumes it arrived.</p>
+    </div>
+  {% endif %}
+  <section class="cards" aria-label="Your numbers">
+    <div class="card">
+      <h2>Recorded balance</h2>
+      <p class="figure">{{ view.recorded_balance_cents|money }}</p>
+      <p class="muted">Your opening balance plus everything recorded since
+        <time datetime="{{ view.tracking_start.isoformat() }}">{{ view.tracking_start.isoformat() }}</time>.</p>
+    </div>
+    <div class="card">
+      <h2>Next allowance</h2>
+      <p class="figure"><time datetime="{{ view.cycle.next_allowance.isoformat() }}">{{ view.cycle.next_allowance.isoformat() }}</time></p>
+      <p class="muted">In {{ view.cycle.days_remaining }} day{{ "" if view.cycle.days_remaining == 1 else "s" }}.
+        Expected {{ view.planned_allowance_cents|money }}, not counted until you record it.</p>
+    </div>
+  </section>
+  <p class="actions">
+    <a class="button" href="/transactions/new">Add expense</a>
+    <a class="button button-secondary" href="/transactions/new?kind=income">Add income</a>
+    <a href="/transactions">All transactions</a>
+  </p>
+{% endblock %}

@@ -1,4 +1,5 @@
 import importlib.util
+import logging
 from pathlib import Path
 
 import pytest
@@ -78,3 +79,15 @@ def test_entry_point_rejects_invalid_configuration(monkeypatch, capsys):
         entry.main()
     assert exit_info.value.code == 2
     assert "PORT" in capsys.readouterr().err
+
+
+def test_entry_point_turns_on_the_request_log(monkeypatch, tmp_path):
+    entry = load_entry_point()
+    monkeypatch.setattr(entry.uvicorn, "run", lambda app, **options: None)
+    monkeypatch.setenv("DATA_DIR", str(tmp_path / "data"))
+    logger = logging.getLogger("float")
+    monkeypatch.setattr(logger, "handlers", [])
+    monkeypatch.setattr(logger, "level", logging.NOTSET)
+    entry.main()
+    assert logger.isEnabledFor(logging.INFO)
+    assert logger.handlers, "the request log needs a handler when Float runs for real"

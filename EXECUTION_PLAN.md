@@ -1964,6 +1964,13 @@ gh pr merge --merge
 
 **Deliverable:** people can register, log in, and log out with secure sessions. They complete setup and record, edit, and delete manual income and expenses. A dashboard shows their recorded balance, the current cycle, and the allowance reminder. Every mutation is protected by CSRF and written to an append-only audit trail. Covers FR-01–08, FR-28, FR-33 (table and writes), FR-39, NFR-10, and part of SRS §9. Tests: AT-01, AT-02, AT-04, AT-05, AT-21, AT-25 (append-only), and the first rows of the AT-03 authorization matrix.
 
+**As built on 1 October.** The day followed this section, with these refinements, which the code and tests now reflect:
+- **Identity:** `attempt_login(...) -> LoginOutcome` and `start_session(...)` replace the planned `login(...)`. The application layer (`app/application/accounts.py`) commits a failed attempt before raising, so the throttle counts it.
+- **Ledger:** `create_linked` and `update_linked` take `today` and enforce the tracking period.
+- **Forms:** `setup_problems` and `draft_problems` let a form show its parse errors and the domain rules' errors together, in form order.
+- **FR-28:** there is no allowance reminder in a first, partial cycle, because that cycle's allowance is already in the opening balance.
+- **Web:** `app/web/rendering.py` holds `render`, `redirect`, and cookie helpers. `require_ready_session` redirects to `/setup` until setup is complete. `/settings` edits the planned allowance and `/account` changes the password.
+
 ### Task 1.1: Identity domain (FR-01–03)
 
 **Files:**

@@ -18,12 +18,20 @@ The stack is Python/FastAPI with SQLite, server-rendered pages, and (in P1) a JS
 ### What works so far
 
 **Day 0 (30 September), the foundation:**
-- `python app.py` starts the app, which serves a home page, `/healthz`, and a stylesheet.
-- Settings are read from environment variables or an optional `.env`. Invalid values stop startup with a message naming the variable.
-- The SQLite database is created on first start in WAL mode, with numbered migrations applied exactly once and the fixed categories seeded.
-- The pure rules later days build on are in place and tested: exact euro parsing and formatting in integer cents, allowance-cycle dates, and recurring-bill expansion with month-end clamping.
+- `python app.py` starts the app.
+- Settings are read from the environment or an optional `.env`, and invalid values stop startup with a clear message.
+- The SQLite database runs in WAL mode, with numbered migrations applied exactly once.
+- The pure rules later days build on are tested: exact euro parsing in integer cents, allowance-cycle dates, and recurring-bill expansion.
 
-Accounts, the ledger, bills, households, and the dashboard are not implemented yet. They arrive on the days listed in `planned-commits.md`.
+**Day 1 (1 October), accounts and the personal ledger:**
+- **Accounts:** create an account, log in and out, and change your password. Passwords are stored as scrypt hashes. Sessions expire after 48 idle hours or 14 days, and changing your password signs out your other browsers. Five failed logins lock a username, and twenty lock an address, for 15 minutes.
+- **Security:** every form is protected against cross-site requests. Pages send security headers and a request ID. Each request writes one log line containing no secrets. Errors show friendly pages, and other people's records answer "not found".
+- **Setup:** enter your start date, the money you have now, your allowance day, and your planned allowance (default €750). The first three are fixed afterwards; the planned allowance can be changed in Settings.
+- **Transactions:** record, edit, and delete income and expenses. Amounts like `12,50` are read exactly, and stale edits are refused. Transactions created by bills, shared expenses, or settlements cannot be edited directly.
+- **Dashboard:** your recorded balance, the next allowance date, and a reminder until this cycle's allowance is recorded. Float never assumes the allowance arrived.
+- **Audit trail:** every financial change is recorded in an append-only log.
+
+Recurring bills, goals, and safe-to-spend arrive on 2 October; households, splitting, and settlements on 3 October (see `planned-commits.md`).
 
 ## Running Float
 
@@ -54,14 +62,22 @@ pytest
 ```
 
 ```bash
-pytest --cov=app.shared --cov=app.db --cov=app.config --cov=app.web --cov=app.main --cov-report=term-missing
+pytest --cov=app.identity --cov=app.ledger --cov=app.planning --cov=app.application --cov=app.shared --cov-report=term-missing
 ```
 
-Measured on 30 September 2026 (Python 3.14.7, macOS): **113 tests passed**, and line coverage was **99%** (342 statements, 2 missed: the explicit `COOKIE_SECURE=false` branch in `app/config.py:68` and `SystemClock.today`). The tests include Hypothesis property tests for money round-trips, cycle dates, and recurrence.
+The second command is the NFR-08 coverage set, limited to the modules that exist so far. `app.households` and `app.insights` join it as they are built.
 
-As a check that the tests catch real bugs, five deliberate mutations were each applied and reverted: month-end clamping, weekly and monthly skip-ahead, the two-decimal limit, and the payday boundary. The suite failed for every one.
+| Date | Tests | Coverage of the NFR-08 modules | Coverage of all modules |
+|---|---|---|---|
+| 30 Sep | 113 passed | 100% of `app.shared` | 99% (342 statements, 2 missed) |
+| 1 Oct | 249 passed | 99% (763 statements, 10 missed) | 97% (1,333 statements, 40 missed) |
 
-The full NFR-08 coverage command from `SRS.md` §11 applies once the domain modules exist.
+These figures were measured on macOS with Python 3.14.7. The suite includes Hypothesis property tests, an architecture test that enforces the domain boundaries, and an authorization test for every page that shows records.
+
+Each day, deliberate bugs were injected into the new code to check that the tests catch them:
+- **30 September:** five mutations, all caught after one test was added.
+- **1 October:** 30 mutations across identity, the web layer, the ledger, and setup. The first run missed five (the dummy-password path, two redirect checks, clearing the logout cookie, and showing every form problem at once). Tests were added and all 30 are now caught.
+- **1 October, real server:** the final smoke test also found that the request log never reached the server output. That was fixed, with a test, before release.
 
 ## Planned documentation
 

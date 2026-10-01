@@ -1,9 +1,10 @@
 """Routes that exist before any domain: the health check and the home page."""
 
-from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, Request
 
-from app.web.templating import templates
+from app.identity.api import Session
+from app.web.deps import current_session
+from app.web.rendering import render
 
 router = APIRouter()
 
@@ -14,8 +15,8 @@ def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.get("/", response_class=HTMLResponse)
-def home(request: Request) -> HTMLResponse:
+@router.get("/")
+def home(request: Request, session: Session | None = Depends(current_session)):
     today = request.app.state.clock.today()
     timezone = request.app.state.settings.timezone
-    return templates.TemplateResponse(request, "home.html", {"today": today, "timezone": timezone})
+    return render(request, "home.html", {"today": today, "timezone": timezone})

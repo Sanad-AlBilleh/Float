@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% import "macros/forms.html" as forms %}
+{% block title %}Create an account{% endblock %}
+{% block content %}
+  <h1>Create your account</h1>
+  {{ forms.error_summary(errors) }}
+  <form method="post" action="/register" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {{ forms.field("username", "Username", errors, values.get("username", ""), autocomplete="username",
+                   hint="3–32 characters: lowercase letters, digits, or _.") }}
+    {{ forms.field("display_name", "Your name", errors, values.get("display_name", ""), autocomplete="name",
+                   hint="Shown to flatmates in shared households.") }}
+    {{ forms.field("password", "Password", errors, "", type="password", autocomplete="new-password",
+                   hint="10–128 characters. A short sentence works well.") }}
+    <button type="submit" class="button">Create account</button>
+  </form>
+  <p>Already have an account? <a href="/login">Log in</a>.</p>
+{% endblock %}

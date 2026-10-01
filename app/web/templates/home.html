@@ -3,6 +3,13 @@
 {% block content %}
   <h1>Float</h1>
   <p class="lead">What can I safely spend today, after my bills, my share of the flat, what I owe my flatmates, and my savings plan?</p>
-  <p>The foundation is running. Accounts and setup arrive in the next build step.</p>
+  {% if current_user %}
+    <p>Signed in as {{ current_user.display_name }}.</p>
+  {% else %}
+    <p class="actions">
+      <a class="button" href="/register">Create an account</a>
+      <a class="button button-secondary" href="/login">Log in</a>
+    </p>
+  {% endif %}
   <p class="muted">Today is <time datetime="{{ today.isoformat() }}">{{ today.isoformat() }}</time> ({{ timezone }}).</p>
 {% endblock %}

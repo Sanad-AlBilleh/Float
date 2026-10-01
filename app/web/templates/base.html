@@ -7,9 +7,23 @@
   <link rel="stylesheet" href="{{ url_for('static', path='float.css') }}">
 </head>
 <body>
+  <a class="skip-link" href="#content">Skip to content</a>
   <header class="site-header">
     <a class="brand" href="/">Float</a>
-    <nav aria-label="Main">{% block nav %}{% endblock %}</nav>
+    <nav aria-label="Main" class="site-nav">
+      {% if current_user %}
+        <a href="/">Dashboard</a>
+        {% block nav_links %}{% endblock %}
+        <a href="/account">{{ current_user.display_name }}</a>
+        <form method="post" action="/logout" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="link-button">Log out</button>
+        </form>
+      {% else %}
+        <a href="/login">Log in</a>
+        <a href="/register">Create account</a>
+      {% endif %}
+    </nav>
   </header>
   <main id="content" class="page">
     {% block content %}{% endblock %}

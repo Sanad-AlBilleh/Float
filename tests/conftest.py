@@ -26,9 +26,30 @@ def settings(tmp_path) -> Settings:
 
 
 @pytest.fixture
-def client(settings, clock):
-    with TestClient(create_app(settings, clock)) as test_client:
+def app(settings, clock):
+    return create_app(settings, clock)
+
+
+@pytest.fixture
+def client(app):
+    with TestClient(app) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def make_client(app):
+    """Extra browsers for multi-user tests; each has its own cookie jar."""
+    opened = []
+
+    def factory() -> TestClient:
+        browser = TestClient(app)
+        browser.__enter__()
+        opened.append(browser)
+        return browser
+
+    yield factory
+    for browser in opened:
+        browser.__exit__(None, None, None)
 
 
 @pytest.fixture

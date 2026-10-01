@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p>{{ message }}</p>
+  {% if request_id %}<p class="muted">Request ID: <code>{{ request_id }}</code></p>{% endif %}
+  <p><a href="/">Back to Float</a></p>
+{% endblock %}

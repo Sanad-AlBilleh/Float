@@ -3,16 +3,19 @@
 import sqlite3
 
 
-def insert_settings(conn: sqlite3.Connection, *, user_id: int, allowance_day: int, planned_allowance_cents: int) -> None:
+def insert_settings(conn: sqlite3.Connection, *, user_id: int, allowance_day: int, planned_allowance_cents: int,
+                    opening_includes_allowance: bool) -> None:
     conn.execute(
-        "INSERT INTO planning_settings (user_id, allowance_day, planned_allowance_cents) VALUES (?, ?, ?)",
-        (user_id, allowance_day, planned_allowance_cents),
+        "INSERT INTO planning_settings (user_id, allowance_day, planned_allowance_cents, opening_includes_allowance)"
+        " VALUES (?, ?, ?, ?)",
+        (user_id, allowance_day, planned_allowance_cents, int(opening_includes_allowance)),
     )
 
 
 def get_settings(conn: sqlite3.Connection, user_id: int) -> sqlite3.Row | None:
     return conn.execute(
-        "SELECT user_id, allowance_day, planned_allowance_cents FROM planning_settings WHERE user_id = ?",
+        "SELECT user_id, allowance_day, planned_allowance_cents, opening_includes_allowance"
+        " FROM planning_settings WHERE user_id = ?",
         (user_id,),
     ).fetchone()
 

@@ -70,3 +70,37 @@ def test_money_filter_is_available_in_templates():
 @given(st.integers(min_value=-MAX_CENTS, max_value=MAX_CENTS))
 def test_form_values_round_trip_exactly(cents):
     assert parse_money(cents_to_input(cents), allow_zero=True, allow_negative=True) == cents
+
+
+@pytest.mark.parametrize(
+    "text, cents",
+    [("999 999,99", 99999999), ("1 000 000", MAX_CENTS), ("1\u00a0234,56", 123456), ("1\u202f234.56", 123456), ("12,50 €", 1250),
+     ("12,50€", 1250)],
+)
+def test_spaces_may_only_separate_thousands(text, cents):
+    assert parse_money(text) == cents
+
+
+@pytest.mark.parametrize("text", ["12 50", "1 2 3", "1234 567", "12 345 6", "1  234"])
+def test_other_spaces_are_rejected_instead_of_guessed(text):
+    with pytest.raises(ValidationError) as error:
+        parse_money(text, field="amount")
+    assert error.value.errors == {"amount": "Use spaces only between groups of three digits, like 1 234,56."}
+
+
+def test_absurdly_long_numbers_are_rejected_without_crashing():
+    with pytest.raises(ValidationError) as error:
+        parse_money("1" * 5000)
+    assert error.value.errors == {"amount": "Amounts are limited to €1,000,000.00."}
+    assert parse_money("0000012.50") == 1250  # leading zeros are harmless
+
+
+def test_a_sign_may_come_before_the_euro_sign():
+    assert parse_money("-€5", allow_negative=True) == -500
+
+
+@given(st.integers(min_value=0, max_value=MAX_CENTS))
+def test_amounts_written_with_thousands_spaces_round_trip(cents):
+    euros, remainder = divmod(cents, 100)
+    text = f"{euros:,}".replace(",", " ") + f",{remainder:02d}"
+    assert parse_money(text, allow_zero=True) == cents

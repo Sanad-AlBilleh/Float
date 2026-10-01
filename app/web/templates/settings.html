@@ -9,6 +9,7 @@
     <dt>Tracking started</dt><dd><time datetime="{{ ledger.tracking_start.isoformat() }}">{{ ledger.tracking_start.isoformat() }}</time></dd>
     <dt>Opening balance</dt><dd>{{ ledger.opening_balance_cents|money }}</dd>
     <dt>Allowance day</dt><dd>Day {{ planning.allowance_day }} of each month (the last day in shorter months)</dd>
+    <dt>First cycle's allowance</dt><dd>{{ "Already in the opening balance" if planning.opening_includes_allowance else "Recorded as income" }}</dd>
   </dl>
   <p class="muted">These cannot be changed after setup, so your history always means the same thing.</p>
   <h2>Planned allowance</h2>

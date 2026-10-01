@@ -14,7 +14,17 @@
     {{ forms.field("tracking_start", "Tracking start date", errors, values.tracking_start, type="date",
                    hint="Usually today. Transactions are recorded from this date on.") }}
     {{ forms.field("opening_balance", "Money you have now (€)", errors, values.opening_balance, inputmode="decimal",
-                   hint="Your balance before anything you record from the start date. It can be negative. If this month's allowance is already in it, do not record it again.") }}
+                   hint="Your balance before anything you record from the start date. It can be negative.") }}
+    <fieldset class="field{% if errors.allowance_included %} field-has-error{% endif %}"
+              {%- if errors.allowance_included %} aria-describedby="allowance_included-error"{% endif %}>
+      <legend>Is this cycle's allowance already in that amount?</legend>
+      <p class="hint">If it is, Float will not ask you to record it again this cycle, so it is never counted twice.</p>
+      {% if errors.allowance_included %}<p class="field-error" id="allowance_included-error">{{ errors.allowance_included }}</p>{% endif %}
+      <label class="choice"><input type="radio" id="allowance_included" name="allowance_included" value="yes"
+        {%- if values.allowance_included == "yes" %} checked{% endif %}> Yes, it has arrived and is included</label>
+      <label class="choice"><input type="radio" name="allowance_included" value="no"
+        {%- if values.allowance_included == "no" %} checked{% endif %}> No, I will record it when it arrives</label>
+    </fieldset>
     {{ forms.field("allowance_day", "Allowance day", errors, values.allowance_day, inputmode="numeric",
                    hint="The day of the month your allowance arrives, 1–31. Shorter months use their last day.") }}
     {{ forms.field("planned_allowance", "Planned allowance (€)", errors, values.planned_allowance, inputmode="decimal",

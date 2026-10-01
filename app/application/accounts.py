@@ -31,7 +31,7 @@ def log_in(conn: sqlite3.Connection, *, username: str | None, password: str | No
         )
     # Raise only after the commit, so a failed attempt still counts toward throttling (FR-03).
     if outcome.locked:
-        raise identity.LockedOutError()
+        raise identity.LockedOutError(outcome.retry_after_minutes)
     if outcome.session is None:
         raise identity.AuthenticationError()
     return outcome.session, outcome.token

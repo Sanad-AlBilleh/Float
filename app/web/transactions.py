@@ -51,14 +51,21 @@ def _problems(conn: sqlite3.Connection, actor, parse_errors: dict[str, str], dra
 
 
 def _form(request: Request, conn: sqlite3.Connection, *, action: str, values: dict, errors=None,
-          editing: Transaction | None = None, status_code: int = 200):
+          editing: Transaction | None = None, conflict: bool = False, status_code: int = 200):
     return render(
         request,
         "transactions/form.html",
-        {"action": action, "values": values, "errors": errors or {}, "editing": editing,
+        {"action": action, "values": values, "errors": errors or {}, "editing": editing, "conflict": conflict,
          "categories": list_categories(conn), "income_sources": MANUAL_INCOME_SOURCES},
         status_code=status_code,
     )
+
+
+def _values_of(transaction: Transaction) -> dict:
+    return _submitted(transaction.kind, cents_to_input(transaction.amount_cents),
+                      transaction.occurred_on.isoformat(), str(transaction.category_id or ""),
+                      transaction.income_source or "allowance", "on" if transaction.one_off else None,
+                      transaction.note, str(transaction.version))
 
 
 def _submitted(kind, amount, occurred_on, category_id, income_source, one_off, note, version="") -> dict:
@@ -67,13 +74,15 @@ def _submitted(kind, amount, occurred_on, category_id, income_source, one_off, n
 
 
 def _parse_cursor(before: str | None) -> tuple[date, int] | None:
+    """Read an "older" link of the form YYYY-MM-DD:id; anything malformed shows the first page."""
     if not before:
         return None
     day, _, last_id = before.partition(":")
     try:
-        return date.fromisoformat(day), int(last_id)
+        cursor = date.fromisoformat(day), int(last_id[:20])
     except ValueError:
         return None
+    return cursor if 1 <= cursor[1] <= 2**63 - 1 else None
 
 
 @router.get("")
@@ -87,9 +96,10 @@ def list_page(request: Request, session: Session = Depends(require_ready_session
         items = items[:PAGE_SIZE]
         older = f"{items[-1].occurred_on.isoformat()}:{items[-1].id}"
     categories = {category.id: category.name for category in list_categories(conn)}
+    balance = use_cases.current_balance(conn, actor_for(request, session), request.app.state.clock)
     return render(request, "transactions/list.html",
                   {"items": items, "categories": categories, "older": older, "saved": bool(saved),
-                   "deleted": bool(deleted)})
+                   "deleted": bool(deleted), "balance": balance})
 
 
 @router.get("/new")
@@ -135,10 +145,8 @@ def edit_form(transaction_id: int, request: Request, session: Session = Depends(
     current = use_cases.get_transaction(conn, actor_for(request, session), transaction_id)
     if not current.directly_editable:
         raise ConflictError(LINKED_MESSAGE)
-    values = _submitted(current.kind, cents_to_input(current.amount_cents), current.occurred_on.isoformat(),
-                        str(current.category_id or ""), current.income_source or "allowance",
-                        "on" if current.one_off else None, current.note, str(current.version))
-    return _form(request, conn, action=f"/transactions/{transaction_id}/edit", values=values, editing=current)
+    return _form(request, conn, action=f"/transactions/{transaction_id}/edit", values=_values_of(current),
+                 editing=current)
 
 
 @router.post("/{transaction_id}/edit", dependencies=[Depends(verify_csrf)])
@@ -158,6 +166,8 @@ def update(
 ):
     actor, clock = actor_for(request, session), request.app.state.clock
     current = use_cases.get_transaction(conn, actor, transaction_id)  # 404 before anything else (FR-04)
+    if not current.directly_editable:  # refused before the form is even checked (FR-07)
+        raise ConflictError(LINKED_MESSAGE)
     parse_errors: dict[str, str] = {}
     expected = collect(parse_errors, parse_whole_number, version, field="version", low=1, high=10**9,
                        message="Reload the page and try again.")
@@ -169,6 +179,13 @@ def update(
             use_cases.edit_transaction(conn, actor, transaction_id, expected, draft, clock)
         except ValidationError as error:
             errors.update(error.errors)
+        except ConflictError:
+            latest = use_cases.get_transaction(conn, actor, transaction_id)
+            if not latest.directly_editable:
+                raise
+            # §6.4: a stale edit shows the latest values so the change can be made again.
+            return _form(request, conn, action=f"/transactions/{transaction_id}/edit", values=_values_of(latest),
+                         editing=latest, conflict=True, status_code=409)
     if errors:
         values = _submitted(kind, amount, occurred_on, category_id, income_source, one_off, note, version)
         return _form(request, conn, action=f"/transactions/{transaction_id}/edit", values=values, errors=errors,

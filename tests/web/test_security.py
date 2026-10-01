@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
-from tests.web.helpers import PASSWORD, csrf_from, sign_up
+from tests.web.helpers import ORIGIN, PASSWORD, csrf_from, sign_up
 
 
 def test_posts_without_a_csrf_token_are_rejected(client):
@@ -102,3 +102,43 @@ def test_request_log_uses_route_templates_and_no_secrets(client, caplog):
     assert line["route"] == "/account" and line["status"] == 200 and line["user_id"] is not None
     assert set(line) == {"request_id", "method", "route", "status", "duration_ms", "user_id"}
     assert all(session_cookie not in record.getMessage() for record in caplog.records)
+
+
+def test_form_posts_need_a_same_site_origin_or_referer(client):
+    sign_up(client)
+    token = csrf_from(client.get("/account"))
+    bare = client.post("/logout", data={"csrf_token": token}, follow_redirects=False)
+    assert bare.status_code == 403
+    with_referer = client.post("/logout", data={"csrf_token": token},
+                               headers={"Referer": "http://testserver/account"}, follow_redirects=False)
+    assert with_referer.status_code == 303
+
+
+def test_header_tokens_from_scripts_do_not_need_an_origin(client):
+    sign_up(client)
+    token = csrf_from(client.get("/account"))
+    response = client.post("/logout", headers={"X-CSRF-Token": token}, follow_redirects=False)
+    assert response.status_code == 303
+
+
+def test_oversized_forms_are_refused(client):
+    sign_up(client)
+    token = csrf_from(client.get("/account"))
+    response = client.post("/account/password", data={"csrf_token": token, "current_password": "x" * 70_000},
+                           headers=ORIGIN, follow_redirects=False)
+    assert response.status_code == 413
+    assert "too large" in response.text
+    assert "x" * 1000 not in response.text
+
+
+def test_error_pages_keep_the_signed_in_navigation(app):
+    def explode():
+        raise RuntimeError("boom")
+
+    app.add_api_route("/explode", explode)
+    with TestClient(app) as browser:
+        sign_up(browser)
+        for path, status in (("/nope", 404), ("/logout", 405), ("/explode", 500)):
+            response = browser.get(path)
+            assert response.status_code == status, path
+            assert "Log out" in response.text and "Create account" not in response.text, path

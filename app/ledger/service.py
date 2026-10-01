@@ -23,6 +23,7 @@ from app.shared.errors import ConflictError, NotFoundError
 LINKED_MESSAGE = "This transaction is managed by its bill, shared expense, or settlement."
 STALE_MESSAGE = "This transaction changed since you opened it. Reload the page and try again."
 SETUP_MESSAGE = "Complete setup first."
+SQLITE_MAX_ID = 2**63 - 1  # larger numbers cannot be stored, so no such record exists
 
 
 @dataclass(frozen=True)
@@ -118,6 +119,8 @@ def _category_ids(conn: sqlite3.Connection) -> set[int]:
 
 
 def get_transaction(conn: sqlite3.Connection, *, user_id: int, transaction_id: int) -> Transaction:
+    if not 1 <= transaction_id <= SQLITE_MAX_ID:
+        raise NotFoundError("No such transaction.")
     row = repository.get_transaction(conn, transaction_id)
     if row is None or row["user_id"] != user_id:
         raise NotFoundError("No such transaction.")

@@ -141,3 +141,68 @@ def test_csrf_is_required_for_transactions(client):
     response = client.post("/transactions/new", data={"kind": "expense", "amount": "1", "occurred_on": "2026-09-20",
                                                       "category_id": "1"}, follow_redirects=False)
     assert response.status_code == 403
+
+
+def test_setup_asks_whether_the_allowance_is_already_counted(client):
+    sign_up(client)
+    response = post_form(client, "/setup", "/setup", {"tracking_start": "2026-09-01", "opening_balance": "100",
+                                                      "allowance_day": "1", "planned_allowance": "750"})
+    assert response.status_code == 400
+    assert "Tell Float whether this cycle&#39;s allowance is already in that amount." in response.text
+
+
+def test_setting_up_on_payday_with_the_allowance_counted_shows_no_reminder(client):
+    sign_up(client)
+    set_up(client, tracking_start="2026-09-30", allowance_day="30", opening_balance="850", allowance_included="yes")
+    assert "No allowance recorded" not in client.get("/").text
+
+
+def test_a_balance_below_zero_is_accepted_with_a_warning(client):
+    sign_up(client)
+    set_up(client)
+    assert add_transaction(client, amount="200").status_code == 303  # €100 opening balance
+    for page in (client.get("/").text, client.get("/transactions").text):
+        assert "-€100.00" in page and "below zero" in page
+
+
+def test_a_stale_edit_shows_the_latest_values(client):
+    sign_up(client)
+    set_up(client)
+    add_transaction(client)
+    transaction_id = transaction_ids(client)[0]
+    stale = version_of(client, transaction_id)
+    form = {"kind": "expense", "occurred_on": "2026-09-20", "category_id": "1"}
+    post_form(client, "/transactions", f"/transactions/{transaction_id}/edit", {**form, "amount": "30", "version": stale})
+    response = post_form(client, "/transactions", f"/transactions/{transaction_id}/edit",
+                         {**form, "amount": "40", "version": stale})
+    assert response.status_code == 409
+    assert "changed since you opened it" in response.text
+    assert 'value="30.00"' in response.text and 'value="40"' not in response.text
+    assert f'name="version" value="{int(stale) + 1}"' in response.text
+
+
+def test_an_invalid_edit_of_a_linked_transaction_is_still_refused(client, settings, clock):
+    sign_up(client)
+    set_up(client)
+    conn = connect(settings.db_path)
+    try:
+        user_id = conn.execute("SELECT id FROM users WHERE username = 'ana'").fetchone()[0]
+        linked = create_linked(conn, user_id=user_id, kind="expense", origin="bill", amount_cents=12000,
+                               occurred_on=date(2026, 9, 25), category_id=6, income_source=None,
+                               note="Phone", today=clock.today(), now=clock.now_utc())
+    finally:
+        conn.close()
+    response = post_form(client, "/transactions", f"/transactions/{linked}/edit",
+                         {"kind": "expense", "amount": "not money", "occurred_on": "2026-09-20", "version": "1"})
+    assert response.status_code == 409 and "Managed by" not in response.text
+
+
+def test_out_of_range_numbers_never_cause_server_errors(client):
+    sign_up(client)
+    set_up(client)
+    huge = "99999999999999999999"
+    assert client.get(f"/transactions/{huge}/edit").status_code == 404
+    response = post_form(client, "/transactions", f"/transactions/{huge}/delete", {"version": "1"})
+    assert response.status_code == 404
+    assert client.get(f"/transactions?before=2026-10-01:{huge}").status_code == 200
+    assert add_transaction(client, amount="1" * 5000).status_code == 400

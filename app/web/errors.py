@@ -8,13 +8,16 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.shared.errors import ConflictError, NotFoundError, PermissionDeniedError, ValidationError
-from app.web.deps import LoginRequired, SetupRequired
+from app.web.deps import LoginRequired, SetupRequired, session_for_page
 from app.web.rendering import redirect, render
 from app.web.security import CsrfError
 
 
-def _page(request: Request, status_code: int, title: str, message: str):
+def error_page(request: Request, status_code: int, title: str, message: str):
+    """An error page that keeps the signed-in navigation, even when no route dependency ran."""
+    session_for_page(request)
     return render(request, "error.html", {"title": title, "message": message}, status_code=status_code)
+
 
 
 def install(app: FastAPI) -> None:
@@ -29,24 +32,24 @@ def install(app: FastAPI) -> None:
 
     @app.exception_handler(CsrfError)
     async def csrf_failed(request: Request, exc: CsrfError):
-        return _page(request, 403, "Request blocked",
+        return error_page(request, 403, "Request blocked",
                      "This form expired or was sent from another site. Go back, reload the page, and try again.")
 
     @app.exception_handler(NotFoundError)
     async def not_found(request: Request, exc: NotFoundError):
-        return _page(request, 404, "Not found", "That page or record could not be found.")
+        return error_page(request, 404, "Not found", "That page or record could not be found.")
 
     @app.exception_handler(PermissionDeniedError)
     async def forbidden(request: Request, exc: PermissionDeniedError):
-        return _page(request, 403, "Not allowed", str(exc) or "You do not have permission to do that.")
+        return error_page(request, 403, "Not allowed", str(exc) or "You do not have permission to do that.")
 
     @app.exception_handler(ConflictError)
     async def conflict(request: Request, exc: ConflictError):
-        return _page(request, 409, "That has changed", str(exc))
+        return error_page(request, 409, "That has changed", str(exc))
 
     @app.exception_handler(ValidationError)
     async def invalid(request: Request, exc: ValidationError):
-        return _page(request, 400, "Check your input", " ".join(exc.errors.values()))
+        return error_page(request, 400, "Check your input", " ".join(exc.errors.values()))
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException):
@@ -57,10 +60,10 @@ def install(app: FastAPI) -> None:
             405: ("Not allowed", "That action is not available here."),
         }
         title, message = titles.get(exc.status_code, ("Error", str(exc.detail)))
-        return _page(request, exc.status_code, title, message)
+        return error_page(request, exc.status_code, title, message)
 
     @app.exception_handler(RequestValidationError)
     async def bad_request(request: Request, exc: RequestValidationError):
         if request.url.path.startswith("/api/"):
             return await request_validation_exception_handler(request, exc)
-        return _page(request, 400, "Check your input", "Part of that request was not valid.")
+        return error_page(request, 400, "Check your input", "Part of that request was not valid.")

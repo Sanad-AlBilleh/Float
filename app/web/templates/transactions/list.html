@@ -5,6 +5,12 @@
   <h1>Transactions</h1>
   {% if saved %}<p class="notice" role="status">Saved.</p>{% endif %}
   {% if deleted %}<p class="notice" role="status">Deleted.</p>{% endif %}
+  {% if balance < 0 %}
+    <div class="warning" role="alert">
+      <p><strong>Your recorded balance is below zero ({{ balance|money }}).</strong>
+        The expense was saved; check for income you have not recorded yet.</p>
+    </div>
+  {% endif %}
   <p class="actions">
     <a class="button" href="/transactions/new">Add expense</a>
     <a class="button button-secondary" href="/transactions/new?kind=income">Add income</a>

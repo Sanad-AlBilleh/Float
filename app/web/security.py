@@ -14,8 +14,13 @@ class CsrfError(Exception):
     """The request failed the CSRF token or origin check."""
 
 
-def same_origin(request: Request) -> bool:
-    """Browsers send Origin (or at least Referer) on form posts; both must name this site."""
+def same_origin(request: Request, *, required: bool) -> bool:
+    """True when Origin (or, without it, Referer) names this site.
+
+    Browsers send at least one of them with every form post, so a form post with neither is refused
+    (``required``). A script that puts the CSRF token in a header may omit both, because another site
+    cannot add that header without this site's permission.
+    """
     expected = f"{request.url.scheme}://{request.url.netloc}"
     origin = request.headers.get("origin")
     if origin is not None:
@@ -23,7 +28,7 @@ def same_origin(request: Request) -> bool:
     referer = request.headers.get("referer")
     if referer is not None:
         return referer == expected or referer.startswith(expected + "/")
-    return True  # Non-browser clients send neither header; the token check still applies.
+    return not required
 
 
 def tokens_match(submitted: str | None, expected: str | None) -> bool:

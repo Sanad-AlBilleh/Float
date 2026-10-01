@@ -12,7 +12,7 @@ Features are built from 30 September to 3 October. **4 October is reserved for t
 4. **Record evidence the same day.** Add the day's `AI_USAGE.md` rows and any `ADR.md` entry for a decision made that day, dated truthfully.
 5. **If the plan changes, update this file.** Record what actually happened, including anything cut, and never edit history to match the plan.
 
-Branches are named for what they contain: `docs/…` for documents, `feature/…` for a build day, and `release/…` for the final testing day. Commit dates, not branch names, record when the work happened.
+Branches are named for what they contain: `docs/…` for documents, `feature/…` for a build day, `fix/…` for bug fixes, and `release/…` for the final testing day. Commit dates, not branch names, record when the work happened.
 
 ## Assignment rules this schedule satisfies
 
@@ -36,13 +36,13 @@ Merge commits are counted too, as the conservative reading of the rule.
 |---|---|---|---|---|
 | Mon 28 Sep | 2 | 1 | 3 | done |
 | Wed 30 Sep | 2 (requirements v0.2) + 3 (foundation) + 1 (this schedule change) | 3 | 9 | done |
-| Thu 1 Oct | 6 (one unplanned fix) + 1 (branch renames) | 2 | 9 | done once the rename PR is merged |
+| Thu 1 Oct | 6 (one unplanned fix) + 1 (branch renames) + 1 (review fixes) | 3 | 11 | done once the review-fix PR is merged |
 | Fri 2 Oct | 7 | 1 | 8 | planned |
 | Sat 3 Oct | 7 (6 if the API is cut) | 1 | 8 | planned |
 | Sun 4 Oct | 3–6 | 1 | 4–7 | planned |
-| **Total** | | | **about 41** | |
+| **Total** | | | **about 43** | |
 
-With about 41 commits, the largest days (30 Sep and 1 Oct, 9 commits each) are about 22%. Even if every remaining day from 2 October manages only 3 content commits plus a merge, the total is 33 and those days are 27% each, still under 40%. **No more commits on 30 September.**
+With about 43 commits, the largest day (1 Oct, 11 commits) is about 26%. Even if every remaining day from 2 October manages only 3 content commits plus a merge, the total is 35 and 1 Oct is 31%, still under 40%. **No more commits on 1 October.** **No more commits on 30 September.**
 
 ## Day 0 — Wednesday 30 September: foundation
 
@@ -69,7 +69,9 @@ Branch `feature/accounts-and-ledger`.
 - [x] `Record the stack and domain-boundary decisions` (ADR-1, ADR-2, AI log)
 - [x] Merge PR `Build accounts and the personal ledger` (PR #5).
 - [x] `Rename branches to describe their content` (branch `docs/descriptive-branch-names`): unplanned, at the student's request.
-- [ ] Merge PR `Rename branches to describe their content`. This box is ticked in the next day's first commit, so 1 October gets no extra commit.
+- [x] Merge PR `Rename branches to describe their content` (PR #6).
+- [x] `Fix the issues found by the Day 0–1 review` (branch `fix/review-findings`): unplanned, at the student's request, after a helper-agent review found 11 issues.
+- [ ] Merge PR `Fix the issues found by the Day 0–1 review`. This box is ticked in the next day's first commit, so 1 October gets no extra commit.
 
 ## Day 2 — Friday 2 October: Planning, safe-to-spend, and personal insight (P0 + P1)
 
@@ -130,3 +132,4 @@ Anything cut is listed as "not implemented" in the README and report. Nothing is
   | `build/2026-10-01-identity-ledger` | `feature/accounts-and-ledger` |
 
   The branches for 2–4 October are now `feature/bills-goals-and-forecast`, `feature/households-and-alerts`, and `release/testing-and-polish`. Pull requests that were already merged still show their original branch names, because GitHub keeps the name a PR was merged from.
+- **1 October.** At the student's request, a helper agent reviewed Days 0–1. Its 11 findings were fixed the same day in one extra commit on `fix/review-findings`, so 1 October has 11 commits. Migrations `0006` and `0007` hold the fixes, so the plan's later migrations start at `0008`.

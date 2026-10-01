@@ -5,6 +5,7 @@ raising, so the caller can commit the recorded attempt before telling the person
 raising inside the transaction would roll the attempt back and defeat the throttle.
 """
 
+import math
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -17,7 +18,7 @@ from app.identity.rules import (
     USERNAME_FAILURE_LIMIT,
     hash_password,
     hash_token,
-    is_locked,
+    lock_expiry,
     new_token,
     normalize_username,
     validate_display_name,
@@ -47,11 +48,13 @@ class Session:
 
 @dataclass(frozen=True)
 class LoginOutcome:
-    """``session`` and ``token`` are set on success; ``locked`` is true when throttling refused the attempt."""
+    """``session`` and ``token`` are set on success; ``locked`` is true when throttling refused the attempt,
+    and ``retry_after_minutes`` says how long the lock still lasts."""
 
     session: Session | None
     token: str | None
     locked: bool = False
+    retry_after_minutes: int = 0
 
 
 class AuthenticationError(FloatError):
@@ -60,8 +63,9 @@ class AuthenticationError(FloatError):
 
 
 class LockedOutError(FloatError):
-    def __init__(self) -> None:
-        super().__init__("Too many attempts. Try again in 15 minutes.")
+    def __init__(self, minutes: int = 15) -> None:
+        unit = "minute" if minutes == 1 else "minutes"
+        super().__init__(f"Too many attempts. Try again in {minutes} {unit}.")
 
 
 def _user(row: sqlite3.Row) -> User:
@@ -93,7 +97,9 @@ def register(conn: sqlite3.Connection, *, username: str | None, display_name: st
             password_hash=hash_password(clean["password"]),
             now=now,
         )
-    except sqlite3.IntegrityError:
+    except sqlite3.IntegrityError as error:
+        if "users.username" not in str(error):  # only a duplicate username means "taken"
+            raise
         raise ValidationError.single("username", "That username is taken.") from None
     return User(user_id, clean["username"], clean["display_name"])
 
@@ -123,15 +129,16 @@ def attempt_login(conn: sqlite3.Connection, *, username: str | None, password: s
                   client_address: str, now: datetime, max_age: timedelta) -> LoginOutcome:
     key = (username or "").strip().lower()[:64]
     repository.prune_attempts(conn, before=now - ATTEMPT_RETENTION)
-    since = now - LOCKOUT_WINDOW
-    username_locked = is_locked(
-        repository.username_failures(conn, username_key=key, since=since), now, USERNAME_FAILURE_LIMIT
-    )
-    address_locked = is_locked(
-        repository.address_failures(conn, client_address=client_address, since=since), now, ADDRESS_FAILURE_LIMIT
-    )
-    if username_locked or address_locked:
-        return LoginOutcome(None, None, locked=True)  # not recorded, so a lock cannot be extended forever
+    since = now - 2 * LOCKOUT_WINDOW  # a lock can be up to 15 minutes old and its failures 15 more
+    expiries = [
+        lock_expiry(repository.username_failures(conn, username_key=key, since=since), USERNAME_FAILURE_LIMIT),
+        lock_expiry(repository.address_failures(conn, client_address=client_address, since=since),
+                    ADDRESS_FAILURE_LIMIT),
+    ]
+    active = [expiry for expiry in expiries if expiry is not None and now < expiry]
+    if active:
+        minutes = math.ceil((max(active) - now).total_seconds() / 60)
+        return LoginOutcome(None, None, locked=True, retry_after_minutes=minutes)  # not recorded: cannot extend
     row = repository.find_user_by_username(conn, key)
     matches = verify_password(password or "", row["password_hash"] if row is not None else DUMMY_HASH)
     succeeded = row is not None and matches

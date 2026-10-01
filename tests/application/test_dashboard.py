@@ -37,13 +37,32 @@ def test_planned_allowance_never_counts_until_recorded(conn, clock, ana):
     assert not dashboard(conn, ana.id, clock).allowance_reminder
 
 
-def test_no_reminder_in_a_first_partial_cycle(conn, clock):
+def test_no_reminder_when_setup_said_the_allowance_is_already_counted(conn, clock):
     ben = make_user(conn, clock, "ben")
-    complete_setup(conn, clock, ben, tracking_start=date(2026, 9, 20), opening_cents=50000)
-    assert not dashboard(conn, ben.id, clock).allowance_reminder
+    complete_setup(conn, clock, ben, tracking_start=START, opening_cents=85000, allowance_included=True)
+    assert not dashboard(conn, ben.id, clock).allowance_reminder  # setting up on payday (finding 3)
+    clock.advance(days=1)  # 1 October: a new cycle and a new allowance to record
+    assert dashboard(conn, ben.id, clock).allowance_reminder
+
+
+def test_a_partial_first_cycle_still_reminds_when_the_allowance_is_not_counted(conn, clock):
+    carla = make_user(conn, clock, "carla")
+    complete_setup(conn, clock, carla, tracking_start=date(2026, 9, 20), opening_cents=50000)
+    assert dashboard(conn, carla.id, clock).allowance_reminder
+    dina = make_user(conn, clock, "dina")
+    complete_setup(conn, clock, dina, tracking_start=date(2026, 9, 20), opening_cents=50000,
+                   allowance_included=True)
+    assert not dashboard(conn, dina.id, clock).allowance_reminder
+
+
+def test_a_balance_below_zero_is_flagged(conn, clock, ana):
+    assert not dashboard(conn, ana.id, clock).below_zero
+    add_expense(conn, clock, ana, 10001, date(2026, 9, 20))
+    view = dashboard(conn, ana.id, clock)
+    assert view.recorded_balance_cents == -1 and view.below_zero
 
 
 def test_the_dashboard_requires_setup(conn, clock):
-    carla = make_user(conn, clock, "carla")
+    erin = make_user(conn, clock, "erin")
     with pytest.raises(ConflictError):
-        dashboard(conn, carla.id, clock)
+        dashboard(conn, erin.id, clock)

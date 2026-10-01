@@ -1,5 +1,6 @@
 """FastAPI dependencies for HTML routes: per-request connection, current session, login, and CSRF."""
 
+import logging
 import sqlite3
 from collections.abc import Iterator
 from datetime import timedelta
@@ -65,13 +66,39 @@ def actor_for(request: Request, session: Session) -> Actor:
     return Actor(session.user.id, getattr(request.state, "request_id", None))
 
 
+def session_for_page(request: Request) -> Session | None:
+    """The signed-in session for pages rendered outside the route dependencies, such as error pages.
+
+    Never raises: if the database itself is the problem, the page is shown signed out instead.
+    """
+    if hasattr(request.state, "session"):
+        return request.state.session
+    session = None
+    token = request.cookies.get(SESSION_COOKIE)
+    if token:
+        try:
+            conn = connect(request.app.state.settings.db_path)
+            try:
+                session = resolve_session(
+                    conn, token=token, now=request.app.state.clock.now_utc(),
+                    idle=timedelta(hours=request.app.state.settings.session_idle_hours),
+                )
+            finally:
+                conn.close()
+        except Exception:  # noqa: BLE001 - an error page must still render
+            logging.getLogger("float.request").warning("could not load the session for an error page")
+    request.state.session = session
+    request.state.user_id = session.user.id if session else None
+    return session
+
+
 async def verify_csrf(request: Request, session: Session | None = Depends(current_session)) -> None:
     """Unsafe methods need a same-site origin and the session's (or anonymous cookie's) CSRF token."""
     if request.method not in UNSAFE_METHODS:
         return
-    if not same_origin(request):
-        raise CsrfError()
     submitted = request.headers.get("x-csrf-token")
+    if not same_origin(request, required=submitted is None):
+        raise CsrfError()
     if submitted is None:
         value = (await request.form()).get("csrf_token")
         submitted = value if isinstance(value, str) else None

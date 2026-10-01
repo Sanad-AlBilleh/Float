@@ -6,9 +6,10 @@ import time
 import uuid
 
 from fastapi import FastAPI, Request
-from starlette.responses import Response
+from starlette.responses import PlainTextResponse, Response
 
-from app.web.templating import templates
+from app.web.errors import error_page
+from app.web.security import UNSAFE_METHODS
 
 logger = logging.getLogger("float.request")
 
@@ -18,6 +19,27 @@ SECURITY_HEADERS = {
     "Referrer-Policy": "same-origin",
 }
 CSP_EXEMPT_PREFIX = "/api/docs"  # Swagger UI loads its scripts and styles from a CDN.
+FORM_TYPES = ("application/x-www-form-urlencoded", "multipart/form-data")
+MAX_FORM_BYTES = 64 * 1024  # SRS §9
+
+
+def _too_large(request: Request) -> bool:
+    """Form posts must declare a Content-Length of at most 64 KB (browsers always send one)."""
+    if request.method not in UNSAFE_METHODS:
+        return False
+    if request.headers.get("content-type", "").split(";")[0].strip().lower() not in FORM_TYPES:
+        return False
+    length = request.headers.get("content-length", "")
+    return not length.isdigit() or int(length) > MAX_FORM_BYTES
+
+
+def _server_error_page(request: Request) -> Response:
+    try:
+        return error_page(request, 500, "Something went wrong",
+                          "Float hit an unexpected error. Please try again; if it keeps happening, "
+                          "quote the request ID below.")
+    except Exception:  # noqa: BLE001 - the last resort must not fail
+        return PlainTextResponse(f"Internal server error. Request ID: {request.state.request_id}", status_code=500)
 
 
 def install(app: FastAPI) -> None:
@@ -26,23 +48,15 @@ def install(app: FastAPI) -> None:
         request.state.request_id = uuid.uuid4().hex
         request.state.user_id = None
         started = time.perf_counter()
-        try:
-            response = await call_next(request)
-        except Exception:
-            logger.exception("unhandled error in request %s", request.state.request_id)
-            response = templates.TemplateResponse(
-                request,
-                "error.html",
-                {
-                    "title": "Something went wrong",
-                    "message": "Float hit an unexpected error. Please try again; if it keeps happening, "
-                    "quote the request ID below.",
-                    "request_id": request.state.request_id,
-                    "current_user": None,
-                    "csrf_token": "",
-                },
-                status_code=500,
-            )
+        if _too_large(request):
+            response = error_page(request, 413, "Form too large",
+                                  "That form is too large. Forms are limited to 64 KB.")
+        else:
+            try:
+                response = await call_next(request)
+            except Exception:
+                logger.exception("unhandled error in request %s", request.state.request_id)
+                response = _server_error_page(request)
         for name, value in SECURITY_HEADERS.items():
             if name == "Content-Security-Policy" and request.url.path.startswith(CSP_EXEMPT_PREFIX):
                 continue

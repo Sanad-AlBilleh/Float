@@ -5,7 +5,11 @@ import re
 from app.shared.errors import ValidationError
 
 MAX_CENTS = 100_000_000  # €1,000,000.00, the largest magnitude Float accepts
-_AMOUNT = re.compile(r"([+-]?)([0-9]+)(?:[.,]([0-9]+))?")
+MAX_WHOLE_DIGITS = 9  # checked before int(), so absurdly long input is an error, not a crash
+GROUP_SPACES = " \u00a0\u202f"  # space, no-break space, narrow no-break space
+_NUMBER = re.compile(
+    r"(?P<whole>[0-9]+|[0-9]{1,3}(?:[ \u00a0\u202f][0-9]{3})+)(?:[.,](?P<fraction>[0-9]+))?"
+)
 
 
 def parse_money(
@@ -17,23 +21,32 @@ def parse_money(
 ) -> int:
     """Parse input such as ``12.5``, ``12,50``, ``€ 7`` or ``1 234,56`` into integer cents.
 
-    One decimal separator (``.`` or ``,``) followed by at most two digits is accepted.
-    Anything else is rejected rather than rounded or guessed: ``1,234`` is an error, not 1234.
+    One decimal separator (``.`` or ``,``) followed by at most two digits is accepted, and spaces
+    only between groups of three digits. Anything else is rejected rather than guessed: ``1,234``
+    and ``12 50`` are errors, not 1234 or 1250.
     """
-    cleaned = "" if text is None else str(text)
-    for symbol in ("€", " ", " "):
-        cleaned = cleaned.replace(symbol, "")
-    cleaned = cleaned.replace("−", "-")
-    if not cleaned:
+    raw = ("" if text is None else str(text)).strip().replace("\u2212", "-")
+    sign = ""
+    if raw[:1] in ("+", "-"):
+        sign, raw = raw[0], raw[1:].lstrip()
+    if raw.startswith("€"):
+        raw = raw[1:].lstrip()
+    elif raw.endswith("€"):
+        raw = raw[:-1].rstrip()
+    if not raw:
         raise ValidationError.single(field, "Enter an amount.")
-    match = _AMOUNT.fullmatch(cleaned)
+    match = _NUMBER.fullmatch(raw)
     if match is None:
+        if any(space in raw for space in GROUP_SPACES):
+            raise ValidationError.single(field, "Use spaces only between groups of three digits, like 1 234,56.")
         raise ValidationError.single(field, "Enter an amount like 12.50.")
-    sign, whole, fraction = match.groups()
-    fraction = fraction or ""
+    whole = "".join(ch for ch in match["whole"] if ch.isdigit()).lstrip("0")
+    fraction = match["fraction"] or ""
     if len(fraction) > 2:
         raise ValidationError.single(field, "Use at most two decimal places.")
-    cents = int(whole) * 100 + int(fraction.ljust(2, "0"))
+    if len(whole) > MAX_WHOLE_DIGITS:
+        raise ValidationError.single(field, "Amounts are limited to €1,000,000.00.")
+    cents = int(whole or "0") * 100 + int(fraction.ljust(2, "0"))
     if sign == "-":
         cents = -cents
     if abs(cents) > MAX_CENTS:

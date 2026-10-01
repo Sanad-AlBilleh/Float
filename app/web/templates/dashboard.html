@@ -2,6 +2,12 @@
 {% block title %}Dashboard{% endblock %}
 {% block content %}
   <h1>Today, <time datetime="{{ view.cycle.today.isoformat() }}">{{ view.cycle.today.isoformat() }}</time></h1>
+  {% if view.below_zero %}
+    <div class="warning" role="alert">
+      <p><strong>Your recorded balance is below zero ({{ view.recorded_balance_cents|money }}).</strong>
+        Check for income you have not recorded yet or an expense entered by mistake.</p>
+    </div>
+  {% endif %}
   {% if view.allowance_reminder %}
     <div class="warning" role="status">
       <p><strong>No allowance recorded this cycle.</strong> If your {{ view.planned_allowance_cents|money }} has arrived,

@@ -5,7 +5,7 @@ Each build day adds rows for its new routes.
 
 import pytest
 
-from tests.web.helpers import add_transaction, csrf_from, set_up, sign_up, transaction_ids, version_of
+from tests.web.helpers import ORIGIN, add_transaction, csrf_from, set_up, sign_up, transaction_ids, version_of
 
 
 @pytest.fixture
@@ -31,8 +31,9 @@ def test_another_users_transaction_is_not_found(client, anas_transaction, ben):
     form = {"kind": "expense", "amount": "1", "occurred_on": "2026-09-20", "category_id": "1",
             "version": version, "csrf_token": token}
     assert ben.get(f"/transactions/{transaction_id}/edit").status_code == 404
-    assert ben.post(f"/transactions/{transaction_id}/edit", data=form, follow_redirects=False).status_code == 404
-    assert ben.post(f"/transactions/{transaction_id}/delete", data=form, follow_redirects=False).status_code == 404
+    edit = ben.post(f"/transactions/{transaction_id}/edit", data=form, headers=ORIGIN, follow_redirects=False)
+    delete = ben.post(f"/transactions/{transaction_id}/delete", data=form, headers=ORIGIN, follow_redirects=False)
+    assert edit.status_code == delete.status_code == 404
     assert "Ana's groceries" not in ben.get("/transactions").text
     assert "Ana&#39;s groceries" in client.get("/transactions").text  # untouched for its owner
 

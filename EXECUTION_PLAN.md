@@ -1971,6 +1971,21 @@ gh pr merge --merge
 - **FR-28:** there is no allowance reminder in a first, partial cycle, because that cycle's allowance is already in the opening balance.
 - **Web:** `app/web/rendering.py` holds `render`, `redirect`, and cookie helpers. `require_ready_session` redirects to `/setup` until setup is complete. `/settings` edits the planned allowance and `/account` changes the password.
 
+**Review fixes on 1 October.** A review of Days 0–1 by a helper agent found 11 problems, all fixed the same day with tests (the second bullet supersedes the as-built FR-28 rule above):
+- `parse_money` accepts spaces only between groups of three digits and rejects absurdly long numbers before converting them.
+- Setup asks whether the opening balance already holds the current cycle's allowance (migration `0007_opening_allowance.sql`). The reminder is skipped only for that first cycle and only when the answer was yes.
+- The dashboard and the transaction list warn when the recorded balance is below zero (FR-06).
+- The lock lasts 15 minutes from the failure that reached the limit (`lock_expiry`), and the message counts down.
+- Form posts must carry a same-site Origin or Referer; a script that sends its token in the `X-CSRF-Token` header may omit both. Form bodies over 64 KB get 413.
+- Error pages keep the signed-in navigation (`session_for_page`).
+- Out-of-range IDs and cursors answer 404 or the first page instead of 500.
+- A stale edit re-shows the form with the latest values (§6.4).
+- Linked transactions are refused before a form is checked.
+- Display names reject control characters, and only a duplicate username is reported as "taken".
+- Migration `0006_settlement_income_guard.sql` stops manual "settlement" income.
+
+Later migrations are renumbered from `0008` onwards.
+
 ### Task 1.1: Identity domain (FR-01–03)
 
 **Files:**
@@ -2435,7 +2450,7 @@ Household terms are zero until day 3 wires them in. Covers FR-09–16 and FR-27�
 ### Task 2.1: Bill series and materialization (FR-09–11)
 
 **Files:**
-- Create: `app/db/migrations/0006_planning.sql`
+- Create: `app/db/migrations/0008_planning.sql`
 - Create: `app/planning/rules.py`
 - Modify: `app/planning/repository.py`, `app/planning/service.py`, `app/planning/api.py`
 - Test: `tests/planning/test_rules.py`, `tests/planning/test_bills.py`
@@ -2455,7 +2470,7 @@ Household terms are zero until day 3 wires them in. Covers FR-09–16 and FR-27�
 - [ ] **Step 1: Migration**
 
 ```sql
--- file: app/db/migrations/0006_planning.sql
+-- file: app/db/migrations/0008_planning.sql
 -- Planning: recurring bills, savings goals, and budgets (FR-09–16).
 CREATE TABLE bill_series (
     id INTEGER PRIMARY KEY,
@@ -2862,7 +2877,7 @@ Covers FR-17–26 and FR-32–35. Tests: AT-13–20, AT-22 (end to end), and AT-
 ### Task 3.1: Households, invitations, and membership (FR-17–19)
 
 **Files:**
-- Create: `app/db/migrations/0007_households.sql`
+- Create: `app/db/migrations/0009_households.sql`
 - Create: `app/households/__init__.py`, `rules.py`, `repository.py`, `service.py`, `api.py`
 - Create: `app/application/authz.py`, `app/application/households.py`, `app/web/households.py`, templates `households/index.html`, `households/show.html` (tabs: balances, expenses, bills, settlements, members, activity), `households/join.html`
 - Test: `tests/households/__init__.py`, `tests/households/test_codes.py`, `tests/households/test_membership.py`, `tests/web/test_households_pages.py`, authorization rows
@@ -2882,7 +2897,7 @@ Covers FR-17–26 and FR-32–35. Tests: AT-13–20, AT-22 (end to end), and AT-
 - [ ] **Step 1: Migration**
 
 ```sql
--- file: app/db/migrations/0007_households.sql
+-- file: app/db/migrations/0009_households.sql
 -- Households: membership, invitations, shared expenses, household bills, settlements (FR-17–26).
 CREATE TABLE households (
     id INTEGER PRIMARY KEY,
@@ -3182,11 +3197,11 @@ def simplify(nets: Mapping[int, int]) -> list[Transfer]:
 ### Task 3.5: Alert centre and activity feed (FR-32, FR-33)
 
 **Files:**
-- Create: `app/db/migrations/0008_alerts.sql`, `app/insights/alerts.py` (pure `desired_alerts`), `app/insights/repository.py` (`sync_alerts`, `list_alerts`, `mark_read`, `dismiss`), `app/application/alerts.py`, `app/web/alerts.py`, templates `alerts.html` and the household activity tab
+- Create: `app/db/migrations/0010_alerts.sql`, `app/insights/alerts.py` (pure `desired_alerts`), `app/insights/repository.py` (`sync_alerts`, `list_alerts`, `mark_read`, `dismiss`), `app/application/alerts.py`, `app/web/alerts.py`, templates `alerts.html` and the household activity tab
 - Test: `tests/insights/test_alert_rules.py`, `tests/application/test_alerts.py`, `tests/web/test_activity_feed.py`
 
 ```sql
--- file: app/db/migrations/0008_alerts.sql
+-- file: app/db/migrations/0010_alerts.sql
 -- In-app alerts, deduplicated per user (FR-32), and each user's position in the audit feed.
 CREATE TABLE alerts (
     id INTEGER PRIMARY KEY,
@@ -3226,11 +3241,11 @@ CREATE TABLE alert_cursors (
 ### Task 3.6: JSON API and idempotency keys (FR-34–35), only if time remains
 
 **Files:**
-- Create: `app/db/migrations/0009_idempotency.sql`, `app/api/__init__.py`, `app/api/v1/__init__.py`, `app/api/v1/problems.py`, `app/api/v1/idempotency.py`, `app/api/v1/routes.py`
+- Create: `app/db/migrations/0011_idempotency.sql`, `app/api/__init__.py`, `app/api/v1/__init__.py`, `app/api/v1/problems.py`, `app/api/v1/idempotency.py`, `app/api/v1/routes.py`
 - Test: `tests/api/__init__.py`, `tests/api/test_parity.py`, `tests/api/test_idempotency.py`
 
 ```sql
--- file: app/db/migrations/0009_idempotency.sql
+-- file: app/db/migrations/0011_idempotency.sql
 -- Stored first responses for Idempotency-Key replays (FR-35), kept for 24 hours.
 CREATE TABLE idempotency_keys (
     user_id INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
@@ -3322,7 +3337,7 @@ P2 is optional by design (PRD §7). If it is not reached, the README and report 
 ### Task P2.1: CSV statement import (FR-36)
 
 ```sql
--- file: app/db/migrations/0010_imports.sql
+-- file: app/db/migrations/0012_imports.sql
 -- Statement imports with duplicate detection and batch undo (FR-36).
 CREATE TABLE import_batches (
     id INTEGER PRIMARY KEY,

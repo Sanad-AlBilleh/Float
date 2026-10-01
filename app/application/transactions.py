@@ -17,6 +17,10 @@ def list_transactions(conn: sqlite3.Connection, actor: Actor, *, limit: int = 50
     return ledger.list_transactions(conn, user_id=actor.user_id, limit=limit, before=before)
 
 
+def current_balance(conn: sqlite3.Connection, actor: Actor, clock: Clock) -> int:
+    return ledger.get_balance(conn, user_id=actor.user_id, as_of=clock.today())
+
+
 def get_transaction(conn: sqlite3.Connection, actor: Actor, transaction_id: int) -> ledger.Transaction:
     return ledger.get_transaction(conn, user_id=actor.user_id, transaction_id=transaction_id)
 

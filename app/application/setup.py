@@ -19,6 +19,7 @@ class SetupInput:
     opening_balance_cents: int
     allowance_day: int
     planned_allowance_cents: int = 75000
+    allowance_included: bool = False  # the opening balance already holds the current cycle's allowance
 
 
 def is_setup_complete(conn: sqlite3.Connection, user_id: int) -> bool:
@@ -79,6 +80,7 @@ def complete_setup(conn: sqlite3.Connection, actor: Actor, data: SetupInput, clo
             user_id=actor.user_id,
             allowance_day=data.allowance_day,
             planned_allowance_cents=data.planned_allowance_cents,
+            opening_includes_allowance=data.allowance_included,
         )
         audit.record(conn, actor_user_id=actor.user_id, entity_type="setup", entity_id=actor.user_id,
                      action="complete", now=clock.now_utc(), after=asdict(data), request_id=actor.request_id)

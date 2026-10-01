@@ -21,8 +21,9 @@ def count(conn, table):
 
 def test_setup_writes_both_domains_and_an_audit_event(conn, clock):
     ana = make_user(conn, clock)
-    complete_setup(conn, Actor(ana.id, "req-1"), SetupInput(START, -2500, 1, 75000), clock)
+    complete_setup(conn, Actor(ana.id, "req-1"), SetupInput(START, -2500, 1, 75000, True), clock)
     assert is_setup_complete(conn, ana.id)
+    assert planning_settings(conn, ana.id).opening_includes_allowance
     assert ledger_settings(conn, ana.id).opening_balance_cents == -2500
     assert planning_settings(conn, ana.id).allowance_day == 1
     event = conn.execute("SELECT entity_type, action, request_id FROM audit_events").fetchone()

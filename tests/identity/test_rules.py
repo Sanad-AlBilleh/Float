@@ -6,6 +6,7 @@ from app.identity.rules import (
     hash_password,
     hash_token,
     is_locked,
+    lock_expiry,
     new_token,
     normalize_username,
     validate_display_name,
@@ -66,3 +67,19 @@ def test_lockout_counts_failures_inside_the_window_only():
     assert not is_locked(recent, NOW, limit=5)
     assert is_locked(recent + [NOW - timedelta(minutes=14)], NOW, limit=5)
     assert not is_locked(recent + [NOW - timedelta(minutes=15)], NOW, limit=5)
+
+
+def test_a_lock_lasts_fifteen_minutes_from_the_failure_that_triggered_it():
+    failures = [NOW + timedelta(minutes=minutes) for minutes in (0, 1, 2, 3, 14)]
+    assert lock_expiry(failures, limit=5) == NOW + timedelta(minutes=29)
+    assert is_locked(failures, NOW + timedelta(minutes=14, seconds=30), limit=5)
+    assert is_locked(failures, NOW + timedelta(minutes=28, seconds=59), limit=5)
+    assert not is_locked(failures, NOW + timedelta(minutes=29), limit=5)
+    assert lock_expiry(failures[:4], limit=5) is None
+
+
+@pytest.mark.parametrize("raw", ["\x00abc", "Ana\tB", "Ana\u200b"])
+def test_display_names_reject_control_and_invisible_characters(raw):
+    with pytest.raises(ValidationError) as error:
+        validate_display_name(raw)
+    assert error.value.errors == {"display_name": "Use letters, numbers, spaces, and punctuation only."}

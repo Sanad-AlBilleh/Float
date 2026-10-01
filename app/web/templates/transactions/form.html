@@ -4,6 +4,12 @@
 {% block title %}{{ heading }}{% endblock %}
 {% block content %}
   <h1>{{ heading }}</h1>
+  {% if conflict %}
+    <div class="error-summary" role="alert">
+      <p>This transaction changed since you opened it, so your changes were not saved.
+        The form now shows the latest version; make your changes again.</p>
+    </div>
+  {% endif %}
   {{ forms.error_summary(errors) }}
   <form method="post" action="{{ action }}" class="stack">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

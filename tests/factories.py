@@ -35,8 +35,9 @@ def add_income(conn, clock, user: User, cents: int, on: date, *, source: str = "
 
 
 def complete_setup(conn, clock, user: User, *, tracking_start: date, opening_cents: int = 0,
-                   allowance_day: int = 1, planned_cents: int = 75000) -> None:
+                   allowance_day: int = 1, planned_cents: int = 75000, allowance_included: bool = False) -> None:
     from app.application.context import Actor
     from app.application.setup import SetupInput, complete_setup as run_setup
 
-    run_setup(conn, Actor(user.id), SetupInput(tracking_start, opening_cents, allowance_day, planned_cents), clock)
+    data = SetupInput(tracking_start, opening_cents, allowance_day, planned_cents, allowance_included)
+    run_setup(conn, Actor(user.id), data, clock)

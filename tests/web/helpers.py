@@ -4,6 +4,7 @@ import re
 
 CSRF_INPUT = re.compile(r'name="csrf_token" value="([^"]*)"')
 PASSWORD = "correct horse battery"
+ORIGIN = {"Origin": "http://testserver"}  # what a browser sends with a same-site form post
 
 
 def csrf_from(response) -> str:
@@ -14,6 +15,7 @@ def csrf_from(response) -> str:
 
 def post_form(client, page_url: str, action_url: str, data: dict, **kwargs):
     token = csrf_from(client.get(page_url))
+    kwargs.setdefault("headers", {"Origin": str(client.base_url).rstrip("/")})
     return client.post(action_url, data={**data, "csrf_token": token}, follow_redirects=False, **kwargs)
 
 
@@ -40,7 +42,7 @@ VERSION_INPUT = re.compile(r'name="version" value="(\d+)"')
 
 def set_up(client, **overrides):
     data = {"tracking_start": "2026-09-01", "opening_balance": "100", "allowance_day": "1",
-            "planned_allowance": "750"}
+            "planned_allowance": "750", "allowance_included": "no"}
     data.update(overrides)
     return post_form(client, "/setup", "/setup", data)
 

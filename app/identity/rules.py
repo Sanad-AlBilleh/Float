@@ -28,6 +28,8 @@ def validate_display_name(raw: str | None) -> str:
     name = (raw or "").strip()
     if not 1 <= len(name) <= 50:
         raise ValidationError.single("display_name", "Enter a name of 1–50 characters.")
+    if not name.isprintable():  # control and invisible characters (NUL, tab, zero-width space…)
+        raise ValidationError.single("display_name", "Use letters, numbers, spaces, and punctuation only.")
     return name
 
 
@@ -77,6 +79,20 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def lock_expiry(failure_times: Sequence[datetime], limit: int) -> datetime | None:
+    """When the latest lock ends, or None if there never was one.
+
+    ``limit`` failures within 15 minutes lock the account for 15 minutes from the failure that
+    reached the limit (FR-03). Attempts made while locked are not recorded, so they cannot extend it.
+    """
+    ordered = sorted(failure_times)
+    expiry = None
+    for last in range(limit - 1, len(ordered)):
+        if ordered[last] - ordered[last - limit + 1] < LOCKOUT_WINDOW:
+            expiry = ordered[last] + LOCKOUT_WINDOW
+    return expiry
+
+
 def is_locked(failure_times: Sequence[datetime], now: datetime, limit: int) -> bool:
-    """True when at least ``limit`` failures happened within the 15 minutes before ``now``."""
-    return sum(1 for moment in failure_times if now - moment < LOCKOUT_WINDOW) >= limit
+    expiry = lock_expiry(failure_times, limit)
+    return expiry is not None and now < expiry

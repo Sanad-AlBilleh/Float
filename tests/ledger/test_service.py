@@ -184,3 +184,21 @@ def test_the_schema_rejects_inconsistent_rows(conn, clock, ana):
             " origin, created_at, updated_at) VALUES (?, 'income', 100, '2026-09-30', 1, 'other', 'manual', 'x', 'x')",
             (ana.id,),
         )
+
+
+def test_settlement_income_only_comes_from_the_settlement_workflow(conn, clock, ana):
+    with pytest.raises(sqlite3.IntegrityError, match="settlement"):
+        conn.execute(
+            "INSERT INTO transactions (user_id, kind, amount_cents, occurred_on, income_source, origin,"
+            " created_at, updated_at) VALUES (?, 'income', 100, '2026-09-30', 'settlement', 'manual', 'x', 'x')",
+            (ana.id,),
+        )
+    other = add_income(conn, clock, ana, 100, START, source="other")
+    with pytest.raises(sqlite3.IntegrityError, match="settlement"):
+        conn.execute("UPDATE transactions SET income_source = 'settlement' WHERE id = ?", (other.id,))
+
+
+@pytest.mark.parametrize("huge", [2**63, 10**20, -(2**63) - 1])
+def test_out_of_range_ids_are_simply_not_found(conn, clock, ana, huge):
+    with pytest.raises(NotFoundError):
+        get_transaction(conn, user_id=ana.id, transaction_id=huge)

@@ -1,5 +1,6 @@
 """Registration, login throttling, and sessions (FR-01–03, AT-01, AT-02)."""
 
+import sqlite3
 from datetime import timedelta
 
 import pytest
@@ -209,3 +210,23 @@ def test_each_session_gets_its_own_token_and_csrf_token(conn, clock, ana):
     second, second_token = start_session(conn, user=ana, now=clock.now_utc(), max_age=MAX_AGE)
     assert first_token != second_token
     assert first.csrf_token != second.csrf_token
+
+
+def test_the_lock_message_counts_down(conn, clock, ana):
+    for _ in range(5):
+        login(conn, clock, password="wrong password")
+    assert login(conn, clock).retry_after_minutes == 15
+    clock.advance(minutes=10)
+    outcome = login(conn, clock)
+    assert outcome.locked and outcome.retry_after_minutes == 5
+
+
+def test_other_database_errors_are_not_reported_as_a_taken_username(conn, clock, monkeypatch):
+    from app.identity import service
+
+    def broken_insert(*args, **kwargs):
+        raise sqlite3.IntegrityError("CHECK constraint failed: length(display_name) BETWEEN 1 AND 50")
+
+    monkeypatch.setattr(service.repository, "insert_user", broken_insert)
+    with pytest.raises(sqlite3.IntegrityError):
+        register(conn, username="eve", display_name="Eve", password=PASSWORD, now=clock.now_utc())

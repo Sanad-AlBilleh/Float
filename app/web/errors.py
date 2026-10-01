@@ -8,7 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.shared.errors import ConflictError, NotFoundError, PermissionDeniedError, ValidationError
-from app.web.deps import LoginRequired
+from app.web.deps import LoginRequired, SetupRequired
 from app.web.rendering import redirect, render
 from app.web.security import CsrfError
 
@@ -22,6 +22,10 @@ def install(app: FastAPI) -> None:
     async def login_required(request: Request, exc: LoginRequired):
         target = request.url.path + (f"?{request.url.query}" if request.url.query else "")
         return redirect(f"/login?next={quote(target)}")
+
+    @app.exception_handler(SetupRequired)
+    async def setup_required(request: Request, exc: SetupRequired):
+        return redirect("/setup")
 
     @app.exception_handler(CsrfError)
     async def csrf_failed(request: Request, exc: CsrfError):

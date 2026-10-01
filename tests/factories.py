@@ -32,3 +32,11 @@ def add_income(conn, clock, user: User, cents: int, on: date, *, source: str = "
                note: str = "") -> Transaction:
     draft = TransactionDraft("income", cents, on, income_source=source, note=note)
     return create_manual(conn, user_id=user.id, draft=draft, today=clock.today(), now=clock.now_utc())
+
+
+def complete_setup(conn, clock, user: User, *, tracking_start: date, opening_cents: int = 0,
+                   allowance_day: int = 1, planned_cents: int = 75000) -> None:
+    from app.application.context import Actor
+    from app.application.setup import SetupInput, complete_setup as run_setup
+
+    run_setup(conn, Actor(user.id), SetupInput(tracking_start, opening_cents, allowance_day, planned_cents), clock)

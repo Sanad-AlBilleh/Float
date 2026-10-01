@@ -13,7 +13,8 @@
     <nav aria-label="Main" class="site-nav">
       {% if current_user %}
         <a href="/">Dashboard</a>
-        {% block nav_links %}{% endblock %}
+        <a href="/transactions">Transactions</a>
+        <a href="/settings">Settings</a>
         <a href="/account">{{ current_user.display_name }}</a>
         <form method="post" action="/logout" class="inline-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

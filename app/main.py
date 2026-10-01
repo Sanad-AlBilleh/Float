@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import Settings, load_settings
 from app.db.migrations import initialize_database
 from app.shared.clock import Clock, SystemClock
-from app.web import auth, errors, middleware
+from app.web import auth, errors, middleware, setup, transactions
 from app.web.routes import router as web_router
 
 STATIC_DIR = Path(__file__).parent / "web" / "static"
@@ -32,4 +32,6 @@ def create_app(settings: Settings | None = None, clock: Clock | None = None) -> 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     app.include_router(web_router)
     app.include_router(auth.router)
+    app.include_router(setup.router)
+    app.include_router(transactions.router)
     return app

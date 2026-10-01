@@ -32,3 +32,31 @@ def log_in(client, username: str = "ana", password: str = PASSWORD, next_path: s
 
 def log_out(client):
     return post_form(client, "/account", "/logout", {})
+
+
+EDIT_LINK = re.compile(r'href="/transactions/(\d+)/edit"')
+VERSION_INPUT = re.compile(r'name="version" value="(\d+)"')
+
+
+def set_up(client, **overrides):
+    data = {"tracking_start": "2026-09-01", "opening_balance": "100", "allowance_day": "1",
+            "planned_allowance": "750"}
+    data.update(overrides)
+    return post_form(client, "/setup", "/setup", data)
+
+
+def add_transaction(client, **fields):
+    data = {"kind": "expense", "amount": "25.40", "occurred_on": "2026-09-20", "category_id": "1",
+            "income_source": "allowance", "note": ""}
+    data.update(fields)
+    return post_form(client, "/transactions/new", "/transactions/new", data)
+
+
+def transaction_ids(client) -> list[int]:
+    return [int(value) for value in EDIT_LINK.findall(client.get("/transactions").text)]
+
+
+def version_of(client, transaction_id: int) -> str:
+    match = VERSION_INPUT.search(client.get(f"/transactions/{transaction_id}/edit").text)
+    assert match, "edit form has no version field"
+    return match.group(1)

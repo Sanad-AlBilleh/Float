@@ -6,6 +6,8 @@ from datetime import timedelta
 
 from fastapi import Depends, Request
 
+from app.application.context import Actor
+from app.application.setup import is_setup_complete
 from app.db.connection import connect
 from app.identity.api import Session, resolve_session
 from app.shared.clock import Clock
@@ -14,6 +16,10 @@ from app.web.security import ANON_CSRF_COOKIE, SESSION_COOKIE, UNSAFE_METHODS, C
 
 class LoginRequired(Exception):
     """An anonymous request reached a signed-in page; handled as a redirect to /login."""
+
+
+class SetupRequired(Exception):
+    """A signed-in user without completed setup reached a page that needs it; redirects to /setup."""
 
 
 def get_conn(request: Request) -> Iterator[sqlite3.Connection]:
@@ -46,6 +52,17 @@ def require_session(session: Session | None = Depends(current_session)) -> Sessi
     if session is None:
         raise LoginRequired()
     return session
+
+
+def require_ready_session(session: Session = Depends(require_session),
+                          conn: sqlite3.Connection = Depends(get_conn)) -> Session:
+    if not is_setup_complete(conn, session.user.id):
+        raise SetupRequired()
+    return session
+
+
+def actor_for(request: Request, session: Session) -> Actor:
+    return Actor(session.user.id, getattr(request.state, "request_id", None))
 
 
 async def verify_csrf(request: Request, session: Session | None = Depends(current_session)) -> None:

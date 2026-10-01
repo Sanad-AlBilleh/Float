@@ -61,7 +61,7 @@ Branch `build/2026-10-01-identity-ledger`.
 
 - [x] `Add accounts with scrypt passwords, sessions, and login throttling` (FR-01–03)
 - [x] `Protect browser requests with sessions, CSRF tokens, and security headers` (FR-04, §9, NFR-10)
-- [ ] `Record ledger transactions with exact validation and an audit trail` (FR-06–08, FR-33 base)
+- [x] `Record ledger transactions with exact validation and an audit trail` (FR-06–08, FR-33 base)
 - [ ] `Add setup, transaction pages, and the recorded-balance dashboard` (FR-05, FR-28, FR-39)
 - [ ] `Record the stack and domain-boundary decisions` (ADR-1, ADR-2, AI log)
 - [ ] Merge PR `Build accounts and the personal ledger`

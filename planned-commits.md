@@ -34,13 +34,13 @@ Merge commits are counted too, as the conservative reading of the rule.
 |---|---|---|---|---|
 | Mon 28 Sep | 2 | 1 | 3 | done |
 | Wed 30 Sep | 2 (requirements v0.2) + 3 (foundation) + 1 (this schedule change) | 3 | 9 | done |
-| Thu 1 Oct | 5 | 1 | 6 | in progress |
+| Thu 1 Oct | 6 (one unplanned fix) | 1 | 7 | in progress |
 | Fri 2 Oct | 7 | 1 | 8 | planned |
 | Sat 3 Oct | 7 (6 if the API is cut) | 1 | 8 | planned |
 | Sun 4 Oct | 3–6 | 1 | 4–7 | planned |
-| **Total** | | | **about 38** | |
+| **Total** | | | **about 39** | |
 
-With about 38 commits, the largest day (30 Sep, 9 commits) is about 24%. Even if every remaining day manages only 3 content commits plus a merge, the total is 28 and 30 Sep is 32%, still under 40%. **No more commits on 30 September.**
+With about 39 commits, the largest day (30 Sep, 9 commits) is about 23%. Even if every remaining day from 2 October manages only 3 content commits plus a merge, the total is 31 and 30 Sep is 29%, still under 40%. **No more commits on 30 September.**
 
 ## Day 0 — Wednesday 30 September: foundation
 
@@ -63,8 +63,9 @@ Branch `build/2026-10-01-identity-ledger`.
 - [x] `Protect browser requests with sessions, CSRF tokens, and security headers` (FR-04, §9, NFR-10)
 - [x] `Record ledger transactions with exact validation and an audit trail` (FR-06–08, FR-33 base)
 - [x] `Add setup, transaction pages, and the recorded-balance dashboard` (FR-05, FR-28, FR-39)
-- [ ] `Record the stack and domain-boundary decisions` (ADR-1, ADR-2, AI log)
-- [ ] Merge PR `Build accounts and the personal ledger`
+- [x] `Emit the request log when Float runs`: unplanned. The day's final smoke test found that the NFR-10 log lines never reached the server output.
+- [x] `Record the stack and domain-boundary decisions` (ADR-1, ADR-2, AI log)
+- [ ] Merge PR `Build accounts and the personal ledger`. This box is ticked in the next day's first commit, so 1 October gets no extra commit.
 
 ## Day 2 — Friday 2 October: Planning, safe-to-spend, and personal insight (P0 + P1)
 

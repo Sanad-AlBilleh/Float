@@ -33,8 +33,8 @@ Merge commits are counted too, as the conservative reading of the rule.
 | Day | Content commits | Merges | Day total | Status |
 |---|---|---|---|---|
 | Mon 28 Sep | 2 | 1 | 3 | done |
-| Wed 30 Sep | 2 (requirements v0.2) + 3 (foundation) + 1 (this schedule change) | 3 | 9 | done once this change is merged |
-| Thu 1 Oct | 5 | 1 | 6 | planned |
+| Wed 30 Sep | 2 (requirements v0.2) + 3 (foundation) + 1 (this schedule change) | 3 | 9 | done |
+| Thu 1 Oct | 5 | 1 | 6 | in progress |
 | Fri 2 Oct | 7 | 1 | 8 | planned |
 | Sat 3 Oct | 7 (6 if the API is cut) | 1 | 8 | planned |
 | Sun 4 Oct | 3–6 | 1 | 4–7 | planned |
@@ -51,7 +51,7 @@ Branch `build/2026-09-30-foundation`. Requirements were merged earlier today (PR
 - [x] `Add exact money, allowance-cycle, and recurrence rules`: integer-cent parsing and formatting, cycle dates, injectable clock, recurrence expansion with property tests, README run instructions, and AI log rows.
 - [x] Merge PR `Build the Float foundation` (PR #3).
 - [x] `Reserve 4 October for testing, fixes, and polish` (branch `docs/2026-09-30-replan-day4`): this schedule change.
-- [ ] Merge PR `Reserve 4 October for testing and polish`. This box is ticked in the next day's first commit, so 30 September gets no extra commit.
+- [x] Merge PR `Reserve 4 October for testing and polish` (PR #4), ticked in the first commit of 1 October.
 
 Evidence: AI log rows for the planning discussion, the foundation build, and this schedule change.
 
@@ -59,7 +59,7 @@ Evidence: AI log rows for the planning discussion, the foundation build, and thi
 
 Branch `build/2026-10-01-identity-ledger`.
 
-- [ ] `Add accounts with scrypt passwords, sessions, and login throttling` (FR-01–03)
+- [x] `Add accounts with scrypt passwords, sessions, and login throttling` (FR-01–03)
 - [ ] `Protect browser requests with sessions, CSRF tokens, and security headers` (FR-04, §9, NFR-10)
 - [ ] `Record ledger transactions with exact validation and an audit trail` (FR-06–08, FR-33 base)
 - [ ] `Add setup, transaction pages, and the recorded-balance dashboard` (FR-05, FR-28, FR-39)

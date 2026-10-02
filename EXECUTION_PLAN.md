@@ -2447,6 +2447,16 @@ CREATE TABLE planning_settings (
 
 Household terms are zero until day 3 wires them in. Covers FR-09–16 and FR-27–31. Tests: AT-06–12, AT-19 (personal part), AT-20 (bill payment), AT-22 (pure rules), and AT-23.
 
+**As built on 2 October.** All seven tasks were built in order, each test-first and with mutation checks, with these refinements:
+- **Modules:** Planning's services are split by topic: `app/planning/bills.py`, `goals.py`, and `budgets.py`, with their SQL in `repository.py`. `get_obligations` lives in `bills.py` and adds protected savings and the goal-plan reserve. The dashboard and forecast routes are in `app/web/routes.py`, and the SVG chart is built in `app/web/charts.py`.
+- **Categories:** `create_series` and `split_series` take `category_ids` from the caller, so Planning never reads the Ledger's `categories` table.
+- **Splits:** `split_rule` reports its error on `anchor_date`. The new series' first date must be on or after the occurrence being changed.
+- **Edits:** an occurrence's due date cannot move before tracking started. Every update re-checks its affected row count.
+- **Bills page:** it lists every occurrence from tracking start to the end of the horizon, grouped as earlier, this cycle, and next cycle.
+- **Payments:** a payment date outside tracking is reported on `paid_on`.
+- **Unusual expenses:** the comparison set is the user's other manual or imported expenses in the category dated in the 90 days strictly before the expense; same-day expenses are not compared. Budgets count the user's own expenses until Day 3 adds shared-expense shares.
+- **Application layer:** `bills.py`, `goals.py`, and `budgets.py` hold the coordinators. `dashboard.forecast` computes the forecast from personal data, and `transactions.unusual_expenses` finds the flags for the list.
+
 ### Task 2.1: Bill series and materialization (FR-09–11)
 
 **Files:**

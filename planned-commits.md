@@ -37,7 +37,7 @@ Merge commits are counted too, as the conservative reading of the rule.
 | Mon 28 Sep | 2 | 1 | 3 | done |
 | Wed 30 Sep | 2 (requirements v0.2) + 3 (foundation) + 1 (this schedule change) | 3 | 9 | done |
 | Thu 1 Oct | 6 (one unplanned fix) + 1 (branch renames) + 1 (review fixes) | 3 | 11 | done |
-| Fri 2 Oct | 7 | 1 | 8 | in progress |
+| Fri 2 Oct | 7 | 1 | 8 | done once the PR is merged |
 | Sat 3 Oct | 7 (6 if the API is cut) | 1 | 8 | planned |
 | Sun 4 Oct | 3–6 | 1 | 4–7 | planned |
 | **Total** | | | **about 43** | |
@@ -83,8 +83,8 @@ Branch `feature/bills-goals-and-forecast`. The first four commits are P0; the ne
 - [x] `Compute safe-to-spend with breakdown, reminder, and purchase preview` (FR-27–29)
 - [x] `Forecast pace, runway, cash projection, and next-cycle outlook` (FR-30, personal data; household terms join on day 3)
 - [x] `Plan goal contributions, budgets, and unusual-expense flags` (FR-15, FR-16, FR-31)
-- [ ] `Record the schema decision and log AI use` (ADR-3, AI log)
-- [ ] Merge PR `Build recurring bills, goals, safe-to-spend, and the forecast`
+- [x] `Record the schema decision and log AI use` (ADR-3, AI log)
+- [ ] Merge PR `Build recurring bills, goals, safe-to-spend, and the forecast`. This box is ticked in the next day's first commit, so 2 October keeps exactly 8 commits.
 
 ## Day 3 — Saturday 3 October: Households, alerts, and the report draft (P0 + P1)
 

@@ -22,10 +22,6 @@ class GoalInput:
     auto_reserve: bool
 
 
-def list_goals(conn: sqlite3.Connection, actor: Actor) -> list[planning.Goal]:
-    return planning.list_goals(conn, user_id=actor.user_id)
-
-
 def goal_plans(conn: sqlite3.Connection, actor: Actor, clock: Clock) -> list[tuple[planning.Goal, planning.GoalPlan]]:
     _, settings = current_settings(conn, actor.user_id)
     return planning.plans(conn, user_id=actor.user_id, cycle=cycle_for(clock.today(), settings.allowance_day))

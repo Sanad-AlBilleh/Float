@@ -79,7 +79,7 @@ Branch `feature/bills-goals-and-forecast`. The first four commits are P0; the ne
 
 - [x] `Materialize recurring bill occurrences idempotently` (FR-09–11)
 - [x] `Pay, undo, skip, and split bill series atomically` (FR-12–13)
-- [ ] `Track savings goals with protect and release movements` (FR-14)
+- [x] `Track savings goals with protect and release movements` (FR-14)
 - [ ] `Compute safe-to-spend with breakdown, reminder, and purchase preview` (FR-27–29)
 - [ ] `Forecast pace, runway, cash projection, and next-cycle outlook` (FR-30, personal data; household terms join on day 3)
 - [ ] `Plan goal contributions, budgets, and unusual-expense flags` (FR-15, FR-16, FR-31)

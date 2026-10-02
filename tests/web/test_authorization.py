@@ -50,7 +50,7 @@ def test_another_users_transaction_is_not_found(client, anas_transaction, ben):
 
 
 @pytest.mark.parametrize("path", ["/", "/transactions", "/transactions/new", "/transactions/1/edit", "/setup",
-                                  "/bills", "/bills/new", "/bills/occurrences/1",
+                                  "/bills", "/bills/new", "/bills/occurrences/1", "/goals", "/goals/1/edit",
                                   "/settings", "/account"])
 def test_anonymous_visitors_are_sent_to_login(make_client, path):
     anonymous = make_client()
@@ -80,3 +80,17 @@ def test_another_users_bills_are_not_found(client, ben):
                    follow_redirects=False)
     assert end.status_code == 404
     assert "Ana&#39;s phone" not in ben.get("/bills").text
+
+
+def test_another_users_goals_are_not_found(client, ben):
+    sign_up(client, "ana")
+    set_up(client)
+    post_form(client, "/goals", "/goals/new", {"name": "Ana's laptop", "target": "600", "priority": "2"})
+    goal_id = re.search(r'action="/goals/(\d+)/protect"', client.get("/goals").text).group(1)
+    token = csrf_from(ben.get("/goals"))
+    assert ben.get(f"/goals/{goal_id}/edit").status_code == 404
+    for action in ("protect", "release", "archive", "edit"):
+        response = ben.post(f"/goals/{goal_id}/{action}", data={"csrf_token": token, "version": "1", "amount": "1"},
+                            headers=ORIGIN, follow_redirects=False)
+        assert response.status_code == 404, action
+    assert "Ana&#39;s laptop" not in ben.get("/goals").text

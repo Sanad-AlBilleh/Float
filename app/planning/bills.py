@@ -159,7 +159,8 @@ def open_occurrences_due_before(conn: sqlite3.Connection, *, user_id: int, befor
 def get_obligations(conn: sqlite3.Connection, *, user_id: int, cycle: Cycle) -> PlanningObligations:
     """What Planning reserves this cycle (SRS §4.5). Callers materialize first."""
     reserved = tuple(open_occurrences_due_before(conn, user_id=user_id, before=cycle.next_allowance))
-    return PlanningObligations(sum(o.amount_cents for o in reserved), 0, 0, reserved)
+    return PlanningObligations(sum(o.amount_cents for o in reserved), repository.protected_total(conn, user_id=user_id),
+                               0, reserved)
 
 
 def _current(conn: sqlite3.Connection, *, user_id: int, occurrence_id: int, version: int) -> Occurrence:

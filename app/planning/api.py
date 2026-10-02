@@ -21,6 +21,19 @@ from app.planning.bills import (
     split_series,
     unlink_payment,
 )
+from app.planning.goals import (
+    PRIORITIES,
+    Goal,
+    archive_goal,
+    create_goal,
+    get_goal,
+    list_goals,
+    move,
+    movements,
+    protected_total,
+    update_goal,
+    validate_goal,
+)
 from app.planning.rules import occurrence_status, validate_planned_allowance, validate_settings
 from app.planning.service import (
     PlanningSettings,
@@ -31,6 +44,17 @@ from app.planning.service import (
 )
 
 __all__ = [
+    "PRIORITIES",
+    "Goal",
+    "archive_goal",
+    "create_goal",
+    "get_goal",
+    "list_goals",
+    "move",
+    "movements",
+    "protected_total",
+    "update_goal",
+    "validate_goal",
     "BillSeries",
     "Occurrence",
     "PlanningObligations",

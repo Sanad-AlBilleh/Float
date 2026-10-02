@@ -185,3 +185,71 @@ def rewrite_series(conn: sqlite3.Connection, *, series_id: int, name: str, amoun
         " WHERE id = ?",
         (name, amount_cents, category_id, freq, interval, anchor.isoformat(), _iso(until), count, series_id),
     )
+
+
+# Savings goals (FR-14–15) ------------------------------------------------------------------------
+
+GOAL_COLUMNS = (
+    "g.id, g.user_id, g.name, g.target_cents, g.target_date, g.priority, g.auto_reserve, g.archived_at, g.version,"
+    " COALESCE((SELECT SUM(m.delta_cents) FROM goal_movements AS m WHERE m.goal_id = g.id), 0) AS protected_cents"
+)
+
+
+def insert_goal(conn: sqlite3.Connection, *, user_id: int, name: str, target_cents: int, target_date: date | None,
+                priority: int, auto_reserve: bool, now: datetime) -> int:
+    return conn.execute(
+        "INSERT INTO savings_goals (user_id, name, target_cents, target_date, priority, auto_reserve, created_at)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (user_id, name, target_cents, _iso(target_date), priority, int(auto_reserve), to_utc_text(now)),
+    ).lastrowid
+
+
+def get_goal(conn: sqlite3.Connection, goal_id: int) -> sqlite3.Row | None:
+    return conn.execute(f"SELECT {GOAL_COLUMNS} FROM savings_goals AS g WHERE g.id = ?", (goal_id,)).fetchone()
+
+
+def list_goals(conn: sqlite3.Connection, *, user_id: int) -> list[sqlite3.Row]:
+    return conn.execute(
+        f"SELECT {GOAL_COLUMNS} FROM savings_goals AS g WHERE g.user_id = ? AND g.archived_at IS NULL"
+        " ORDER BY g.priority, g.name, g.id",
+        (user_id,),
+    ).fetchall()
+
+
+def update_goal(conn: sqlite3.Connection, *, goal_id: int, version: int, name: str, target_cents: int,
+                target_date: date | None, priority: int, auto_reserve: bool) -> int:
+    return conn.execute(
+        "UPDATE savings_goals SET name = ?, target_cents = ?, target_date = ?, priority = ?, auto_reserve = ?,"
+        " version = version + 1 WHERE id = ? AND version = ? AND archived_at IS NULL",
+        (name, target_cents, _iso(target_date), priority, int(auto_reserve), goal_id, version),
+    ).rowcount
+
+
+def archive_goal(conn: sqlite3.Connection, *, goal_id: int, version: int, now: datetime) -> int:
+    return conn.execute(
+        "UPDATE savings_goals SET archived_at = ?, version = version + 1"
+        " WHERE id = ? AND version = ? AND archived_at IS NULL",
+        (to_utc_text(now), goal_id, version),
+    ).rowcount
+
+
+def insert_movement(conn: sqlite3.Connection, *, goal_id: int, delta_cents: int, moved_on: date, note: str,
+                    now: datetime) -> None:
+    conn.execute(
+        "INSERT INTO goal_movements (goal_id, delta_cents, moved_on, note, created_at) VALUES (?, ?, ?, ?, ?)",
+        (goal_id, delta_cents, moved_on.isoformat(), note, to_utc_text(now)),
+    )
+
+
+def list_movements(conn: sqlite3.Connection, *, goal_id: int) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT moved_on, delta_cents FROM goal_movements WHERE goal_id = ? ORDER BY moved_on, id", (goal_id,)
+    ).fetchall()
+
+
+def protected_total(conn: sqlite3.Connection, *, user_id: int) -> int:
+    return conn.execute(
+        "SELECT COALESCE(SUM(m.delta_cents), 0) FROM goal_movements AS m"
+        " JOIN savings_goals AS g ON g.id = m.goal_id WHERE g.user_id = ? AND g.archived_at IS NULL",
+        (user_id,),
+    ).fetchone()[0]

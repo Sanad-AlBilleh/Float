@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% import "macros/forms.html" as forms %}
+{% import "_goal_fields.html" as goal_form %}
+{% block title %}Edit {{ goal.name }}{% endblock %}
+{% block content %}
+  <h1>Edit {{ goal.name }}</h1>
+  <p class="muted">{{ goal.protected_cents|money }} is protected, so the target cannot go below that.</p>
+  {{ forms.error_summary(errors) }}
+  <form method="post" action="/goals/{{ goal.id }}/edit" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="version" value="{{ values.version }}">
+    {{ goal_form.goal_fields(values, errors, priorities) }}
+    <p class="actions"><button type="submit" class="button">Save changes</button> <a href="/goals">Cancel</a></p>
+  </form>
+{% endblock %}

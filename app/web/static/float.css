@@ -324,3 +324,10 @@ fieldset.field {
 .goal-actions { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; align-items: end; }
 .goal-actions label { display: block; font-size: 0.875rem; }
 .goal-actions input { width: 7rem; }
+.chart svg { width: 100%; height: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.chart polyline { fill: none; stroke-width: 2.5; }
+.chart .line-expected { stroke: var(--accent); }
+.chart .line-conservative { stroke: var(--warning); stroke-dasharray: 6 4; }
+.chart .zero { stroke: var(--muted); stroke-width: 1; }
+.chart .lowest { fill: var(--surface); stroke: var(--text); stroke-width: 2; }
+.legend { font-weight: 600; }

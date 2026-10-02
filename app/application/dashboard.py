@@ -3,7 +3,7 @@ term of SRS §4.5 (FR-27–29)."""
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 
 from app.application.setup import current_settings
 from app.db.unit_of_work import transaction
@@ -69,3 +69,34 @@ def dashboard(conn: sqlite3.Connection, user_id: int, clock: Clock) -> Dashboard
         safe=insights.compute(inputs, cycle),
         reserved_bills=obligations.occurrences,
     )
+
+
+@dataclass(frozen=True)
+class ForecastView:
+    dashboard: DashboardView
+    forecast: insights.Forecast
+    window_days: int
+
+
+def forecast(conn: sqlite3.Connection, user_id: int, clock: Clock) -> ForecastView:
+    """FR-30 from personal data; households add their shares and payables on day 3."""
+    view = dashboard(conn, user_id, clock)
+    _, planning_settings = current_settings(conn, user_id)
+    today = view.cycle.today
+    window = insights.pace_window_days(today, view.tracking_start)
+    rows = ledger.get_expense_rows(conn, user_id=user_id, start=today - timedelta(days=window), end_exclusive=today)
+    open_bills = planning.open_occurrences_due_before(conn, user_id=user_id, before=view.cycle.horizon_end)
+    inputs = insights.ForecastInputs(
+        cycle=view.cycle,
+        tracking_start=view.tracking_start,
+        allowance_day=planning_settings.allowance_day,
+        discretionary_cents=view.safe.discretionary_cents,
+        daily_cents=view.safe.daily_cents,
+        recorded_balance_cents=view.recorded_balance_cents,
+        protected_savings_cents=view.safe.inputs.protected_savings_cents,
+        household_payables_cents=view.safe.inputs.household_payables_cents,
+        planned_allowance_cents=view.planned_allowance_cents,
+        commitments=tuple((o.due_date, o.amount_cents) for o in open_bills),
+        variable_consumption_cents=insights.variable_consumption(rows),
+    )
+    return ForecastView(view, insights.compute_forecast(inputs), window)

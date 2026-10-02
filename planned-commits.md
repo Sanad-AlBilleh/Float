@@ -81,7 +81,7 @@ Branch `feature/bills-goals-and-forecast`. The first four commits are P0; the ne
 - [x] `Pay, undo, skip, and split bill series atomically` (FR-12–13)
 - [x] `Track savings goals with protect and release movements` (FR-14)
 - [x] `Compute safe-to-spend with breakdown, reminder, and purchase preview` (FR-27–29)
-- [ ] `Forecast pace, runway, cash projection, and next-cycle outlook` (FR-30, personal data; household terms join on day 3)
+- [x] `Forecast pace, runway, cash projection, and next-cycle outlook` (FR-30, personal data; household terms join on day 3)
 - [ ] `Plan goal contributions, budgets, and unusual-expense flags` (FR-15, FR-16, FR-31)
 - [ ] `Record the schema decision and log AI use` (ADR-3, AI log)
 - [ ] Merge PR `Build recurring bills, goals, safe-to-spend, and the forecast`

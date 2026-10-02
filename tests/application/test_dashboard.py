@@ -105,3 +105,25 @@ def test_the_dashboard_materializes_bills_as_cycles_pass(conn, clock, ana):
     assert dashboard(conn, ana.id, clock).safe.inputs.personal_bills_cents == 30000
     clock.advance(days=40)  # 9 November: October and November are now due too
     assert dashboard(conn, ana.id, clock).safe.inputs.personal_bills_cents == 90000
+
+
+def test_the_forecast_uses_recorded_spending_and_open_bills(conn):
+    from app.application import bills
+    from app.application.context import Actor
+    from app.application.dashboard import forecast
+    from app.shared.clock import FixedClock
+    from app.shared.recurrence import Rule
+    from tests.conftest import MADRID
+
+    sept20 = FixedClock.on(date(2026, 9, 20), MADRID)
+    user = make_user(conn, sept20, "fixture")
+    complete_setup(conn, sept20, user, tracking_start=START, opening_cents=50000)
+    add_expense(conn, sept20, user, 18800, date(2026, 9, 10))
+    add_expense(conn, sept20, user, 3200, date(2026, 9, 12), one_off=True)
+    add_expense(conn, sept20, user, 999, date(2026, 9, 20))  # today: outside the pace window
+    bills.add_series(conn, Actor(user.id), bills.SeriesInput("Phone", 12000, 4, Rule("monthly", 1, date(2026, 9, 25))),
+                     sept20)
+    result = forecast(conn, user.id, sept20)
+    assert (result.window_days, result.forecast.pace_cents) == (19, 18800 // 19)
+    assert result.forecast.timeline[-1].conservative_cents == (
+        50000 - 18800 - 3200 - 999 - 24000 - (18800 // 19) * 42)

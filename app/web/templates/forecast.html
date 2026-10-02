@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Forecast{% endblock %}
+{% set view = result.dashboard %}
+{% block content %}
+  <h1>Forecast</h1>
+  <p class="muted">An estimate from your records so far. It assumes you keep spending at your usual pace.</p>
+  <section class="cards" aria-label="Pace and runway">
+    <div class="card">
+      <h2>Your pace</h2>
+      {% if f.pace_cents is none %}
+        <p class="figure">Not enough history</p>
+        <p class="muted">Float needs 7 complete days of records ({{ result.window_days }} so far), so it assumes you spend
+          your safe-to-spend amount of {{ view.safe.daily_cents|money }} per day.</p>
+      {% else %}
+        <p class="figure">{{ f.pace_cents|money }} per day</p>
+        <p class="muted">Everyday spending over the last {{ result.window_days }} days, without bills or one-off expenses.
+          Safe to spend is {{ view.safe.daily_cents|money }} per day.</p>
+      {% endif %}
+    </div>
+    <div class="card">
+      <h2>Runway</h2>
+      {% if f.runway_days is none %}
+        <p class="figure">No limit</p><p class="muted">You have no everyday spending to run out from.</p>
+      {% else %}
+        <p class="figure">{{ f.runway_days }} day{{ "" if f.runway_days == 1 else "s" }}</p>
+        <p class="muted">At this pace your discretionary money runs out on
+          <time datetime="{{ f.run_out_date.isoformat() }}">{{ f.run_out_date.isoformat() }}</time>.</p>
+      {% endif %}
+      <p><span class="status status-{{ 'paid' if f.status == 'on_track' else 'overdue' }}">{{ "On track" if f.status == "on_track" else "At risk" }}</span>
+        {% if f.status == "on_track" %}to reach your next allowance on {{ view.cycle.next_allowance.isoformat() }}.{% else %}of running out before {{ view.cycle.next_allowance.isoformat() }}.{% endif %}</p>
+    </div>
+    <div class="card">
+      <h2>Carry-over</h2>
+      <p class="figure">{{ f.carry_over_cents|money }}</p>
+      <p class="muted">What would be left when your next allowance is due.</p>
+    </div>
+  </section>
+  <section aria-labelledby="projection-heading">
+    <h2 id="projection-heading">Cash projection</h2>
+    <p>Lowest point: <strong>{{ f.lowest_expected.expected_cents|money }}</strong> on
+      <time datetime="{{ f.lowest_expected.day.isoformat() }}">{{ f.lowest_expected.day.isoformat() }}</time>, with your allowance arriving as planned.</p>
+    {% if f.dips_into_savings %}
+      <p class="warning" role="status"><strong>The plan dips into savings:</strong> the lowest point is below your
+        {{ view.safe.inputs.protected_savings_cents|money }} of protected savings.</p>
+    {% endif %}
+    {% if f.conservative_goes_negative %}
+      <p class="warning" role="status"><strong>This depends on your allowance arriving.</strong> Without it, your cash
+        would go below zero before {{ view.cycle.horizon_end.isoformat() }}.</p>
+    {% endif %}
+    <figure class="chart">
+      <svg viewBox="0 0 {{ chart.width }} {{ chart.height }}" role="img" aria-labelledby="chart-title chart-desc">
+        <title id="chart-title">Projected cash from {{ f.timeline[0].day.isoformat() }} to {{ f.timeline[-1].day.isoformat() }}</title>
+        <desc id="chart-desc">Expected lowest point {{ f.lowest_expected.expected_cents|money }} on {{ f.lowest_expected.day.isoformat() }}.
+          Without the allowance, cash ends at {{ f.timeline[-1].conservative_cents|money }}.</desc>
+        {% if chart.zero_y is not none %}<line class="zero" x1="0" x2="{{ chart.width }}" y1="{{ chart.zero_y }}" y2="{{ chart.zero_y }}"/>{% endif %}
+        <polyline class="line-conservative" points="{{ chart.conservative }}"/>
+        <polyline class="line-expected" points="{{ chart.expected }}"/>
+        <circle class="lowest" cx="{{ chart.lowest_x }}" cy="{{ chart.lowest_y }}" r="5"/>
+      </svg>
+      <figcaption>
+        <span class="legend legend-expected">Expected (with allowance)</span> — solid line.
+        <span class="legend legend-conservative">Conservative (no allowance)</span> — dashed line.
+        The circle marks the lowest expected point{% if chart.zero_y is not none %}; the thin line is €0{% endif %}.
+      </figcaption>
+    </figure>
+    <details>
+      <summary>Day-by-day numbers</summary>
+      <div class="table-scroll">
+        <table class="table">
+          <thead><tr><th scope="col">Day</th><th scope="col" class="num">Expected</th><th scope="col" class="num">Conservative</th></tr></thead>
+          <tbody>
+            {% for point in f.timeline %}
+              <tr><td>{{ point.day.isoformat() }}</td><td class="num">{{ point.expected_cents|money }}</td><td class="num">{{ point.conservative_cents|money }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+  <section aria-labelledby="next-heading">
+    <h2 id="next-heading">Next cycle</h2>
+    <p>From {{ view.cycle.next_allowance.isoformat() }} to the day before {{ view.cycle.horizon_end.isoformat() }}:
+      about <strong>{{ f.next_daily_cents|money }} per day</strong> ({{ f.next_free_cents|money }} free after next cycle's bills
+      and goal contributions).</p>
+    {% if f.next_shortfall_cents %}<p class="warning" role="status"><strong>Next cycle starts {{ f.next_shortfall_cents|money }} short.</strong></p>{% endif %}
+    <p class="muted">An estimate that assumes your planned allowance of {{ view.planned_allowance_cents|money }} arrives on time.</p>
+  </section>
+{% endblock %}

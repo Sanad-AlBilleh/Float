@@ -1,6 +1,20 @@
 """Planning's public interface. Code outside the planning package imports only this module."""
 
-from app.planning.rules import validate_planned_allowance, validate_settings
+from app.planning.bills import (
+    BillSeries,
+    Occurrence,
+    PlanningObligations,
+    create_series,
+    ensure_materialized,
+    get_obligations,
+    get_occurrence,
+    get_series,
+    list_occurrences,
+    list_series,
+    open_occurrences_due_before,
+    series_problems,
+)
+from app.planning.rules import occurrence_status, validate_planned_allowance, validate_settings
 from app.planning.service import (
     PlanningSettings,
     get_cycle,
@@ -10,10 +24,23 @@ from app.planning.service import (
 )
 
 __all__ = [
+    "BillSeries",
+    "Occurrence",
+    "PlanningObligations",
     "PlanningSettings",
+    "create_series",
+    "ensure_materialized",
     "get_cycle",
+    "get_obligations",
+    "get_occurrence",
+    "get_series",
     "get_settings",
+    "list_occurrences",
+    "list_series",
+    "occurrence_status",
+    "open_occurrences_due_before",
     "save_settings",
+    "series_problems",
     "update_planned_allowance",
     "validate_planned_allowance",
     "validate_settings",

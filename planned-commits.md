@@ -36,8 +36,8 @@ Merge commits are counted too, as the conservative reading of the rule.
 |---|---|---|---|---|
 | Mon 28 Sep | 2 | 1 | 3 | done |
 | Wed 30 Sep | 2 (requirements v0.2) + 3 (foundation) + 1 (this schedule change) | 3 | 9 | done |
-| Thu 1 Oct | 6 (one unplanned fix) + 1 (branch renames) + 1 (review fixes) | 3 | 11 | done once the review-fix PR is merged |
-| Fri 2 Oct | 7 | 1 | 8 | planned |
+| Thu 1 Oct | 6 (one unplanned fix) + 1 (branch renames) + 1 (review fixes) | 3 | 11 | done |
+| Fri 2 Oct | 7 | 1 | 8 | in progress |
 | Sat 3 Oct | 7 (6 if the API is cut) | 1 | 8 | planned |
 | Sun 4 Oct | 3–6 | 1 | 4–7 | planned |
 | **Total** | | | **about 43** | |
@@ -71,13 +71,13 @@ Branch `feature/accounts-and-ledger`.
 - [x] `Rename branches to describe their content` (branch `docs/descriptive-branch-names`): unplanned, at the student's request.
 - [x] Merge PR `Rename branches to describe their content` (PR #6).
 - [x] `Fix the issues found by the Day 0–1 review` (branch `fix/review-findings`): unplanned, at the student's request, after a helper-agent review found 11 issues.
-- [ ] Merge PR `Fix the issues found by the Day 0–1 review`. This box is ticked in the next day's first commit, so 1 October gets no extra commit.
+- [x] Merge PR `Fix the issues found by the Day 0–1 review` (PR #7). This box was ticked in the next day's first commit, so 1 October got no extra commit.
 
 ## Day 2 — Friday 2 October: Planning, safe-to-spend, and personal insight (P0 + P1)
 
 Branch `feature/bills-goals-and-forecast`. The first four commits are P0; the next two are P1, in priority order.
 
-- [ ] `Materialize recurring bill occurrences idempotently` (FR-09–11)
+- [x] `Materialize recurring bill occurrences idempotently` (FR-09–11)
 - [ ] `Pay, undo, skip, and split bill series atomically` (FR-12–13)
 - [ ] `Track savings goals with protect and release movements` (FR-14)
 - [ ] `Compute safe-to-spend with breakdown, reminder, and purchase preview` (FR-27–29)

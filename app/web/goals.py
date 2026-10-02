@@ -42,9 +42,9 @@ def _values(name="", target="", target_date="", priority="2", auto_reserve=None)
 
 def _page(request: Request, conn: sqlite3.Connection, session: Session, *, errors=None, values=None,
           move_errors=None, notice=None, status_code: int = 200):
-    goals = use_cases.list_goals(conn, actor_for(request, session))
+    plans = use_cases.goal_plans(conn, actor_for(request, session), request.app.state.clock)
     return render(request, "goals.html",
-                  {"goals": goals, "errors": errors or {}, "values": values or _values(),
+                  {"plans": plans, "errors": errors or {}, "values": values or _values(),
                    "move_errors": move_errors or {}, "priorities": PRIORITIES, "notice": notice},
                   status_code=status_code)
 

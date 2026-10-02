@@ -253,3 +253,42 @@ def protected_total(conn: sqlite3.Connection, *, user_id: int) -> int:
         " JOIN savings_goals AS g ON g.id = m.goal_id WHERE g.user_id = ? AND g.archived_at IS NULL",
         (user_id,),
     ).fetchone()[0]
+
+
+# Budgets (FR-16) --------------------------------------------------------------------------------
+
+def upsert_template(conn: sqlite3.Connection, *, user_id: int, category_id: int, limit_cents: int) -> None:
+    conn.execute(
+        "INSERT INTO budget_templates (user_id, category_id, limit_cents) VALUES (?, ?, ?)"
+        " ON CONFLICT (user_id, category_id) DO UPDATE SET limit_cents = excluded.limit_cents",
+        (user_id, category_id, limit_cents),
+    )
+
+
+def delete_template(conn: sqlite3.Connection, *, user_id: int, category_id: int) -> None:
+    conn.execute("DELETE FROM budget_templates WHERE user_id = ? AND category_id = ?", (user_id, category_id))
+
+
+def upsert_override(conn: sqlite3.Connection, *, user_id: int, category_id: int, cycle_start: date,
+                    limit_cents: int) -> None:
+    conn.execute(
+        "INSERT INTO category_budgets (user_id, category_id, cycle_start, limit_cents) VALUES (?, ?, ?, ?)"
+        " ON CONFLICT (user_id, category_id, cycle_start) DO UPDATE SET limit_cents = excluded.limit_cents",
+        (user_id, category_id, cycle_start.isoformat(), limit_cents),
+    )
+
+
+def delete_override(conn: sqlite3.Connection, *, user_id: int, category_id: int, cycle_start: date) -> None:
+    conn.execute("DELETE FROM category_budgets WHERE user_id = ? AND category_id = ? AND cycle_start = ?",
+                 (user_id, category_id, cycle_start.isoformat()))
+
+
+def templates(conn: sqlite3.Connection, *, user_id: int) -> dict[int, int]:
+    rows = conn.execute("SELECT category_id, limit_cents FROM budget_templates WHERE user_id = ?", (user_id,))
+    return {row["category_id"]: row["limit_cents"] for row in rows}
+
+
+def overrides(conn: sqlite3.Connection, *, user_id: int, cycle_start: date) -> dict[int, int]:
+    rows = conn.execute("SELECT category_id, limit_cents FROM category_budgets WHERE user_id = ? AND cycle_start = ?",
+                        (user_id, cycle_start.isoformat()))
+    return {row["category_id"]: row["limit_cents"] for row in rows}

@@ -331,3 +331,5 @@ fieldset.field {
 .chart .zero { stroke: var(--muted); stroke-width: 1; }
 .chart .lowest { fill: var(--surface); stroke: var(--text); stroke-width: 2; }
 .legend { font-weight: 600; }
+.tag-unusual { border-color: var(--warning); color: var(--warning); font-weight: 700; }
+.budget-form input { width: 6rem; }

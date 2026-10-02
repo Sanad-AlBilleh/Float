@@ -32,6 +32,8 @@
                 {% elif item.income_source == "settlement" %}Settlement received
                 {% else %}Other income{% endif %}
                 {% if item.one_off %}<span class="tag">one-off</span>{% endif %}
+                {% if item.id in unusual %}<span class="tag tag-unusual">Unusual</span>
+                  <br><span class="muted">{{ item.amount_cents|money }} is well above your typical {{ unusual[item.id]|money }} for {{ categories.get(item.category_id) }}.</span>{% endif %}
                 {% if item.note %}<br><span class="muted">{{ item.note }}</span>{% endif %}
               </td>
               <td class="num">{{ "+" if item.kind == "income" else "−" }}{{ item.amount_cents|money }}</td>

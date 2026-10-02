@@ -98,5 +98,6 @@ def forecast(conn: sqlite3.Connection, user_id: int, clock: Clock) -> ForecastVi
         planned_allowance_cents=view.planned_allowance_cents,
         commitments=tuple((o.due_date, o.amount_cents) for o in open_bills),
         variable_consumption_cents=insights.variable_consumption(rows),
+        next_cycle_goal_plan_cents=planning.next_cycle_goal_plan(conn, user_id=user_id, cycle=view.cycle),
     )
     return ForecastView(view, insights.compute_forecast(inputs), window)

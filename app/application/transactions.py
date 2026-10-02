@@ -2,11 +2,12 @@
 
 import sqlite3
 from dataclasses import asdict
-from datetime import date
+from datetime import date, timedelta
 
 from app.application import audit
 from app.application.context import Actor
 from app.db.unit_of_work import transaction
+from app.insights import api as insights
 from app.ledger import api as ledger
 from app.shared.clock import Clock
 from app.shared.errors import ValidationError
@@ -69,3 +70,28 @@ def remove_transaction(conn: sqlite3.Connection, actor: Actor, transaction_id: i
         removed = ledger.delete_manual(conn, user_id=actor.user_id, transaction_id=transaction_id, version=version)
         audit.record(conn, actor_user_id=actor.user_id, entity_type="transaction", entity_id=transaction_id,
                      action="delete", now=clock.now_utc(), before=asdict(removed), request_id=actor.request_id)
+
+
+UNUSUAL_LOOKBACK = timedelta(days=90)
+COMPARABLE_ORIGINS = ("manual", "import")
+
+
+def unusual_expenses(conn: sqlite3.Connection, actor: Actor, items: list[ledger.Transaction]) -> dict[int, int]:
+    """FR-31, SRS §4.8: each unusual expense's ID mapped to its category's typical (median) amount.
+
+    An expense is compared with the user's other manual or imported expenses in its category dated in
+    the 90 days before it.
+    """
+    candidates = [t for t in items if t.kind == "expense" and t.origin in COMPARABLE_ORIGINS]
+    if not candidates:
+        return {}
+    rows = [row for row in ledger.get_expense_rows(
+        conn, user_id=actor.user_id, start=min(t.occurred_on for t in candidates) - UNUSUAL_LOOKBACK,
+        end_exclusive=max(t.occurred_on for t in candidates)) if row.origin in COMPARABLE_ORIGINS]
+    flags: dict[int, int] = {}
+    for item in candidates:
+        history = [row.amount_cents for row in rows if row.category_id == item.category_id
+                   and item.occurred_on - UNUSUAL_LOOKBACK <= row.occurred_on < item.occurred_on]
+        if insights.is_unusual(item.amount_cents, history):
+            flags[item.id] = insights.lower_median(history)
+    return flags

@@ -9,7 +9,8 @@ from dataclasses import dataclass
 from datetime import date, datetime
 
 from app.planning import repository
-from app.planning.rules import NAME_LIMIT
+from app.planning.rules import NAME_LIMIT, GoalPlan, goal_plan, next_cycle_contribution
+from app.shared.dates import Cycle
 from app.shared.errors import ConflictError, NotFoundError, ValidationError
 from app.shared.money import MAX_CENTS, format_money
 
@@ -137,3 +138,26 @@ def movements(conn: sqlite3.Connection, *, user_id: int, goal_id: int) -> list[t
 
 def protected_total(conn: sqlite3.Connection, *, user_id: int) -> int:
     return repository.protected_total(conn, user_id=user_id)
+
+
+def plans(conn: sqlite3.Connection, *, user_id: int, cycle: Cycle) -> list[tuple[Goal, GoalPlan]]:
+    """Each active goal with its contribution plan for ``cycle`` (SRS §4.6)."""
+    settings = repository.get_settings(conn, user_id)
+    if settings is None:
+        return []
+    return [
+        (goal, goal_plan(target_cents=goal.target_cents, target_date=goal.target_date,
+                         movements=movements(conn, user_id=user_id, goal_id=goal.id), cycle=cycle,
+                         allowance_day=settings["allowance_day"]))
+        for goal in list_goals(conn, user_id=user_id)
+    ]
+
+
+def goal_plan_reserve(conn: sqlite3.Connection, *, user_id: int, cycle: Cycle) -> int:
+    return sum(plan.pending_reserve_cents for goal, plan in plans(conn, user_id=user_id, cycle=cycle)
+               if goal.auto_reserve)
+
+
+def next_cycle_goal_plan(conn: sqlite3.Connection, *, user_id: int, cycle: Cycle) -> int:
+    return sum(next_cycle_contribution(plan, target_cents=goal.target_cents, protected_now_cents=goal.protected_cents)
+               for goal, plan in plans(conn, user_id=user_id, cycle=cycle) if goal.auto_reserve)

@@ -307,3 +307,29 @@ fieldset.field {
 .facts dt { font-weight: 600; }
 
 .facts dd { margin: 0; }
+
+/* Day 2: safe-to-spend, bills, and goals */
+.hero { border-left: 4px solid var(--accent); }
+.figure-large { font-size: 2rem; }
+.warning-strong { border-width: 2px; }
+.breakdown th { font-weight: normal; text-align: left; }
+.breakdown .total th, .breakdown .total td { font-weight: 700; border-top: 2px solid var(--text); }
+.status { display: inline-block; padding: 0 0.4rem; border: 1px solid var(--border); border-radius: 4px; font-size: 0.875rem; }
+.status-overdue { border-color: var(--danger); color: var(--danger); font-weight: 700; }
+.status-reserved { border-color: var(--warning); color: var(--warning); }
+.status-paid { color: var(--accent); border-color: var(--accent); }
+.status-over { border-color: var(--danger); color: var(--danger); font-weight: 700; }
+.status-warning { border-color: var(--warning); color: var(--warning); }
+.goal { margin-bottom: 1rem; }
+.goal-actions { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; align-items: end; }
+.goal-actions label { display: block; font-size: 0.875rem; }
+.goal-actions input { width: 7rem; }
+.chart svg { width: 100%; height: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.chart polyline { fill: none; stroke-width: 2.5; }
+.chart .line-expected { stroke: var(--accent); }
+.chart .line-conservative { stroke: var(--warning); stroke-dasharray: 6 4; }
+.chart .zero { stroke: var(--muted); stroke-width: 1; }
+.chart .lowest { fill: var(--surface); stroke: var(--text); stroke-width: 2; }
+.legend { font-weight: 600; }
+.tag-unusual { border-color: var(--warning); color: var(--warning); font-weight: 700; }
+.budget-form input { width: 6rem; }

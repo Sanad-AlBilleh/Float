@@ -508,6 +508,8 @@ erDiagram
     USERS ||--o{ SAVINGS_GOALS : owns
     SAVINGS_GOALS ||--o{ GOAL_MOVEMENTS : records
     USERS ||--o{ CATEGORY_BUDGETS : sets
+    USERS ||--o{ BUDGET_TEMPLATES : sets
+    CATEGORIES ||--o{ BILL_SERIES : classifies
     HOUSEHOLDS ||--o{ MEMBERSHIPS : has
     USERS ||--o{ MEMBERSHIPS : joins
     HOUSEHOLDS ||--o{ INVITATIONS : issues

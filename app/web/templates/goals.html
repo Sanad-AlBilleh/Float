@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% import "macros/forms.html" as forms %}
+{% import "_goal_fields.html" as goal_form %}
+{% block title %}Goals{% endblock %}
+{% block content %}
+  <h1>Savings goals</h1>
+  {% if notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
+  <p class="muted">Protected money stays in your recorded balance but is never counted as safe to spend.
+    Protecting or releasing never creates a transaction.</p>
+  {% set plan_labels = {"complete": "Complete", "no_target_date": "No target date", "overdue": "Overdue", "on_plan": "On plan", "behind": "Behind"} %}
+  {% for goal, plan in plans %}
+    <section class="card goal" aria-labelledby="goal-{{ goal.id }}">
+      <h2 id="goal-{{ goal.id }}">{{ goal.name }}</h2>
+      <p class="figure">{{ goal.protected_cents|money }} of {{ goal.target_cents|money }}</p>
+      <p class="muted">{{ priorities[goal.priority] }} priority{% if goal.target_date %} · target date
+        <time datetime="{{ goal.target_date.isoformat() }}">{{ goal.target_date.isoformat() }}</time>{% endif %}
+        {% if goal.auto_reserve %} · reserves automatically{% endif %}</p>
+      <p><span class="status status-{{ {'overdue': 'over', 'behind': 'warning', 'complete': 'paid', 'on_plan': 'paid'}.get(plan.status, '') }}">{{ plan_labels[plan.status] }}</span>
+        {% if plan.status in ("on_plan", "behind") %}
+          {{ plan.planned_cents|money }} planned this cycle ({{ plan.cycles_left }} cycle{{ "" if plan.cycles_left == 1 else "s" }} left);
+          {% if plan.pending_reserve_cents %}{{ plan.pending_reserve_cents|money }} still to protect{% if goal.auto_reserve %}, already set aside in safe-to-spend{% endif %}.{% else %}done for this cycle.{% endif %}
+        {% elif plan.status == "overdue" %}The target date has passed. Change the date or the target; nothing is reserved meanwhile.
+        {% elif plan.status == "no_target_date" %}Add a target date to get a plan.{% endif %}</p>
+      {% if move_errors.get(goal.id) %}<p class="field-error" role="alert">{{ move_errors[goal.id] }}</p>{% endif %}
+      <div class="goal-actions">
+        <form method="post" action="/goals/{{ goal.id }}/protect" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label for="protect-{{ goal.id }}">Protect (€)</label>
+          <input id="protect-{{ goal.id }}" name="amount" inputmode="decimal" size="8">
+          <button type="submit" class="button">Protect</button>
+        </form>
+        <form method="post" action="/goals/{{ goal.id }}/release" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label for="release-{{ goal.id }}">Release (€)</label>
+          <input id="release-{{ goal.id }}" name="amount" inputmode="decimal" size="8">
+          <button type="submit" class="button button-secondary">Release</button>
+        </form>
+      </div>
+      <p class="actions">
+        <a href="/goals/{{ goal.id }}/edit">Edit<span class="visually-hidden"> {{ goal.name }}</span></a>
+        <form method="post" action="/goals/{{ goal.id }}/archive" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="version" value="{{ goal.version }}">
+          <button type="submit" class="link-button">Archive and release<span class="visually-hidden"> {{ goal.name }}</span></button>
+        </form>
+      </p>
+    </section>
+  {% else %}
+    <p>No goals yet.</p>
+  {% endfor %}
+  <h2>Add a goal</h2>
+  {{ forms.error_summary(errors) }}
+  <form method="post" action="/goals/new" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {{ goal_form.goal_fields(values, errors, priorities) }}
+    <button type="submit" class="button">Add goal</button>
+  </form>
+{% endblock %}

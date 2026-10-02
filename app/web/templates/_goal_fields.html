@@ -1,0 +1,20 @@
+{% import "macros/forms.html" as forms %}
+{% macro goal_fields(values, errors, priorities) %}
+  {{ forms.field("name", "Name", errors, values.name, hint="For example Laptop or Emergency fund.") }}
+  {{ forms.field("target", "Target (€)", errors, values.target, inputmode="decimal") }}
+  {{ forms.field("target_date", "Target date (optional)", errors, values.target_date, type="date",
+                 hint="With a date, Float works out how much to set aside each cycle.") }}
+  <div class="field{% if errors.priority %} field-has-error{% endif %}">
+    <label for="priority">Priority</label>
+    {% if errors.priority %}<p class="field-error" id="priority-error">{{ errors.priority }}</p>{% endif %}
+    <select id="priority" name="priority"{% if errors.priority %} aria-invalid="true" aria-describedby="priority-error"{% endif %}>
+      {% for level, label in priorities.items() %}
+        <option value="{{ level }}"{% if values.priority|string == level|string %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label class="choice"><input type="checkbox" id="auto_reserve" name="auto_reserve"{% if values.auto_reserve %} checked{% endif %}>
+      Reserve this cycle's planned contribution automatically <span class="muted">(needs a target date)</span></label>
+  </div>
+{% endmacro %}

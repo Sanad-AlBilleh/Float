@@ -31,7 +31,15 @@ The stack is Python/FastAPI with SQLite, server-rendered pages, and (in P1) a JS
 - **Dashboard:** your recorded balance, the next allowance date, and a reminder until this cycle's allowance is recorded. Float never assumes the allowance arrived.
 - **Audit trail:** every financial change is recorded in an append-only log.
 
-Recurring bills, goals, and safe-to-spend arrive on 2 October; households, splitting, and settlements on 3 October (see `planned-commits.md`).
+**Day 2 (2 October), bills, goals, safe-to-spend, and the forecast:**
+- **Bills:** add a bill that repeats weekly or monthly (every 1–52 weeks or 1–12 months), or happens once, ending on a date or after a number of times. Float generates each bill when a page needs it, never twice. Each bill shows as upcoming, reserved, overdue, paid, or skipped, in words. Paying creates the expense in your transactions; undoing removes it again. You can skip a bill, change one bill's amount or due date, change "this and future" bills (earlier ones keep their amounts), or end a bill (overdue ones stay until paid or skipped).
+- **Goals:** protect money for a goal and release it again. Protected money stays in your balance but is never counted as safe to spend, and no transaction is created. With a target date, Float works out how much to set aside this cycle and shows whether you are on plan, behind, overdue, or complete. Goals marked "reserve automatically" set that amount aside in safe-to-spend.
+- **Safe to spend:** the dashboard shows how much you can spend per day until your next allowance. It subtracts bills due before then, protected savings, and planned goal contributions from your recorded balance, and every step links to the records behind it. A shortfall is shown in words. "Can I afford it?" previews a purchase without saving anything.
+- **Forecast:** your spending pace over the last 28 days (or "not enough history" under 7 days), how many days your money lasts at that pace, what would be left at the next allowance, a day-by-day chart with and without the allowance, its lowest point, and an estimate for the next cycle.
+- **Budgets:** set a limit per category for every cycle or for this cycle only. Each category shows what you spent and whether it is OK, at 80% or more, or over (and by how much).
+- **Unusual expenses:** an expense far above what you usually spend in that category (compared with your last 90 days, once there are 8 earlier expenses) is flagged in the list, with the reason.
+
+Household shares and payables appear as €0.00 until households arrive on 3 October, with splitting and settlements (see `planned-commits.md`).
 
 ## Running Float
 
@@ -62,16 +70,17 @@ pytest
 ```
 
 ```bash
-pytest --cov=app.identity --cov=app.ledger --cov=app.planning --cov=app.application --cov=app.shared --cov-report=term-missing
+pytest --cov=app.identity --cov=app.ledger --cov=app.planning --cov=app.insights --cov=app.application --cov=app.shared --cov-report=term-missing
 ```
 
-The second command is the NFR-08 coverage set, limited to the modules that exist so far. `app.households` and `app.insights` join it as they are built.
+The second command is the NFR-08 coverage set, limited to the modules that exist so far. `app.insights` joined it on 2 October; `app.households` joins it when it is built.
 
 | Date | Tests | Coverage of the NFR-08 modules | Coverage of all modules |
 |---|---|---|---|
 | 30 Sep | 113 passed | 100% of `app.shared` | 99% (342 statements, 2 missed) |
 | 1 Oct | 249 passed | 99% (763 statements, 10 missed) | 97% (1,333 statements, 40 missed) |
 | 1 Oct, after the review fixes | 285 passed | 99% (800 statements, 9 missed) | 97% (1,418 statements, 42 missed) |
+| 2 Oct | 423 passed | 99% (1,546 statements, 20 missed; now including `app.insights`) | 97% (2,463 statements, 64 missed) |
 
 These figures were measured on macOS with Python 3.14.7. The suite includes Hypothesis property tests, an architecture test that enforces the domain boundaries, and an authorization test for every page that shows records.
 
@@ -90,6 +99,8 @@ Each day, deliberate bugs were injected into the new code to check that the test
   - the 64 KB form limit was missing;
   - stale edits lost your input;
   - plus two smaller integrity gaps.
+- **2 October:** 59 mutations across bills, goals, safe-to-spend, the forecast, goal plans, budgets, and unusual expenses. The first runs missed 19. Sixteen were real gaps and got tests: exact boundaries (a bill due today when a series ends, a runway equal to the days left, a bill due on payday, ties for the lowest point, the 90-day lookback), skipped bills surviving an ended series, which budget scope is saved, and two update paths that did not check their row count. The other three cannot change behaviour: the conditional SQL updates re-check what the Python checks first. All Fixture A, B, C, E, and F values from SRS §4.10 that need no household are reproduced exactly.
+- **2 October, real server:** a 13-step smoke test on `python app.py` covered registering, setting up, adding and paying a bill, adding a goal, the dashboard and preview, the forecast, and budgets. Every step passed, with one request-log line per request and no server errors. The dashboard, bills, and forecast pages were also checked in a browser.
 
 ## Planned documentation
 

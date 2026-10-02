@@ -6,7 +6,7 @@ from hypothesis import strategies as st
 
 from app.shared.dates import last_day_of_month
 from app.shared.errors import ValidationError
-from app.shared.recurrence import Rule, candidate, count_before, expand
+from app.shared.recurrence import Rule, candidate, count_before, expand, split_rule
 
 D = date
 
@@ -140,3 +140,22 @@ def test_count_limits_the_total_number_of_occurrences(rule):
     everything = expand(rule, rule.anchor, rule.anchor + timedelta(days=45 * 366))
     if rule.count is not None:
         assert len(everything) == rule.count
+
+
+def test_split_ends_the_old_rule_the_day_before():
+    rule = Rule("monthly", 1, date(2026, 7, 5))
+    assert split_rule(rule, date(2026, 10, 5)) == (Rule("monthly", 1, date(2026, 7, 5), until=date(2026, 10, 4)), None)
+
+
+def test_split_hands_the_remaining_count_to_the_new_rule():
+    rule = Rule("monthly", 1, date(2026, 7, 5), count=6)
+    shortened, remaining = split_rule(rule, date(2026, 10, 5))
+    assert shortened.until == date(2026, 10, 4) and shortened.count is None and remaining == 3
+    assert expand(shortened, rule.anchor, date(2027, 7, 1)) == expand(rule, rule.anchor, date(2026, 10, 5))
+
+
+@pytest.mark.parametrize("split_on", [date(2026, 7, 5), date(2026, 7, 1)])
+def test_split_at_or_before_the_anchor_is_refused(split_on):
+    with pytest.raises(ValidationError) as error:
+        split_rule(Rule("monthly", 1, date(2026, 7, 5)), split_on)
+    assert set(error.value.errors) == {"anchor_date"}

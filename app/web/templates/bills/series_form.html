@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% import "macros/forms.html" as forms %}
+{% import "bills/_fields.html" as bill_fields %}
+{% block title %}Add a bill{% endblock %}
+{% block content %}
+  <h1>Add a bill</h1>
+  <p class="muted">Float reserves each bill until it is paid, so safe-to-spend never counts that money twice.</p>
+  {{ forms.error_summary(errors) }}
+  <form method="post" action="/bills/new" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {{ bill_fields.series_fields(values, errors, categories) }}
+    <p class="actions">
+      <button type="submit" class="button">Add bill</button>
+      <a href="/bills">Cancel</a>
+    </p>
+  </form>
+{% endblock %}

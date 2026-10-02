@@ -84,3 +84,12 @@ def expand(rule: Rule, window_start: date, window_end_exclusive: date) -> list[d
 def count_before(rule: Rule, day: date) -> int:
     """How many valid occurrences fall strictly before ``day``."""
     return len(expand(rule, rule.anchor, day))
+
+
+def split_rule(rule: Rule, split_date: date) -> tuple[Rule, int | None]:
+    """End ``rule`` the day before ``split_date``; also return how many occurrences a count-limited rule still owes."""
+    if split_date <= rule.anchor:
+        raise ValidationError.single("anchor_date", "Edit the whole series instead of splitting at its first date.")
+    before = count_before(rule, split_date)
+    shortened = Rule(rule.freq, rule.interval, rule.anchor, until=split_date - timedelta(days=1))
+    return shortened, (rule.count - before if rule.count is not None else None)

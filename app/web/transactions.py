@@ -97,8 +97,9 @@ def list_page(request: Request, session: Session = Depends(require_ready_session
         older = f"{items[-1].occurred_on.isoformat()}:{items[-1].id}"
     categories = {category.id: category.name for category in list_categories(conn)}
     balance = use_cases.current_balance(conn, actor_for(request, session), request.app.state.clock)
+    unusual = use_cases.unusual_expenses(conn, actor_for(request, session), items)
     return render(request, "transactions/list.html",
-                  {"items": items, "categories": categories, "older": older, "saved": bool(saved),
+                  {"items": items, "categories": categories, "older": older, "saved": bool(saved), "unusual": unusual,
                    "deleted": bool(deleted), "balance": balance})
 
 

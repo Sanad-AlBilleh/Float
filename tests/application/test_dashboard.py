@@ -66,3 +66,64 @@ def test_the_dashboard_requires_setup(conn, clock):
     erin = make_user(conn, clock, "erin")
     with pytest.raises(ConflictError):
         dashboard(conn, erin.id, clock)
+
+
+def test_safe_to_spend_subtracts_bills_and_protected_savings(conn):
+    from app.application import bills, goals
+    from app.application.context import Actor
+    from app.shared.clock import FixedClock
+    from app.shared.recurrence import Rule
+    from tests.conftest import MADRID
+
+    sept20 = FixedClock.on(date(2026, 9, 20), MADRID)
+    fixture_a = make_user(conn, sept20, "fixture")
+    actor = Actor(fixture_a.id)
+    complete_setup(conn, sept20, fixture_a, tracking_start=START)
+    add_income(conn, sept20, fixture_a, 75000, START)
+    add_expense(conn, sept20, fixture_a, 18800, date(2026, 9, 10))
+    add_expense(conn, sept20, fixture_a, 3200, date(2026, 9, 12), one_off=True)
+    add_expense(conn, sept20, fixture_a, 3000, date(2026, 9, 19))  # Fixture A's flat groceries, all Ana's for now
+    bills.add_series(conn, actor, bills.SeriesInput("Phone + gym", 12000, 4, Rule("monthly", 1, date(2026, 9, 25))),
+                     sept20)
+    fund = goals.add_goal(conn, actor, goals.GoalInput("Emergency fund", 100000, None, 2, False), sept20)
+    goals.move_money(conn, actor, fund.id, 5000, sept20)
+    view = dashboard(conn, fixture_a.id, sept20)
+    assert view.recorded_balance_cents == 50000
+    terms = view.safe.inputs
+    assert (terms.personal_bills_cents, terms.protected_savings_cents, terms.household_bill_shares_cents,
+            terms.household_payables_cents, terms.goal_plan_reserve_cents) == (12000, 5000, 0, 0, 0)
+    assert (view.safe.discretionary_cents, view.safe.daily_cents) == (33000, 3000)
+
+
+def test_the_dashboard_materializes_bills_as_cycles_pass(conn, clock, ana):
+    from app.planning.api import create_series
+    from app.shared.recurrence import Rule
+
+    create_series(conn, user_id=ana.id, name="Rent", amount_cents=30000, category_id=3,
+                  rule=Rule("monthly", 1, date(2026, 9, 5)), tracking_start=START, category_ids={3},
+                  now=clock.now_utc())  # stored without materializing, as after a restart
+    assert dashboard(conn, ana.id, clock).safe.inputs.personal_bills_cents == 30000
+    clock.advance(days=40)  # 9 November: October and November are now due too
+    assert dashboard(conn, ana.id, clock).safe.inputs.personal_bills_cents == 90000
+
+
+def test_the_forecast_uses_recorded_spending_and_open_bills(conn):
+    from app.application import bills
+    from app.application.context import Actor
+    from app.application.dashboard import forecast
+    from app.shared.clock import FixedClock
+    from app.shared.recurrence import Rule
+    from tests.conftest import MADRID
+
+    sept20 = FixedClock.on(date(2026, 9, 20), MADRID)
+    user = make_user(conn, sept20, "fixture")
+    complete_setup(conn, sept20, user, tracking_start=START, opening_cents=50000)
+    add_expense(conn, sept20, user, 18800, date(2026, 9, 10))
+    add_expense(conn, sept20, user, 3200, date(2026, 9, 12), one_off=True)
+    add_expense(conn, sept20, user, 999, date(2026, 9, 20))  # today: outside the pace window
+    bills.add_series(conn, Actor(user.id), bills.SeriesInput("Phone", 12000, 4, Rule("monthly", 1, date(2026, 9, 25))),
+                     sept20)
+    result = forecast(conn, user.id, sept20)
+    assert (result.window_days, result.forecast.pace_cents) == (19, 18800 // 19)
+    assert result.forecast.timeline[-1].conservative_cents == (
+        50000 - 18800 - 3200 - 999 - 24000 - (18800 // 19) * 42)

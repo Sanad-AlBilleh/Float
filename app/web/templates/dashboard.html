@@ -1,7 +1,17 @@
 {% extends "base.html" %}
+{% import "macros/forms.html" as forms %}
 {% block title %}Dashboard{% endblock %}
+{% set safe = view.safe %}
+{% set terms = safe.inputs %}
+{% set days = view.cycle.days_remaining %}
 {% block content %}
   <h1>Today, <time datetime="{{ view.cycle.today.isoformat() }}">{{ view.cycle.today.isoformat() }}</time></h1>
+  {% if safe.shortfall_cents %}
+    <div class="warning warning-strong" role="alert">
+      <p><strong>Shortfall: {{ safe.shortfall_cents|money }}.</strong> Your bills and protected savings add up to more
+        than your recorded balance, so nothing is safe to spend until you record income, release savings, or skip a bill.</p>
+    </div>
+  {% endif %}
   {% if view.below_zero %}
     <div class="warning" role="alert">
       <p><strong>Your recorded balance is below zero ({{ view.recorded_balance_cents|money }}).</strong>
@@ -14,6 +24,50 @@
         <a href="/transactions/new?kind=income&amp;source=allowance">record it as income</a>. Float never assumes it arrived.</p>
     </div>
   {% endif %}
+  <section class="card hero" aria-labelledby="safe-heading">
+    <h2 id="safe-heading">Safe to spend today</h2>
+    <p class="figure figure-large">{{ safe.daily_cents|money }} per day</p>
+    <p class="muted">{{ safe.discretionary_cents|money }} to last {{ days }} day{{ "" if days == 1 else "s" }}, until your
+      next allowance on <time datetime="{{ view.cycle.next_allowance.isoformat() }}">{{ view.cycle.next_allowance.isoformat() }}</time>.
+      Rounded down to the cent.</p>
+  </section>
+  <section aria-labelledby="breakdown-heading">
+    <h2 id="breakdown-heading">How Float worked it out</h2>
+    <table class="table breakdown">
+      <caption class="visually-hidden">Safe-to-spend breakdown</caption>
+      <tbody>
+        <tr><th scope="row"><a href="/transactions">Recorded balance</a></th><td class="num">{{ terms.recorded_balance_cents|money }}</td></tr>
+        <tr><th scope="row">− <a href="/bills">Bills due before {{ view.cycle.next_allowance.isoformat() }}</a>
+          <span class="muted">({{ view.reserved_bills|length }} unpaid)</span></th><td class="num">{{ terms.personal_bills_cents|money }}</td></tr>
+        <tr><th scope="row">− Household bill shares <span class="muted">(no household yet)</span></th><td class="num">{{ terms.household_bill_shares_cents|money }}</td></tr>
+        <tr><th scope="row">− <a href="/goals">Protected savings</a></th><td class="num">{{ terms.protected_savings_cents|money }}</td></tr>
+        <tr><th scope="row">− Household payables <span class="muted">(no household yet)</span></th><td class="num">{{ terms.household_payables_cents|money }}</td></tr>
+        <tr><th scope="row">− <a href="/goals">Goal plan reserve</a></th><td class="num">{{ terms.goal_plan_reserve_cents|money }}</td></tr>
+        <tr class="total"><th scope="row">= Discretionary</th><td class="num">{{ safe.discretionary_cents|money }}</td></tr>
+      </tbody>
+    </table>
+    <p class="muted">Your planned allowance of {{ view.planned_allowance_cents|money }} is expected, not counted, until you record it.</p>
+  </section>
+  <section aria-labelledby="preview-heading">
+    <h2 id="preview-heading">Can I afford it?</h2>
+    {{ forms.error_summary(errors) }}
+    <form method="get" action="/" class="stack">
+      {{ forms.field("cost", "Total cost (€)", errors, values.cost, inputmode="decimal",
+                     hint="A purchase or trip. Nothing is saved.") }}
+      <button type="submit" class="button button-secondary">Preview</button>
+    </form>
+    {% if preview %}
+      <div class="card" role="status">
+        {% if preview.after_shortfall_cents %}
+          <p><strong>You would be {{ preview.after_shortfall_cents|money }} short.</strong> After spending {{ preview.cost_cents|money }},
+            nothing would be safe to spend ({{ preview.after_daily_cents|money }} per day).</p>
+        {% else %}
+          <p>After spending {{ preview.cost_cents|money }}: <strong>{{ preview.after_cents|money }}</strong> left,
+            or <strong>{{ preview.after_daily_cents|money }} per day</strong> instead of {{ safe.daily_cents|money }}.</p>
+        {% endif %}
+      </div>
+    {% endif %}
+  </section>
   <section class="cards" aria-label="Your numbers">
     <div class="card">
       <h2>Recorded balance</h2>
@@ -24,7 +78,7 @@
     <div class="card">
       <h2>Next allowance</h2>
       <p class="figure"><time datetime="{{ view.cycle.next_allowance.isoformat() }}">{{ view.cycle.next_allowance.isoformat() }}</time></p>
-      <p class="muted">In {{ view.cycle.days_remaining }} day{{ "" if view.cycle.days_remaining == 1 else "s" }}.
+      <p class="muted">In {{ days }} day{{ "" if days == 1 else "s" }}.
         Expected {{ view.planned_allowance_cents|money }}, not counted until you record it.</p>
     </div>
   </section>

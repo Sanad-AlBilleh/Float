@@ -1,0 +1,33 @@
+{# The fields of a bill series, shared by "Add a bill" and "Change this and future bills". #}
+{% import "macros/forms.html" as forms %}
+
+{% macro series_fields(values, errors, categories) %}
+  {{ forms.field("name", "Name", errors, values.name, hint="For example Phone or Gym.") }}
+  {{ forms.field("amount", "Amount (€)", errors, values.amount, inputmode="decimal") }}
+  <div class="field{% if errors.category_id %} field-has-error{% endif %}">
+    <label for="category_id">Category</label>
+    {% if errors.category_id %}<p class="field-error" id="category_id-error">{{ errors.category_id }}</p>{% endif %}
+    <select id="category_id" name="category_id"{% if errors.category_id %} aria-invalid="true" aria-describedby="category_id-error"{% endif %}>
+      <option value="">Choose a category</option>
+      {% for category in categories %}
+        <option value="{{ category.id }}"{% if values.category_id|string == category.id|string %} selected{% endif %}>{{ category.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field{% if errors.freq %} field-has-error{% endif %}">
+    <label for="freq">Repeats</label>
+    {% if errors.freq %}<p class="field-error" id="freq-error">{{ errors.freq }}</p>{% endif %}
+    <select id="freq" name="freq"{% if errors.freq %} aria-invalid="true" aria-describedby="freq-error"{% endif %}>
+      {% for value, label in [("monthly", "Monthly"), ("weekly", "Weekly"), ("once", "Once only")] %}
+        <option value="{{ value }}"{% if values.freq == value %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {{ forms.field("interval", "Every how many weeks or months", errors, values.interval, inputmode="numeric",
+                 hint="1 means every week or every month. Ignored for one-off bills.") }}
+  {{ forms.field("anchor_date", "First due date", errors, values.anchor_date, type="date") }}
+  {{ forms.field("until", "Last date (optional)", errors, values.until, type="date",
+                 hint="Leave empty to repeat until you end the bill.") }}
+  {{ forms.field("count", "Or: how many times in all (optional)", errors, values.count, inputmode="numeric",
+                 hint="Use a last date or a number of times, not both.") }}
+{% endmacro %}

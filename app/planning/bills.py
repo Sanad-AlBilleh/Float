@@ -11,10 +11,13 @@ from datetime import date, datetime, timedelta
 from app.planning import repository
 from app.planning.rules import validate_anchor, validate_bill
 from app.shared.dates import Cycle
-from app.shared.errors import NotFoundError, ValidationError
-from app.shared.recurrence import Rule, expand
+from app.shared.errors import ConflictError, NotFoundError, ValidationError
+from app.shared.money import MAX_CENTS
+from app.shared.recurrence import Rule, expand, split_rule
 
 SQLITE_MAX_ID = 2**63 - 1
+PAID_MESSAGE = "This bill is paid. Undo the payment first."
+STALE_MESSAGE = "This bill changed since you opened it. Reload the page and try again."
 
 
 @dataclass(frozen=True)
@@ -157,3 +160,124 @@ def get_obligations(conn: sqlite3.Connection, *, user_id: int, cycle: Cycle) -> 
     """What Planning reserves this cycle (SRS §4.5). Callers materialize first."""
     reserved = tuple(open_occurrences_due_before(conn, user_id=user_id, before=cycle.next_allowance))
     return PlanningObligations(sum(o.amount_cents for o in reserved), 0, 0, reserved)
+
+
+def _current(conn: sqlite3.Connection, *, user_id: int, occurrence_id: int, version: int) -> Occurrence:
+    """The occurrence, if it is still the version the caller saw; otherwise a conflict (SRS §6.4)."""
+    occurrence = get_occurrence(conn, user_id=user_id, occurrence_id=occurrence_id)
+    if occurrence.version != version:
+        raise ConflictError(STALE_MESSAGE)
+    return occurrence
+
+
+def check_payable(conn: sqlite3.Connection, *, user_id: int, occurrence_id: int, version: int) -> Occurrence:
+    occurrence = _current(conn, user_id=user_id, occurrence_id=occurrence_id, version=version)
+    if occurrence.paid_transaction_id is not None:
+        raise ConflictError("This bill is already paid.")
+    if occurrence.skipped:
+        raise ConflictError("This bill is skipped. Unskip it before paying.")
+    return occurrence
+
+
+def link_payment(conn: sqlite3.Connection, *, user_id: int, occurrence_id: int, version: int,
+                 transaction_id: int) -> Occurrence:
+    check_payable(conn, user_id=user_id, occurrence_id=occurrence_id, version=version)
+    if repository.link_payment(conn, occurrence_id=occurrence_id, version=version, transaction_id=transaction_id) != 1:
+        raise ConflictError(STALE_MESSAGE)
+    return get_occurrence(conn, user_id=user_id, occurrence_id=occurrence_id)
+
+
+def unlink_payment(conn: sqlite3.Connection, *, user_id: int, occurrence_id: int, version: int) -> int:
+    """Clear the payment link and return the transaction it pointed to, for the caller to delete."""
+    occurrence = _current(conn, user_id=user_id, occurrence_id=occurrence_id, version=version)
+    if occurrence.paid_transaction_id is None:
+        raise ConflictError("This bill is not paid.")
+    if repository.unlink_payment(conn, occurrence_id=occurrence_id, version=version) != 1:
+        raise ConflictError(STALE_MESSAGE)
+    return occurrence.paid_transaction_id
+
+
+def _unpaid(conn: sqlite3.Connection, *, user_id: int, occurrence_id: int, version: int) -> Occurrence:
+    occurrence = _current(conn, user_id=user_id, occurrence_id=occurrence_id, version=version)
+    if occurrence.paid_transaction_id is not None:
+        raise ConflictError(PAID_MESSAGE)
+    return occurrence
+
+
+def set_skipped(conn: sqlite3.Connection, *, user_id: int, occurrence_id: int, version: int,
+                skipped: bool, now: datetime) -> Occurrence:
+    occurrence = _unpaid(conn, user_id=user_id, occurrence_id=occurrence_id, version=version)
+    if occurrence.skipped == skipped:
+        raise ConflictError("This bill is already skipped." if skipped else "This bill is not skipped.")
+    if repository.set_skipped(conn, occurrence_id=occurrence_id, version=version,
+                              skipped_at=now if skipped else None) != 1:
+        raise ConflictError(STALE_MESSAGE)
+    return get_occurrence(conn, user_id=user_id, occurrence_id=occurrence_id)
+
+
+def edit_occurrence(conn: sqlite3.Connection, *, user_id: int, occurrence_id: int, version: int, amount_cents: int,
+                    due_date: date, tracking_start: date) -> Occurrence:
+    """*This occurrence only*: change an unpaid occurrence's amount or due date (FR-13)."""
+    errors: dict[str, str] = {}
+    if not 1 <= amount_cents <= MAX_CENTS:
+        errors["amount"] = "Enter an amount between €0.01 and €1,000,000.00."
+    if due_date < tracking_start:
+        errors["due_date"] = f"Choose a date on or after {tracking_start.isoformat()}, when tracking started."
+    if errors:
+        raise ValidationError(errors)
+    _unpaid(conn, user_id=user_id, occurrence_id=occurrence_id, version=version)
+    if repository.update_occurrence(conn, occurrence_id=occurrence_id, version=version, amount_cents=amount_cents,
+                                    due_date=due_date) != 1:
+        raise ConflictError(STALE_MESSAGE)
+    return get_occurrence(conn, user_id=user_id, occurrence_id=occurrence_id)
+
+
+def end_series(conn: sqlite3.Connection, *, user_id: int, series_id: int, version: int, today: date,
+               now: datetime) -> BillSeries:
+    """Stop generating and delete open occurrences due today or later; overdue ones stay (FR-13)."""
+    series = get_series(conn, user_id=user_id, series_id=series_id)
+    if series.ended:
+        raise ConflictError("This bill has already ended.")
+    if repository.end_series(conn, series_id=series_id, version=version, now=now) != 1:
+        raise ConflictError(STALE_MESSAGE)
+    repository.delete_open_occurrences_due_from(conn, series_id=series_id, day=today)
+    return get_series(conn, user_id=user_id, series_id=series_id)
+
+
+def split_series(conn: sqlite3.Connection, *, user_id: int, occurrence_id: int, version: int, name: str,
+                 amount_cents: int, category_id: int, rule: Rule, tracking_start: date,
+                 category_ids: Collection[int], horizon_end: date, now: datetime) -> BillSeries:
+    """*This and future* at an occurrence, following SRS §4.2 steps 1–5 in the caller's transaction."""
+    occurrence = _current(conn, user_id=user_id, occurrence_id=occurrence_id, version=version)
+    series = get_series(conn, user_id=user_id, series_id=occurrence.series_id)
+    if series.ended:
+        raise ConflictError("This bill has ended.")
+    split_on = occurrence.scheduled_date
+    errors = series_problems(name=name, amount_cents=amount_cents, category_id=category_id, anchor=rule.anchor,
+                             tracking_start=tracking_start, category_ids=category_ids)
+    if rule.anchor < split_on:
+        errors["anchor_date"] = f"Choose a first date on or after {split_on.isoformat()}, the bill you are changing."
+    if errors:
+        raise ValidationError(errors)
+    if repository.has_paid_from(conn, series_id=series.id, scheduled_date=split_on):  # step 1
+        raise ConflictError("A bill on or after this date is paid. Undo that payment first.")
+    if split_on == series.rule.anchor:  # nothing before the split point: change the series in place
+        repository.delete_unpaid_from(conn, series_id=series.id, scheduled_date=split_on)
+        repository.rewrite_series(conn, series_id=series.id, name=name, amount_cents=amount_cents,
+                                  category_id=category_id, freq=rule.freq, interval=rule.interval,
+                                  anchor=rule.anchor, until=rule.until, count=rule.count)
+        target = get_series(conn, user_id=user_id, series_id=series.id)
+    else:
+        shortened, remaining = split_rule(series.rule, split_on)  # step 2
+        repository.rewrite_series(conn, series_id=series.id, name=series.name, amount_cents=series.amount_cents,
+                                  category_id=series.category_id, freq=shortened.freq, interval=shortened.interval,
+                                  anchor=shortened.anchor, until=shortened.until, count=None)
+        repository.delete_unpaid_from(conn, series_id=series.id, scheduled_date=split_on)  # step 3
+        if remaining is not None and rule.until is None and rule.count is None:
+            rule = Rule(rule.freq, rule.interval, rule.anchor, count=max(1, remaining))
+        target = create_series(conn, user_id=user_id, name=name, amount_cents=amount_cents,  # step 4
+                               category_id=category_id, rule=rule, tracking_start=tracking_start,
+                               category_ids=category_ids, now=now)
+        _materialize(conn, get_series(conn, user_id=user_id, series_id=series.id), horizon_end)
+    _materialize(conn, target, horizon_end)  # step 5
+    return get_series(conn, user_id=user_id, series_id=target.id)

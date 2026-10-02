@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% import "macros/forms.html" as forms %}
+{% import "bills/_fields.html" as bill_fields %}
+{% set labels = {"paid": "Paid", "skipped": "Skipped", "overdue": "Overdue", "reserved": "Reserved", "upcoming": "Upcoming"} %}
+{% block title %}{{ row.name }}{% endblock %}
+{% block content %}
+  <h1>{{ row.name }}, due <time datetime="{{ row.due_date.isoformat() }}">{{ row.due_date.isoformat() }}</time></h1>
+  <dl class="facts">
+    <dt>Amount</dt><dd>{{ row.amount_cents|money }}</dd>
+    <dt>Status</dt><dd><span class="status status-{{ row.status }}">{{ labels[row.status] }}</span></dd>
+    <dt>Scheduled for</dt><dd><time datetime="{{ row.scheduled_date.isoformat() }}">{{ row.scheduled_date.isoformat() }}</time></dd>
+    <dt>Repeats</dt><dd>{{ series.rule|rule }}{% if series.ended %} (ended){% endif %}</dd>
+  </dl>
+  {{ forms.error_summary(errors) }}
+  {% if row.status == "paid" %}
+    <p>This bill is paid, so it cannot be changed until the payment is undone.</p>
+    <form method="post" action="/bills/occurrences/{{ row.id }}/undo">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="version" value="{{ row.version }}">
+      <button type="submit" class="button button-secondary">Undo payment</button>
+    </form>
+  {% else %}
+    {% if row.status != "skipped" %}
+      <h2>Pay</h2>
+      <form method="post" action="/bills/occurrences/{{ row.id }}/pay" class="stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="version" value="{{ row.version }}">
+        {{ forms.field("paid_on", "Paid on", errors, values.paid_on, type="date", hint="Today or an earlier date since tracking started.") }}
+        <button type="submit" class="button">Record payment of {{ row.amount_cents|money }}</button>
+      </form>
+    {% endif %}
+    <h2>Change this bill only</h2>
+    <form method="post" action="/bills/occurrences/{{ row.id }}/edit" class="stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="version" value="{{ row.version }}">
+      {{ forms.field("edit_amount", "Amount (€)", errors, values.edit_amount, inputmode="decimal") }}
+      {{ forms.field("due_date", "Due date", errors, values.due_date, type="date") }}
+      <button type="submit" class="button button-secondary">Save this bill</button>
+    </form>
+    {% if not series.ended %}
+      <h2>Change this and future bills</h2>
+      <p class="muted">Earlier bills keep their amounts. Refused if a bill on or after this date is already paid.</p>
+      <form method="post" action="/bills/occurrences/{{ row.id }}/split" class="stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="version" value="{{ row.version }}">
+        {{ bill_fields.series_fields(values, errors, categories) }}
+        <button type="submit" class="button button-secondary">Save this and future bills</button>
+      </form>
+    {% endif %}
+  {% endif %}
+  <p><a href="/bills">Back to bills</a></p>
+{% endblock %}

@@ -37,8 +37,8 @@ Merge commits are counted too, as the conservative reading of the rule.
 | Mon 28 Sep | 2 | 1 | 3 | done |
 | Wed 30 Sep | 2 (requirements v0.2) + 3 (foundation) + 1 (this schedule change) | 3 | 9 | done |
 | Thu 1 Oct | 6 (one unplanned fix) + 1 (branch renames) + 1 (review fixes) | 3 | 11 | done |
-| Fri 2 Oct | 7 | 1 | 8 | done once the PR is merged |
-| Sat 3 Oct | 7 (6 if the API is cut) | 1 | 8 | planned |
+| Fri 2 Oct | 7 | 1 | 8 | done |
+| Sat 3 Oct | 7 + 1 unplanned fix | 1 | 9 | done once the PR is merged |
 | Sun 4 Oct | 3–6 | 1 | 4–7 | planned |
 | **Total** | | | **about 43** | |
 
@@ -84,20 +84,21 @@ Branch `feature/bills-goals-and-forecast`. The first four commits are P0; the ne
 - [x] `Forecast pace, runway, cash projection, and next-cycle outlook` (FR-30, personal data; household terms join on day 3)
 - [x] `Plan goal contributions, budgets, and unusual-expense flags` (FR-15, FR-16, FR-31)
 - [x] `Record the schema decision and log AI use` (ADR-3, AI log)
-- [ ] Merge PR `Build recurring bills, goals, safe-to-spend, and the forecast`. This box is ticked in the next day's first commit, so 2 October keeps exactly 8 commits.
+- [x] Merge PR `Build recurring bills, goals, safe-to-spend, and the forecast` (PR #8). This box was ticked in the next day's first commit, so 2 October kept exactly 8 commits.
 
 ## Day 3 — Saturday 3 October: Households, alerts, and the report draft (P0 + P1)
 
 Branch `feature/households-and-alerts`. The first four commits are P0; the alerts and API commits are P1.
 
-- [ ] `Create households with single-use invitations and membership rules` (FR-17–19)
-- [ ] `Split shared expenses exactly with largest-remainder allocation` (FR-20–22)
-- [ ] `Show household balances, settle-up plans, and confirmed settlements` (FR-23–24)
-- [ ] `Reserve and pay household bills and complete the conservation tests` (FR-25–26, §4.5, household terms in the forecast)
-- [ ] `Add the alert centre and household activity feed` (FR-32–33)
-- [ ] `Expose the JSON API with idempotency keys` (FR-34–35), only if time remains
-- [ ] `Record the testing decision, final ADR, and report draft` (ADR-4, ADR-5, report draft, AI log)
-- [ ] Merge PR `Build households, alerts, and the report draft`
+- [x] `Create households with single-use invitations and membership rules` (FR-17–19)
+- [x] `Split shared expenses exactly with largest-remainder allocation` (FR-20–22)
+- [x] `Show household balances, settle-up plans, and confirmed settlements` (FR-23–24)
+- [x] `Reserve and pay household bills and complete the conservation tests` (FR-25–26, §4.5, household terms in the forecast)
+- [x] `Add the alert centre and household activity feed` (FR-32–33)
+- [x] `Expose the JSON API with idempotency keys` (FR-34–35), only if time remains: built, because time remained
+- [x] `Fix squeezed checkbox and radio labels in forms`: unplanned, found in the day's browser check.
+- [x] `Record the testing decision, final ADR, and report draft` (ADR-4, ADR-5, report draft, AI log)
+- [ ] Merge PR `Build households, alerts, and the report draft`. This box is ticked in the next day's first commit.
 
 ## Day 4 — Sunday 4 October: testing, fixes, and polish (deadline 23:59)
 
@@ -133,3 +134,4 @@ Anything cut is listed as "not implemented" in the README and report. Nothing is
 
   The branches for 2–4 October are now `feature/bills-goals-and-forecast`, `feature/households-and-alerts`, and `release/testing-and-polish`. Pull requests that were already merged still show their original branch names, because GitHub keeps the name a PR was merged from.
 - **1 October.** At the student's request, a helper agent reviewed Days 0–1. Its 11 findings were fixed the same day in one extra commit on `fix/review-findings`, so 1 October has 11 commits. Migrations `0006` and `0007` hold the fixes, so the plan's later migrations start at `0008`.
+- **3 October.** All of Day 3 was built, including the JSON API (it was not cut, because time remained). The browser check found a CSS bug that squeezed checkbox and radio labels; it was fixed in one extra commit, so 3 October has 9 commits. With 40 commits after today and at least 2 more on 4 October, the largest day (1 October, 11) stays under 27% of the total. "This and future" edits of household bills were not built and are listed as not implemented.

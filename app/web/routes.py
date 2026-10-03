@@ -4,6 +4,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, Request
 
+from app.application import alerts
 from app.application.dashboard import dashboard, forecast
 from app.application.setup import is_setup_complete
 from app.identity.api import Session
@@ -11,7 +12,7 @@ from app.insights.api import preview
 from app.shared.errors import ValidationError
 from app.shared.money import parse_money
 from app.web.charts import projection_chart
-from app.web.deps import current_session, get_conn, require_ready_session
+from app.web.deps import actor_for, current_session, get_conn, require_ready_session
 from app.web.rendering import redirect, render
 
 router = APIRouter()
@@ -33,6 +34,8 @@ def home(request: Request, session: Session | None = Depends(current_session),
     if not is_setup_complete(conn, session.user.id):
         return redirect("/setup")
     view = dashboard(conn, session.user.id, clock)
+    alerts.evaluate(conn, session.user.id, clock)
+    open_alerts = alerts.list_alerts(conn, actor_for(request, session))
     result, errors = None, {}
     if cost is not None:  # FR-29: a read-only what-if, so it is a GET that never writes
         try:
@@ -40,7 +43,8 @@ def home(request: Request, session: Session | None = Depends(current_session),
         except ValidationError as error:
             errors = error.errors
     return render(request, "dashboard.html",
-                  {"view": view, "preview": result, "errors": errors, "values": {"cost": cost or ""}},
+                  {"view": view, "preview": result, "errors": errors, "values": {"cost": cost or ""},
+                   "alerts": open_alerts},
                   status_code=400 if errors else 200)
 
 

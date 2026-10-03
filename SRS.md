@@ -524,6 +524,8 @@ erDiagram
     TRANSACTIONS |o--o| SETTLEMENTS : "settles (x2)"
     USERS ||--o{ AUDIT_EVENTS : acts
     USERS ||--o{ ALERTS : receives
+    USERS ||--o| ALERT_CURSORS : reads
+    USERS ||--o{ IDEMPOTENCY_KEYS : sends
 ```
 
 The diagrams are proposed designs. Update them and the schema ADR to match the real schema before submission.

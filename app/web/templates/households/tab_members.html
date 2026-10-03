@@ -1,0 +1,83 @@
+<h2>Members</h2>
+<div class="table-scroll">
+  <table class="table">
+    <caption class="visually-hidden">Members of {{ household.name }}</caption>
+    <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col" class="num">Balance</th><th scope="col">Actions</th></tr></thead>
+    <tbody>
+      {% for member in page.members %}
+        <tr>
+          <td>{{ member.display_name }}</td>
+          <td>{% if member.status != "active" %}Former member{% elif member.role == "owner" %}Owner{% else %}Member{% endif %}</td>
+          <td class="num">{{ member.net_cents|money }}</td>
+          <td>
+            {% if page.is_owner and member.status == "active" and member.role != "owner" %}
+              <form method="post" action="/households/{{ household.id }}/members/{{ member.user_id }}/remove" class="inline-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="link-button">Remove<span class="visually-hidden"> {{ member.display_name }}</span></button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="muted">Someone can leave, or be removed, only when their balance is €0.00, no settlement involving them is pending,
+  and they share no active household bill.</p>
+{% if page.is_owner %}
+  <h2>Invite a flatmate</h2>
+  {% if new_code %}
+    <div class="notice" role="status">
+      <p>New invitation code: <code class="invite-code">{{ new_code }}</code></p>
+      <p>Copy it now: Float shows it only once. It works once and expires in 72 hours.</p>
+    </div>
+  {% endif %}
+  <form method="post" action="/households/{{ household.id }}/invitations">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="button">Create an invitation code</button>
+  </form>
+  {% if page.invitations %}
+    <h3>Unused codes</h3>
+    <ul class="list">
+      {% for invitation in page.invitations %}
+        <li>Created {{ invitation.created_at.strftime("%Y-%m-%d %H:%M") }} UTC, expires {{ invitation.expires_at.strftime("%Y-%m-%d %H:%M") }} UTC
+          <form method="post" action="/households/{{ household.id }}/invitations/{{ invitation.id }}/revoke" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="link-button">Revoke</button>
+          </form></li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+  <h2>Household settings</h2>
+  <form method="post" action="/households/{{ household.id }}/rename" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="version" value="{{ household.version }}">
+    {{ forms.field("name", "Name", errors, values.name or household.name) }}
+    <button type="submit" class="button button-secondary">Rename</button>
+  </form>
+  {% set others = page.active_members|rejectattr("role", "equalto", "owner")|list %}
+  {% if others %}
+    <form method="post" action="/households/{{ household.id }}/transfer" class="stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="version" value="{{ household.version }}">
+      <div class="field">
+        <label for="new_owner">Transfer ownership to</label>
+        <select id="new_owner" name="new_owner">
+          {% for member in others %}<option value="{{ member.user_id }}">{{ member.display_name }}</option>{% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="button button-secondary">Transfer ownership</button>
+    </form>
+  {% endif %}
+  <form method="post" action="/households/{{ household.id }}/archive" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="version" value="{{ household.version }}">
+    <p class="muted">Archiving needs every balance at €0.00 and no pending settlement. It ends every membership and cannot be undone.</p>
+    <button type="submit" class="button button-secondary">Archive household</button>
+  </form>
+{% elif page.can_write %}
+  <form method="post" action="/households/{{ household.id }}/leave" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="button button-secondary">Leave this household</button>
+  </form>
+{% endif %}

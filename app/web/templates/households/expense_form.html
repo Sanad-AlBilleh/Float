@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% import "macros/forms.html" as forms %}
+{% set household = page.household %}
+{% set heading = "Edit shared expense" if editing else "Add a shared expense" %}
+{% block title %}{{ heading }}{% endblock %}
+{% block content %}
+  <h1>{{ heading }}</h1>
+  <p class="muted">{{ household.name }} · You paid. The full amount goes in your transactions; each person's share
+    goes into the household balances.</p>
+  {% if conflict %}
+    <div class="error-summary" role="alert"><p>This expense changed since you opened it, so your changes were not saved.
+      The form now shows the latest version; make your changes again.</p></div>
+  {% endif %}
+  {{ forms.error_summary(errors) }}
+  <form method="post" action="{{ action }}" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if editing %}<input type="hidden" name="version" value="{{ values.version }}">{% endif %}
+    {{ forms.field("amount", "Amount you paid (€)", errors, values.amount, inputmode="decimal") }}
+    {{ forms.field("spent_on", "Date", errors, values.spent_on, type="date") }}
+    <div class="field{% if errors.category_id %} field-has-error{% endif %}">
+      <label for="category_id">Category</label>
+      {% if errors.category_id %}<p class="field-error" id="category_id-error">{{ errors.category_id }}</p>{% endif %}
+      <select id="category_id" name="category_id"{% if errors.category_id %} aria-invalid="true" aria-describedby="category_id-error"{% endif %}>
+        <option value="">Choose a category</option>
+        {% for category in categories %}
+          <option value="{{ category.id }}"{% if values.category_id|string == category.id|string %} selected{% endif %}>{{ category.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {{ forms.field("description", "Description", errors, values.description, hint="For example Weekly groceries.") }}
+    <div class="field">
+      <label class="choice"><input type="checkbox" id="one_off" name="one_off"{% if values.one_off %} checked{% endif %}>
+        One-off <span class="muted">(left out of everyone's usual spending pace)</span></label>
+    </div>
+    <fieldset class="field{% if errors.split_method %} field-has-error{% endif %}">
+      <legend>How to split it</legend>
+      {% if errors.split_method %}<p class="field-error">{{ errors.split_method }}</p>{% endif %}
+      {% for value, label in [("equal", "Equally"), ("exact", "Exact amounts (€)"), ("percentage", "Percentages (%)"), ("shares", "Shares (1–100 each)")] %}
+        <label class="choice"><input type="radio" {% if loop.first %}id="split_method" {% endif %}name="split_method" value="{{ value }}"{% if values.split_method == value %} checked{% endif %}> {{ label }}</label>
+      {% endfor %}
+    </fieldset>
+    <fieldset class="field{% if errors.participants or errors.split %} field-has-error{% endif %}">
+      <legend id="participants">Who shares it</legend>
+      {% if errors.participants %}<p class="field-error">{{ errors.participants }}</p>{% endif %}
+      {% if errors.split %}<p class="field-error" id="split">{{ errors.split }}</p>{% endif %}
+      <p class="hint">Tick each person who shares it (you may leave yourself out). For exact amounts, percentages, or shares,
+        fill in each ticked person's value; for an equal split leave the values empty.</p>
+      <table class="table">
+        <thead><tr><th scope="col">Person</th><th scope="col">Value</th></tr></thead>
+        <tbody>
+          {% for member in page.active_members %}
+            <tr>
+              <td><label class="choice"><input type="checkbox" name="participant" value="{{ member.user_id }}"{% if member.user_id in values.participants %} checked{% endif %}> {{ member.display_name }}</label></td>
+              <td><label class="visually-hidden" for="value_{{ member.user_id }}">Value for {{ member.display_name }}</label>
+                <input id="value_{{ member.user_id }}" name="value_{{ member.user_id }}" inputmode="decimal" size="8" value="{{ values.split_values.get(member.user_id, '') }}"></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </fieldset>
+    <p class="actions">
+      <button type="submit" class="button">{{ "Save changes" if editing else "Add expense" }}</button>
+      <a href="/households/{{ household.id }}?tab=expenses">Cancel</a>
+    </p>
+  </form>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% import "macros/forms.html" as forms %}
+{% set household = page.household %}
+{% set labels = {"balances": "Balances", "expenses": "Expenses", "bills": "Bills", "settlements": "Settlements", "members": "Members", "activity": "Activity"} %}
+{% block title %}{{ household.name }}{% endblock %}
+{% block content %}
+  <h1>{{ household.name }}</h1>
+  {% if notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
+  {% if household.archived %}<p class="warning" role="status"><strong>This household is archived.</strong> It is read-only history.</p>
+  {% elif page.me.status != "active" %}<p class="warning" role="status"><strong>You left this household.</strong> You can still read its history.</p>{% endif %}
+  <nav class="tabs" aria-label="Household sections">
+    {% for key in labels %}
+      <a href="/households/{{ household.id }}?tab={{ key }}"{% if tab == key %} aria-current="page"{% endif %}>{{ labels[key] }}</a>
+    {% endfor %}
+  </nav>
+  {{ forms.error_summary(errors) }}
+  {% include "households/tab_" ~ tab ~ ".html" %}
+{% endblock %}

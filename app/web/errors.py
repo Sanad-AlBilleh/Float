@@ -3,10 +3,11 @@
 from urllib.parse import quote
 
 from fastapi import FastAPI, Request
-from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.api.v1.problems import problem
+from app.identity.api import AuthenticationError, LockedOutError
 from app.shared.errors import ConflictError, NotFoundError, PermissionDeniedError, ValidationError
 from app.web.deps import LoginRequired, SetupRequired, session_for_page
 from app.web.rendering import redirect, render
@@ -20,41 +21,59 @@ def error_page(request: Request, status_code: int, title: str, message: str):
 
 
 
+def _api(request: Request) -> bool:
+    return request.url.path.startswith("/api/")
+
+
 def install(app: FastAPI) -> None:
     @app.exception_handler(LoginRequired)
     async def login_required(request: Request, exc: LoginRequired):
+        if _api(request):
+            return problem(401, "Not signed in", "Log in first.")
         target = request.url.path + (f"?{request.url.query}" if request.url.query else "")
         return redirect(f"/login?next={quote(target)}")
 
     @app.exception_handler(SetupRequired)
     async def setup_required(request: Request, exc: SetupRequired):
+        if _api(request):
+            return problem(409, "Setup needed", "Complete setup first.")
         return redirect("/setup")
 
     @app.exception_handler(CsrfError)
     async def csrf_failed(request: Request, exc: CsrfError):
+        if _api(request):
+            return problem(403, "Request blocked", "Send the CSRF token in the X-CSRF-Token header.")
         return error_page(request, 403, "Request blocked",
                      "This form expired or was sent from another site. Go back, reload the page, and try again.")
 
     @app.exception_handler(NotFoundError)
     async def not_found(request: Request, exc: NotFoundError):
+        if _api(request):
+            return problem(404, "Not found", "That record could not be found.")
         return error_page(request, 404, "Not found", "That page or record could not be found.")
 
     @app.exception_handler(PermissionDeniedError)
     async def forbidden(request: Request, exc: PermissionDeniedError):
+        if _api(request):
+            return problem(403, "Not allowed", str(exc) or "You do not have permission to do that.")
         return error_page(request, 403, "Not allowed", str(exc) or "You do not have permission to do that.")
 
     @app.exception_handler(ConflictError)
     async def conflict(request: Request, exc: ConflictError):
+        if _api(request):
+            return problem(409, "That has changed", str(exc))
         return error_page(request, 409, "That has changed", str(exc))
 
     @app.exception_handler(ValidationError)
     async def invalid(request: Request, exc: ValidationError):
+        if _api(request):
+            return problem(422, "Check your input", " ".join(exc.errors.values()), exc.errors)
         return error_page(request, 400, "Check your input", " ".join(exc.errors.values()))
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException):
-        if request.url.path.startswith("/api/"):
-            return await http_exception_handler(request, exc)
+        if _api(request):
+            return problem(exc.status_code, str(exc.detail))
         titles = {
             404: ("Not found", "That page could not be found."),
             405: ("Not allowed", "That action is not available here."),
@@ -64,6 +83,16 @@ def install(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def bad_request(request: Request, exc: RequestValidationError):
-        if request.url.path.startswith("/api/"):
-            return await request_validation_exception_handler(request, exc)
+        if _api(request):
+            fields = {".".join(str(part) for part in error["loc"][1:]) or "body": error["msg"]
+                      for error in exc.errors()}
+            return problem(422, "Check your input", "Part of that request was not valid.", fields)
         return error_page(request, 400, "Check your input", "Part of that request was not valid.")
+
+    @app.exception_handler(AuthenticationError)
+    async def bad_login(request: Request, exc: AuthenticationError):
+        return problem(401, "Login failed", str(exc))
+
+    @app.exception_handler(LockedOutError)
+    async def locked(request: Request, exc: LockedOutError):
+        return problem(429, "Too many attempts", str(exc))

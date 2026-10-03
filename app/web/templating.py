@@ -4,11 +4,12 @@ from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 
-from app.shared.money import format_money
+from app.shared.money import cents_to_input, format_money
 
 TEMPLATES_DIR = Path(__file__).with_name("templates")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 templates.env.filters["money"] = format_money
+templates.env.filters["money_input"] = cents_to_input
 
 
 def describe_rule(rule) -> str:

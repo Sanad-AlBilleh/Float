@@ -37,6 +37,11 @@ def _parse_series(errors: dict[str, str], form: dict[str, str], today: date) -> 
     amount = collect(errors, parse_money, form["amount"], field="amount")
     category = collect(errors, parse_whole_number, form["category_id"], field="category_id", low=1, high=10**6,
                        message="Choose a category.")
+    return use_cases.SeriesInput(name, amount if amount is not None else 1, category, parse_rule(errors, form, today))
+
+
+def parse_rule(errors: dict[str, str], form, today: date) -> Rule:
+    """The repeat fields of a bill form (shared by personal and household bills)."""
     freq = form["freq"] if form["freq"] in FREQUENCIES else None
     if freq is None:
         errors["freq"] = "Choose once, weekly, or monthly."
@@ -49,7 +54,7 @@ def _parse_series(errors: dict[str, str], form: dict[str, str], today: date) -> 
     rule = Rule("monthly", 1, anchor or today)
     if freq is not None and interval is not None and anchor is not None:
         rule = collect(errors, Rule, freq, interval, anchor, until=until, count=count) or rule
-    return use_cases.SeriesInput(name, amount if amount is not None else 1, category, rule)
+    return rule
 
 
 def _series_values(series, *, anchor: date | None = None, count: int | None = None) -> dict[str, str]:

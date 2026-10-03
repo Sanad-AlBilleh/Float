@@ -2884,6 +2884,16 @@ def budget_state(consumption_cents: int, limit_cents: int | None) -> str | None:
 
 Covers FR-17–26 and FR-32–35. Tests: AT-13–20, AT-22 (end to end), and AT-24–26.
 
+**As built on 3 October.** All seven tasks were built in order, test-first and with mutation checks, including the JSON API (Task 3.6), because time remained. Refinements:
+- **Households modules:** the domain is split by topic: `service.py` (households, membership, invitations, balances), `expenses.py`, `settlements.py`, and `bills.py` (household bills and `get_position`), with SQL in `repository.py`. Members are listed in the order they joined. `revoke_invitation` takes an invitation ID, and `list_invitations` shows unused codes to the owner.
+- **Application layer:** `households.py` (membership), `shared_money.py` (expenses, settlements, and household bills), `authz.py` (`require_viewer` for former members' read access, `require_member`, `require_owner`), `alerts.py`, and `activity.py`. Display names come from Identity's API, never by joining `users`.
+- **Former members** can read expenses, settlements, and activity from their membership period only (FR-19). Archiving ends every membership.
+- **Household bills:** `bill_problems` reports every rule at once, so the form shows all problems together. "This and future" splits of household bill series are **not implemented**; occurrences can be edited, skipped, or the series ended (README, "Not implemented").
+- **Dashboard and insight:** `DashboardView` gains `household_receivables_cents` (shown, never counted) and the user's household commitments. `share_rows` feeds the forecast's pace and the budgets' consumption.
+- **Alerts:** facts are gathered in `app/application/alerts.py`, the pure rules are in `app/insights/alerts.py`, and storage is in `app/insights/repository.py` and `alerts_store.py`. Evaluation also runs after every successful unsafe request (303 for pages, 2xx for the API) from the request middleware, in its own connection; a failure there is logged and never undoes the user's change. Household-expense notices include household bill payments.
+- **JSON API:** request bodies are parsed inside each handler after authorization, so strangers always get 404 (`app/api/v1/schemas.py`, with OpenAPI schemas attached), and errors are problem+json. The idempotency key is reserved in its own transaction before the use case runs and the response is stored after it commits, a documented deviation from "same transaction" (`app/api/v1/idempotency.py`). Endpoint differences from SRS §8.2 are listed in the README.
+- **Unplanned commit:** `Fix squeezed checkbox and radio labels in forms`, found in the day's browser check.
+
 ### Task 3.1: Households, invitations, and membership (FR-17–19)
 
 **Files:**

@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Your activity{% endblock %}
+{% block content %}
+  <h1>Your activity</h1>
+  <p class="muted">Every change to your own money, newest first. Household changes are on each household's Activity tab.</p>
+  {% include "_activity_list.html" %}
+{% endblock %}

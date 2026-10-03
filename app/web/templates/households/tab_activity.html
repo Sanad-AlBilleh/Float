@@ -1,1 +1,4 @@
-<p class="muted">Nothing here yet.</p>
+<h2>Activity</h2>
+<p class="muted">Every change in this household, newest first.{% if page.me.status != "active" %} You see the period you were a member.{% endif %}</p>
+{% set items = activity %}
+{% include "_activity_list.html" %}

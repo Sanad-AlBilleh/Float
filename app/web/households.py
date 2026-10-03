@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Form, Request
 
 from app.application import households as use_cases
 from app.application import shared_money
+from app.application.activity import household_activity
 from app.households.api import SPLIT_METHODS, SplitEntry
 from app.identity.api import Session
 from app.ledger.api import list_categories
@@ -75,8 +76,9 @@ def household_page(request: Request, conn: sqlite3.Connection, session: Session,
     view = use_cases.page(conn, actor, household_id, request.app.state.clock)
     tab = tab if tab in TABS else "balances"
     bills = shared_money.household_bills(conn, actor, household_id, request.app.state.clock) if tab == "bills" else None
+    feed = household_activity(conn, actor, household_id) if tab == "activity" else []
     return render(request, "households/show.html",
-                  {"page": view, "tab": tab, "bills": bills, "new_code": new_code, "notice": notice,
+                  {"page": view, "tab": tab, "bills": bills, "activity": feed, "new_code": new_code, "notice": notice,
                    "errors": errors or {}, "values": values or {},
                    "page_today": request.app.state.clock.today().isoformat(),
                    "categories": {c.id: c.name for c in list_categories(conn)}}, status_code=status_code)

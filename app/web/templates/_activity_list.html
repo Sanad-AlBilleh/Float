@@ -1,0 +1,9 @@
+{% if items %}
+  <ol class="activity">
+    {% for item in items %}
+      <li><time datetime="{{ item.when.isoformat() }}">{{ item.when.strftime("%Y-%m-%d %H:%M") }} UTC</time> — {{ item.text }}</li>
+    {% endfor %}
+  </ol>
+{% else %}
+  <p>No activity yet.</p>
+{% endif %}

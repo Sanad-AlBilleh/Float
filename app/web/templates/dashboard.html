@@ -24,6 +24,13 @@
         <a href="/transactions/new?kind=income&amp;source=allowance">record it as income</a>. Float never assumes it arrived.</p>
     </div>
   {% endif %}
+  {% set unread = alerts|rejectattr("read")|list %}
+  {% if unread %}
+    <section class="card" aria-labelledby="alerts-heading">
+      <h2 id="alerts-heading"><a href="/alerts">{{ unread|length }} new alert{{ "" if unread|length == 1 else "s" }}</a></h2>
+      <ul class="list">{% for alert in unread[:3] %}<li>{{ alert.message }}</li>{% endfor %}</ul>
+    </section>
+  {% endif %}
   <section class="card hero" aria-labelledby="safe-heading">
     <h2 id="safe-heading">Safe to spend today</h2>
     <p class="figure figure-large">{{ safe.daily_cents|money }} per day</p>

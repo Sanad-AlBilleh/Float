@@ -8,6 +8,9 @@ import uuid
 from fastapi import FastAPI, Request
 from starlette.responses import PlainTextResponse, Response
 
+from app.application import alerts
+from app.application.setup import is_setup_complete
+from app.db.connection import connect
 from app.web.errors import error_page
 from app.web.security import UNSAFE_METHODS
 
@@ -42,6 +45,22 @@ def _server_error_page(request: Request) -> Response:
         return PlainTextResponse(f"Internal server error. Request ID: {request.state.request_id}", status_code=500)
 
 
+def _refresh_alerts(request: Request) -> None:
+    """FR-32: re-evaluate alerts after each successful write, in its own transaction after the write committed.
+
+    A failure here must never undo or hide the user's saved change, so it is logged and ignored.
+    """
+    try:
+        conn = connect(request.app.state.settings.db_path)
+        try:
+            if is_setup_complete(conn, request.state.user_id):
+                alerts.evaluate(conn, request.state.user_id, request.app.state.clock)
+        finally:
+            conn.close()
+    except Exception:  # noqa: BLE001 - see the docstring
+        logger.exception("alert evaluation failed after request %s", request.state.request_id)
+
+
 def install(app: FastAPI) -> None:
     @app.middleware("http")
     async def request_context(request: Request, call_next) -> Response:
@@ -57,6 +76,8 @@ def install(app: FastAPI) -> None:
             except Exception:
                 logger.exception("unhandled error in request %s", request.state.request_id)
                 response = _server_error_page(request)
+        if request.method == "POST" and response.status_code == 303 and getattr(request.state, "user_id", None):
+            _refresh_alerts(request)
         for name, value in SECURITY_HEADERS.items():
             if name == "Content-Security-Policy" and request.url.path.startswith(CSP_EXEMPT_PREFIX):
                 continue

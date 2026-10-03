@@ -340,3 +340,10 @@ fieldset.field {
 .tabs a[aria-current="page"] { font-weight: 700; border-bottom: 3px solid var(--accent); }
 .invite-code { font-size: 1.4rem; letter-spacing: 0.15em; font-weight: 700; }
 .list { padding-left: 1.2rem; }
+.alert-list { list-style: none; padding: 0; }
+.alert { margin-bottom: 0.75rem; }
+.alert-critical { border-left: 4px solid var(--danger); }
+.alert-warning { border-left: 4px solid var(--warning); }
+.alert-read { opacity: 0.75; }
+.activity { padding-left: 1.2rem; }
+.activity li { margin-bottom: 0.35rem; }

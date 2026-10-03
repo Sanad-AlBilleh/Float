@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Alerts{% endblock %}
+{% set labels = {"critical": "Urgent", "warning": "Heads-up", "info": "For your information"} %}
+{% block content %}
+  <h1>Alerts</h1>
+  <p class="muted">Float checks these whenever you open the dashboard or this page, and after every change you save.
+    An alert disappears by itself when its reason is gone; a dismissed alert never comes back.</p>
+  {% if alerts %}
+    <ul class="alert-list">
+      {% for alert in alerts %}
+        <li class="card alert alert-{{ alert.severity }}{% if alert.read %} alert-read{% endif %}">
+          <p><span class="status status-{{ {'critical': 'overdue', 'warning': 'reserved'}.get(alert.severity, '') }}">{{ labels[alert.severity] }}</span>
+            {% if not alert.read %}<strong>New:</strong>{% endif %} {{ alert.message }}</p>
+          <p class="actions">
+            {% if alert.subject_url %}<a href="{{ alert.subject_url }}">Go there</a>{% endif %}
+            {% if not alert.read %}
+              <form method="post" action="/alerts/{{ alert.id }}/read" class="inline-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="link-button">Mark as read</button>
+              </form>
+            {% endif %}
+            <form method="post" action="/alerts/{{ alert.id }}/dismiss" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="link-button">Dismiss</button>
+            </form>
+          </p>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Nothing needs your attention.</p>
+  {% endif %}
+{% endblock %}

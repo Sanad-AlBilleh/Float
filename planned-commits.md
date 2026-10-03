@@ -95,7 +95,7 @@ Branch `feature/households-and-alerts`. The first four commits are P0; the alert
 - [x] `Show household balances, settle-up plans, and confirmed settlements` (FR-23–24)
 - [x] `Reserve and pay household bills and complete the conservation tests` (FR-25–26, §4.5, household terms in the forecast)
 - [x] `Add the alert centre and household activity feed` (FR-32–33)
-- [ ] `Expose the JSON API with idempotency keys` (FR-34–35), only if time remains
+- [x] `Expose the JSON API with idempotency keys` (FR-34–35), only if time remains: built, because time remained
 - [ ] `Record the testing decision, final ADR, and report draft` (ADR-4, ADR-5, report draft, AI log)
 - [ ] Merge PR `Build households, alerts, and the report draft`
 

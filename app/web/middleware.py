@@ -76,7 +76,8 @@ def install(app: FastAPI) -> None:
             except Exception:
                 logger.exception("unhandled error in request %s", request.state.request_id)
                 response = _server_error_page(request)
-        if request.method == "POST" and response.status_code == 303 and getattr(request.state, "user_id", None):
+        changed = response.status_code == 303 or (request.url.path.startswith("/api/") and 200 <= response.status_code < 300)
+        if request.method in UNSAFE_METHODS and changed and getattr(request.state, "user_id", None):
             _refresh_alerts(request)
         for name, value in SECURITY_HEADERS.items():
             if name == "Content-Security-Policy" and request.url.path.startswith(CSP_EXEMPT_PREFIX):

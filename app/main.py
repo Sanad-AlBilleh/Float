@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app.api.v1 import routes as api_v1
 from app.config import Settings, load_settings
 from app.db.migrations import initialize_database
 from app.shared.clock import Clock, SystemClock
@@ -39,4 +40,5 @@ def create_app(settings: Settings | None = None, clock: Clock | None = None) -> 
     app.include_router(budgets.router)
     app.include_router(households.router)
     app.include_router(alerts.router)
+    app.include_router(api_v1.router)
     return app

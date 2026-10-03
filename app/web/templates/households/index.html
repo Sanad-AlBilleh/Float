@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% import "macros/forms.html" as forms %}
+{% block title %}Households{% endblock %}
+{% block content %}
+  <h1>Households</h1>
+  <p class="muted">Share costs with your flatmates: split expenses to the cent, share recurring bills, and settle up.</p>
+  {% if mine %}
+    <ul class="list">
+      {% for household, active in mine %}
+        <li><a href="/households/{{ household.id }}">{{ household.name }}</a>
+          {% if household.archived %}<span class="tag">archived</span>{% elif not active %}<span class="tag">former member</span>{% endif %}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>You are not in a household yet.</p>
+  {% endif %}
+  {{ forms.error_summary(errors) }}
+  <section class="cards" aria-label="Create or join">
+    <form method="post" action="/households/new" class="card stack">
+      <h2>Create a household</h2>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {{ forms.field("name", "Name", errors, values.name, hint="For example Flat 3B.") }}
+      <button type="submit" class="button">Create</button>
+    </form>
+    <form method="post" action="/households/join" class="card stack">
+      <h2>Join with a code</h2>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {{ forms.field("code", "Invitation code", errors, values.code, autocomplete="off",
+                     hint="10 characters from the household's owner. Spaces and dashes are fine.") }}
+      <button type="submit" class="button button-secondary">Join</button>
+    </form>
+  </section>
+{% endblock %}

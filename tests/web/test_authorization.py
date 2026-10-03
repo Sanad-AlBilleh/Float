@@ -50,7 +50,7 @@ def test_another_users_transaction_is_not_found(client, anas_transaction, ben):
 
 
 @pytest.mark.parametrize("path", ["/", "/transactions", "/transactions/new", "/transactions/1/edit", "/setup",
-                                  "/bills", "/bills/new", "/bills/occurrences/1", "/goals", "/goals/1/edit", "/forecast", "/budgets",
+                                  "/bills", "/bills/new", "/bills/occurrences/1", "/goals", "/goals/1/edit", "/forecast", "/budgets", "/households", "/households/1",
                                   "/settings", "/account"])
 def test_anonymous_visitors_are_sent_to_login(make_client, path):
     anonymous = make_client()
@@ -94,3 +94,16 @@ def test_another_users_goals_are_not_found(client, ben):
                             headers=ORIGIN, follow_redirects=False)
         assert response.status_code == 404, action
     assert "Ana&#39;s laptop" not in ben.get("/goals").text
+
+
+def test_household_routes_are_hidden_from_non_members(client, ben):
+    sign_up(client, "ana")
+    set_up(client)
+    page = post_form(client, "/households", "/households/new", {"name": "Ana's flat"}).headers["location"].split("?")[0]
+    token = csrf_from(ben.get("/households"))
+    assert ben.get(page).status_code == 404
+    for action in ("invitations", "invitations/1/revoke", "leave", "members/1/remove", "transfer", "rename",
+                   "archive", "expenses/new", "settlements/new", "bills/new"):
+        response = ben.post(f"{page}/{action}", data={"csrf_token": token, "version": "1"}, headers=ORIGIN,
+                            follow_redirects=False)
+        assert response.status_code == 404, action

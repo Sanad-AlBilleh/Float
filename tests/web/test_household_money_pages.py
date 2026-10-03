@@ -90,3 +90,29 @@ def test_former_members_see_only_their_own_period(client, make_client):
     history = ben.get(page + "?tab=expenses").text
     assert "While Ben was here" in history and "Before Ben joined" not in history
     assert "Before Ben joined" in client.get(page + "?tab=expenses").text
+
+
+def test_balances_plan_and_settling_up(client, make_client):
+    page, ben, carla, ids = flat(client, make_client)
+    add_expense(client, page, ids)
+    balances = ben.get(page).text
+    assert "Ben pays Ana €10.00" in balances and "Carla pays Ana €10.00" in balances
+    assert "You owe <strong>€10.00</strong>" in balances
+    response = post_form(ben, page + "?tab=settlements", page + "/settlements/new",
+                         {"direction": "paid", "counterparty": str(ids[0]), "amount": "10", "paid_on": "2026-09-30"})
+    assert response.status_code == 303 and "done=recorded" in response.headers["location"]
+    tab = client.get(page + "?tab=settlements").text
+    assert "Pending" in tab and "Ben paid Ana" in tab
+    confirm = re.search(r'action="(/households/\d+/settlements/\d+/confirm)".*?name="version" value="(\d+)"', tab, re.S)
+    assert post_form(client, page + "?tab=settlements", confirm.group(1), {"version": confirm.group(2)}).status_code == 303
+    assert "Confirmed" in client.get(page + "?tab=settlements").text
+    assert "Ben pays Ana" not in client.get(page).text
+    assert "Settlement from Ben" in client.get("/transactions").text
+
+
+def test_an_invalid_transfer_is_explained(client, make_client):
+    page, ben, carla, ids = flat(client, make_client)
+    response = post_form(ben, page + "?tab=settlements", page + "/settlements/new",
+                         {"direction": "paid", "counterparty": str(ids[0]), "amount": "0", "paid_on": "2026-10-05"})
+    assert response.status_code == 400
+    assert "Enter an amount greater than zero." in response.text

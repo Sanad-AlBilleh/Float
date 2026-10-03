@@ -10,7 +10,7 @@ from app.households.api import SPLIT_METHODS, SplitEntry
 from app.identity.api import Session
 from app.ledger.api import list_categories
 from app.shared.dates import parse_iso_date
-from app.shared.errors import ConflictError, ValidationError
+from app.shared.errors import ConflictError, NotFoundError, ValidationError
 from app.shared.money import cents_to_input, parse_money
 from app.web.deps import actor_for, get_conn, require_ready_session, verify_csrf
 from app.web.forms import collect, in_form_order, parse_whole_number
@@ -20,7 +20,12 @@ router = APIRouter(prefix="/households")
 TABS = ("balances", "expenses", "bills", "settlements", "members", "activity")
 NOTICES = {"joined": "Welcome! You joined the household.", "created": "Household created. Invite your flatmates.",
            "saved": "Saved.", "left": "You left the household.", "removed": "Member removed.",
-           "revoked": "Invitation revoked.", "archived": "Household archived. It is now read-only history."}
+           "revoked": "Invitation revoked.", "archived": "Household archived. It is now read-only history.",
+           "recorded": "Transfer recorded. It counts once the other person confirms it.",
+           "over": "Transfer recorded. Note: it is more than the settle-up plan suggests, so they will owe you the rest.",
+           "confirmed": "Confirmed. Both ledgers now show the transfer.", "rejected": "Rejected.",
+           "cancelled": "Cancelled.", "paid": "Paid. Your share and everyone else's are now in the balances.",
+           "undone": "Payment undone.", "skipped": "Skipped.", "unskipped": "Unskipped.", "ended": "Bill ended."}
 
 
 def _number(text: str, field: str = "version") -> int:
@@ -67,7 +72,8 @@ def household_page(request: Request, conn: sqlite3.Connection, session: Session,
     view = use_cases.page(conn, actor_for(request, session), household_id, request.app.state.clock)
     return render(request, "households/show.html",
                   {"page": view, "tab": tab if tab in TABS else "balances", "new_code": new_code, "notice": notice,
-                   "errors": errors or {}, "values": values or {}}, status_code=status_code)
+                   "errors": errors or {}, "values": values or {},
+                   "page_today": request.app.state.clock.today().isoformat()}, status_code=status_code)
 
 
 @router.get("/{household_id}")
@@ -289,3 +295,55 @@ def delete_expense(household_id: int, expense_id: int, request: Request,
     shared_money.get_expense(conn, actor, household_id, expense_id)
     shared_money.delete_expense(conn, actor, expense_id, _number(version), request.app.state.clock)
     return redirect(f"/households/{household_id}?tab=expenses&done=saved")
+
+
+# Settlements (FR-24) --------------------------------------------------------------------------------
+
+@router.post("/{household_id}/settlements/new", dependencies=[Depends(verify_csrf)])
+def record_settlement(household_id: int, request: Request, session: Session = Depends(require_ready_session),
+                      conn: sqlite3.Connection = Depends(get_conn), direction: str = Form("paid"),
+                      counterparty: str = Form(""), amount: str = Form(""), paid_on: str = Form("")):
+    actor, clock = actor_for(request, session), request.app.state.clock
+    use_cases.member(conn, actor, household_id)
+    errors: dict[str, str] = {}
+    other = collect(errors, parse_whole_number, counterparty, field="counterparty", low=1, high=2**63 - 1,
+                    message="Choose another current member of the household.")
+    cents = collect(errors, parse_money, amount, field="amount")
+    day = collect(errors, parse_iso_date, paid_on, field="paid_on")
+    over = False
+    if not errors:
+        payer, payee = (actor.user_id, other) if direction != "received" else (other, actor.user_id)
+        try:
+            _, over = shared_money.record_settlement(conn, actor, household_id, payer, payee, cents, day, clock)
+        except ValidationError as error:
+            errors.update(error.errors)
+    if errors:
+        values = {"direction": direction, "counterparty": counterparty, "amount": amount, "paid_on": paid_on}
+        return household_page(request, conn, session, household_id, tab="settlements",
+                              errors=in_form_order(errors, ["direction", "counterparty", "amount", "paid_on"]),
+                              values=values, status_code=400)
+    return redirect(f"/households/{household_id}?tab=settlements&done={'over' if over else 'recorded'}")
+
+
+def _settlement_action(action: str):
+    def handler(household_id: int, settlement_id: int, request: Request,
+                session: Session = Depends(require_ready_session), conn: sqlite3.Connection = Depends(get_conn),
+                version: str = Form(""), reason: str = Form("")):
+        actor, clock = actor_for(request, session), request.app.state.clock
+        use_cases.viewer(conn, actor, household_id)
+        if shared_money.settlement_household(conn, settlement_id) != household_id:
+            raise NotFoundError("No such settlement.")
+        expected = _number(version)
+        if action == "confirm":
+            shared_money.confirm_settlement(conn, actor, settlement_id, expected, clock)
+        elif action == "reject":
+            shared_money.reject_settlement(conn, actor, settlement_id, expected, reason.strip(), clock)
+        else:
+            shared_money.cancel_settlement(conn, actor, settlement_id, expected, clock)
+        return redirect(f"/households/{household_id}?tab=settlements&done={action}ed".replace("eed", "ed"))
+    return handler
+
+
+for _action in ("confirm", "reject", "cancel"):
+    router.add_api_route(f"/{{household_id}}/settlements/{{settlement_id}}/{_action}", _settlement_action(_action),
+                         methods=["POST"], dependencies=[Depends(verify_csrf)])

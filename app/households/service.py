@@ -113,11 +113,13 @@ def membership(conn: sqlite3.Connection, *, household_id: int, user_id: int) -> 
 
 
 def members(conn: sqlite3.Connection, *, household_id: int) -> list[Member]:
-    """Each person who has been a member, once, with their current or latest membership."""
-    seen: dict[int, Member] = {}
+    """Each person who has been a member, once, with their latest membership, in the order they first joined."""
+    latest: dict[int, Member] = {}
+    first_row: dict[int, int] = {}
     for row in repository.memberships(conn, household_id=household_id):
-        seen.setdefault(row["user_id"], _member(row))
-    return list(seen.values())
+        latest.setdefault(row["user_id"], _member(row))
+        first_row[row["user_id"]] = row["id"]
+    return sorted(latest.values(), key=lambda member: first_row[member.user_id])
 
 
 def active_member_ids(conn: sqlite3.Connection, *, household_id: int) -> list[int]:

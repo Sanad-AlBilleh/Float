@@ -105,3 +105,31 @@ def allocate(amount_cents: int, method: str, entries: Sequence[SplitEntry]) -> d
     if not any(shares):
         raise ValidationError.single("split", "At least one participant must have a positive share.")
     return {entry.user_id: share for entry, share in zip(ordered, shares, strict=True)}
+
+
+@dataclass(frozen=True)
+class Transfer:
+    from_user: int
+    to_user: int
+    amount_cents: int
+
+
+def simplify(nets: Mapping[int, int]) -> list[Transfer]:
+    """Greedy settle-up: largest creditor against largest debtor, ties by user ID; at most n − 1 transfers."""
+    remaining = {user: net for user, net in nets.items() if net}
+    if sum(remaining.values()) != 0:
+        raise ValueError("household nets must sum to zero")
+    transfers: list[Transfer] = []
+    while remaining:
+        creditor = max(remaining, key=lambda user: (remaining[user], -user))
+        debtor = min(remaining, key=lambda user: (remaining[user], user))
+        amount = min(remaining[creditor], -remaining[debtor])
+        transfers.append(Transfer(debtor, creditor, amount))
+        for user, change in ((creditor, -amount), (debtor, amount)):
+            remaining[user] += change
+            if remaining[user] == 0:
+                del remaining[user]
+    return transfers
+
+
+REASON_LIMIT = 200

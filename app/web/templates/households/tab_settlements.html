@@ -1,1 +1,68 @@
-<p class="muted">Nothing here yet.</p>
+<h2>Settlements</h2>
+{% set others = page.active_members|rejectattr("user_id", "equalto", page.me.user_id)|list %}
+{% if page.can_write and others %}
+  <form method="post" action="/households/{{ household.id }}/settlements/new" class="stack card">
+    <h3>Record a transfer you made or received</h3>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <fieldset class="field">
+      <legend id="direction">Direction</legend>
+      <label class="choice"><input type="radio" name="direction" value="paid"{% if values.direction != "received" %} checked{% endif %}> I paid</label>
+      <label class="choice"><input type="radio" name="direction" value="received"{% if values.direction == "received" %} checked{% endif %}> I received</label>
+    </fieldset>
+    <div class="field{% if errors.counterparty %} field-has-error{% endif %}">
+      <label for="counterparty">The other person</label>
+      {% if errors.counterparty %}<p class="field-error">{{ errors.counterparty }}</p>{% endif %}
+      <select id="counterparty" name="counterparty">
+        {% for member in others %}<option value="{{ member.user_id }}"{% if values.counterparty|string == member.user_id|string %} selected{% endif %}>{{ member.display_name }}</option>{% endfor %}
+      </select>
+    </div>
+    {{ forms.field("amount", "Amount (€)", errors, values.amount or "", inputmode="decimal") }}
+    {{ forms.field("paid_on", "Date of the transfer", errors, values.paid_on or page_today, type="date") }}
+    <p class="muted">It stays pending, and changes no balance, until the other person confirms it.</p>
+    <button type="submit" class="button">Record transfer</button>
+  </form>
+{% endif %}
+{% if page.settlements %}
+  <div class="table-scroll">
+    <table class="table">
+      <caption class="visually-hidden">Settlements, pending first</caption>
+      <thead><tr><th scope="col">Date</th><th scope="col">Transfer</th><th scope="col" class="num">Amount</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
+      <tbody>
+        {% for s in page.settlements %}
+          <tr>
+            <td>{{ s.paid_on.isoformat() }}</td>
+            <td>{{ page.name_of(s.payer_user_id) }} paid {{ page.name_of(s.payee_user_id) }}<br><span class="muted">recorded by {{ page.name_of(s.initiated_by) }}</span></td>
+            <td class="num">{{ s.amount_cents|money }}</td>
+            <td><span class="status{% if s.status == 'confirmed' %} status-paid{% elif s.status == 'pending' %} status-reserved{% endif %}">{{ s.status|capitalize }}</span>{% if s.reason %}<br><span class="muted">“{{ s.reason }}”</span>{% endif %}</td>
+            <td>
+              {% if page.can_write and s.status == "pending" %}
+                {% if s.counterparty == page.me.user_id %}
+                  <form method="post" action="/households/{{ household.id }}/settlements/{{ s.id }}/confirm" class="inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="version" value="{{ s.version }}">
+                    <button type="submit" class="link-button">Confirm</button>
+                  </form>
+                  <form method="post" action="/households/{{ household.id }}/settlements/{{ s.id }}/reject" class="inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="version" value="{{ s.version }}">
+                    <label class="visually-hidden" for="reason-{{ s.id }}">Reason (optional)</label>
+                    <input id="reason-{{ s.id }}" name="reason" maxlength="200" placeholder="Reason (optional)" size="14">
+                    <button type="submit" class="link-button">Reject</button>
+                  </form>
+                {% elif s.initiated_by == page.me.user_id %}
+                  <form method="post" action="/households/{{ household.id }}/settlements/{{ s.id }}/cancel" class="inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="version" value="{{ s.version }}">
+                    <button type="submit" class="link-button">Cancel</button>
+                  </form>
+                {% else %}<span class="muted">Waiting for {{ page.name_of(s.counterparty) }}</span>{% endif %}
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p>No settlements yet.</p>
+{% endif %}

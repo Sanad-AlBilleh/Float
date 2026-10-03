@@ -1,1 +1,34 @@
-<p class="muted">Nothing here yet.</p>
+<h2>Balances</h2>
+{% if page.me.status == "active" %}
+  {% set mine = page.my_net_cents %}
+  <p class="lead">{% if mine > 0 %}The others owe you <strong>{{ mine|money }}</strong>.
+    {% elif mine < 0 %}You owe <strong>{{ (-mine)|money }}</strong>; it is set aside in your safe-to-spend.
+    {% else %}You are settled up.{% endif %}</p>
+{% endif %}
+<div class="table-scroll">
+  <table class="table">
+    <caption class="visually-hidden">Each member's net balance</caption>
+    <thead><tr><th scope="col">Member</th><th scope="col" class="num">Net balance</th><th scope="col">Meaning</th></tr></thead>
+    <tbody>
+      {% for member in page.members %}
+        <tr><td>{{ member.display_name }}{% if member.status != "active" %} <span class="muted">(former)</span>{% endif %}</td>
+          <td class="num">{{ member.net_cents|money }}</td>
+          <td>{% if member.net_cents > 0 %}is owed{% elif member.net_cents < 0 %}owes{% else %}settled{% endif %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="muted">A net balance is what someone paid for others minus what others paid for them, after confirmed
+  settlements. The balances always add up to €0.00.</p>
+<h2>Settle-up plan</h2>
+{% if page.plan %}
+  <ul class="list">
+    {% for transfer in page.plan %}
+      <li>{{ page.name_of(transfer.from_user) }} pays {{ page.name_of(transfer.to_user) }} {{ transfer.amount_cents|money }}</li>
+    {% endfor %}
+  </ul>
+  <p class="muted">The fewest simple transfers that settle everyone. Pay outside Float, then record it on the
+    <a href="/households/{{ household.id }}?tab=settlements">Settlements</a> tab.</p>
+{% else %}
+  <p>Everyone is settled up.</p>
+{% endif %}

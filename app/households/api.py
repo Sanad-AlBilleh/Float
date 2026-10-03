@@ -19,11 +19,23 @@ from app.households.rules import (
     SPLIT_METHODS,
     TEMPLATE_METHODS,
     SplitEntry,
+    Transfer,
     allocate,
     compute_nets,
     hash_code,
     new_invite_code,
     normalize_code,
+    simplify,
+)
+from app.households.settlements import (
+    Settlement,
+    awaiting,
+    create_settlement,
+    get_settlement,
+    list_settlements,
+    pending,
+    resolve,
+    suggested_amount,
 )
 from app.households.service import (
     Household,
@@ -50,6 +62,16 @@ from app.households.service import (
 )
 
 __all__ = [
+    "Settlement",
+    "Transfer",
+    "awaiting",
+    "create_settlement",
+    "get_settlement",
+    "list_settlements",
+    "pending",
+    "resolve",
+    "simplify",
+    "suggested_amount",
     "SPLIT_METHODS",
     "TEMPLATE_METHODS",
     "ExpenseDraft",

@@ -48,10 +48,10 @@ def insert_membership(conn: sqlite3.Connection, *, household_id: int, user_id: i
 
 
 def memberships(conn: sqlite3.Connection, *, household_id: int) -> list[sqlite3.Row]:
-    """Every membership row, newest first per user, so the first row per user is the current one."""
+    """Every membership row, newest first, so the first row per user is their current one."""
     return conn.execute(
-        "SELECT user_id, role, status, joined_at, ended_at FROM memberships WHERE household_id = ?"
-        " ORDER BY status = 'active' DESC, id DESC",
+        "SELECT id, user_id, role, status, joined_at, ended_at FROM memberships WHERE household_id = ?"
+        " ORDER BY id DESC",
         (household_id,),
     ).fetchall()
 
@@ -246,4 +246,45 @@ def share_rows(conn: sqlite3.Connection, *, user_id: int, start: date, end_exclu
         " FROM shared_expense_splits AS sp JOIN shared_expenses AS e ON e.id = sp.expense_id"
         " WHERE sp.user_id = ? AND sp.share_cents > 0 AND e.spent_on >= ? AND e.spent_on < ? ORDER BY e.spent_on, e.id",
         (user_id, start.isoformat(), end_exclusive.isoformat()),
+    ).fetchall()
+
+
+# Settlements (FR-24) --------------------------------------------------------------------------------
+
+SETTLEMENT_COLUMNS = ("id, household_id, payer_user_id, payee_user_id, initiated_by, amount_cents, paid_on, status,"
+                      " reason, payer_transaction_id, payee_transaction_id, version, created_at")
+
+
+def insert_settlement(conn: sqlite3.Connection, *, household_id: int, payer_id: int, payee_id: int,
+                      initiated_by: int, amount_cents: int, paid_on: date, now: datetime) -> int:
+    return conn.execute(
+        "INSERT INTO settlements (household_id, payer_user_id, payee_user_id, initiated_by, amount_cents, paid_on,"
+        " status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)",
+        (household_id, payer_id, payee_id, initiated_by, amount_cents, paid_on.isoformat(), to_utc_text(now)),
+    ).lastrowid
+
+
+def get_settlement(conn: sqlite3.Connection, settlement_id: int) -> sqlite3.Row | None:
+    return conn.execute(f"SELECT {SETTLEMENT_COLUMNS} FROM settlements WHERE id = ?", (settlement_id,)).fetchone()
+
+
+def list_settlements(conn: sqlite3.Connection, *, household_id: int) -> list[sqlite3.Row]:
+    return conn.execute(f"SELECT {SETTLEMENT_COLUMNS} FROM settlements WHERE household_id = ?"
+                        " ORDER BY status = 'pending' DESC, paid_on DESC, id DESC", (household_id,)).fetchall()
+
+
+def resolve_settlement(conn: sqlite3.Connection, *, settlement_id: int, version: int, status: str, reason: str,
+                       payer_transaction_id: int | None, payee_transaction_id: int | None, now: datetime) -> int:
+    """Move a pending settlement to a final state; 0 rows means it was no longer pending at that version."""
+    return conn.execute(
+        "UPDATE settlements SET status = ?, reason = ?, payer_transaction_id = ?, payee_transaction_id = ?,"
+        " resolved_at = ?, version = version + 1 WHERE id = ? AND status = 'pending' AND version = ?",
+        (status, reason, payer_transaction_id, payee_transaction_id, to_utc_text(now), settlement_id, version),
+    ).rowcount
+
+
+def pending_for_counterparty(conn: sqlite3.Connection, *, user_id: int) -> list[sqlite3.Row]:
+    return conn.execute(
+        f"SELECT {SETTLEMENT_COLUMNS} FROM settlements WHERE status = 'pending' AND initiated_by <> ?"
+        " AND ? IN (payer_user_id, payee_user_id) ORDER BY id", (user_id, user_id),
     ).fetchall()

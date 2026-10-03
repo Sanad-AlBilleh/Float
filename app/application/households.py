@@ -138,6 +138,12 @@ class HouseholdPage:
     invitations: list[households.Invitation]
     expenses: list[households.SharedExpense] = field(default_factory=list)
     bill_expense_ids: frozenset[int] = frozenset()
+    plan: list[households.Transfer] = field(default_factory=list)
+    settlements: list[households.Settlement] = field(default_factory=list)
+
+    @property
+    def my_net_cents(self) -> int:
+        return next((m.net_cents for m in self.members if m.user_id == self.me.user_id), 0)
 
     @property
     def is_owner(self) -> bool:
@@ -165,6 +171,9 @@ def page(conn: sqlite3.Connection, actor: Actor, household_id: int, clock: Clock
         members=member_views(conn, household_id),
         invitations=households.list_invitations(conn, household_id=household_id, now=clock.now_utc()) if owner else [],
         expenses=_visible(me, households.list_expenses(conn, household_id=household_id)),
+        plan=households.simplify(households.balances(conn, household_id=household_id)),
+        settlements=[s for s in households.list_settlements(conn, household_id=household_id)
+                     if me.status == "active" or me.joined_on <= s.paid_on <= me.ended_at.date()],
     )
 
 

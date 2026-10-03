@@ -8,6 +8,7 @@ from datetime import date
 from app.application import audit
 from app.application.authz import require_member, require_viewer
 from app.application.context import Actor
+from app.application.households import display_names
 from app.db.unit_of_work import transaction
 from app.households import api as households
 from app.insights import api as insights
@@ -127,3 +128,86 @@ def share_rows(conn: sqlite3.Connection, user_id: int, start: date, end_exclusiv
     """The user's shares of shared expenses, for consumption (SRS §4.7)."""
     return [insights.ShareRow(row.share_cents, row.spent_on, row.category_id, row.from_household_bill, row.one_off)
             for row in households.share_rows(conn, user_id=user_id, start=start, end_exclusive=end_exclusive)]
+
+
+# Settlements (FR-24) -----------------------------------------------------------------------------------
+
+def _check_paid_on(conn: sqlite3.Connection, paid_on: date, *user_ids: int) -> None:
+    for user_id in user_ids:
+        settings = ledger.get_settings(conn, user_id)
+        if settings is not None and paid_on < settings.tracking_start:
+            raise ValidationError.single(
+                "paid_on", f"Choose a date on or after {settings.tracking_start.isoformat()}: both people must have "
+                           "been tracking by then.")
+
+
+def record_settlement(conn: sqlite3.Connection, actor: Actor, household_id: int, payer_id: int, payee_id: int,
+                      amount_cents: int, paid_on: date, clock: Clock) -> tuple[households.Settlement, bool]:
+    """Record a pending transfer; nothing moves until the other person confirms. Also returns the over-plan warning."""
+    with transaction(conn):
+        require_member(conn, actor.user_id, household_id)
+        settlement, over = households.create_settlement(
+            conn, household_id=household_id, initiated_by=actor.user_id, payer_id=payer_id, payee_id=payee_id,
+            amount_cents=amount_cents, paid_on=paid_on, today=clock.today(), now=clock.now_utc())
+        _check_paid_on(conn, paid_on, payer_id, payee_id)
+        _audit(conn, actor, household_id, "settlement", settlement.id, "create", clock, after=asdict(settlement))
+    return settlement, over
+
+
+def _settlement_for(conn: sqlite3.Connection, actor: Actor, settlement_id: int) -> households.Settlement:
+    settlement = households.get_settlement(conn, settlement_id=settlement_id)
+    require_member(conn, actor.user_id, settlement.household_id)
+    return settlement
+
+
+def confirm_settlement(conn: sqlite3.Connection, actor: Actor, settlement_id: int, version: int,
+                       clock: Clock) -> households.Settlement:
+    """FR-24: the counterparty confirms; both ledgers and the status change together, or nothing does."""
+    with transaction(conn):
+        _settlement_for(conn, actor, settlement_id)
+        settlement = households.pending(conn, settlement_id=settlement_id, version=version, user_id=actor.user_id,
+                                        role="counterparty")
+        names = display_names(conn, [settlement.payer_user_id, settlement.payee_user_id])
+        common = {"origin": "settlement", "amount_cents": settlement.amount_cents, "occurred_on": settlement.paid_on,
+                  "category_id": None, "today": clock.today(), "now": clock.now_utc()}
+        try:
+            paid = ledger.create_linked(conn, user_id=settlement.payer_user_id, kind="expense", income_source=None,
+                                        note=f"Settlement to {names[settlement.payee_user_id]}", **common)
+            received = ledger.create_linked(conn, user_id=settlement.payee_user_id, kind="income",
+                                            income_source="settlement",
+                                            note=f"Settlement from {names[settlement.payer_user_id]}", **common)
+        except ValidationError as error:
+            raise _renamed(error, "paid_on") from None
+        after = households.resolve(conn, settlement_id=settlement_id, version=version, status="confirmed",
+                                   payer_transaction_id=paid, payee_transaction_id=received, now=clock.now_utc())
+        _audit(conn, actor, settlement.household_id, "settlement", settlement_id, "confirm", clock,
+               asdict(settlement), asdict(after))
+    return after
+
+
+def _close(conn: sqlite3.Connection, actor: Actor, settlement_id: int, version: int, clock: Clock, *, status: str,
+           role: str, action: str, reason: str = "") -> households.Settlement:
+    with transaction(conn):
+        _settlement_for(conn, actor, settlement_id)
+        settlement = households.pending(conn, settlement_id=settlement_id, version=version, user_id=actor.user_id,
+                                        role=role)
+        after = households.resolve(conn, settlement_id=settlement_id, version=version, status=status, reason=reason,
+                                   now=clock.now_utc())
+        _audit(conn, actor, settlement.household_id, "settlement", settlement_id, action, clock,
+               asdict(settlement), asdict(after))
+    return after
+
+
+def reject_settlement(conn: sqlite3.Connection, actor: Actor, settlement_id: int, version: int, reason: str,
+                      clock: Clock) -> households.Settlement:
+    return _close(conn, actor, settlement_id, version, clock, status="rejected", role="counterparty", action="reject",
+                  reason=reason)
+
+
+def cancel_settlement(conn: sqlite3.Connection, actor: Actor, settlement_id: int, version: int,
+                      clock: Clock) -> households.Settlement:
+    return _close(conn, actor, settlement_id, version, clock, status="cancelled", role="initiator", action="cancel")
+
+
+def settlement_household(conn: sqlite3.Connection, settlement_id: int) -> int:
+    return households.get_settlement(conn, settlement_id=settlement_id).household_id

@@ -142,3 +142,9 @@ def test_error_pages_keep_the_signed_in_navigation(app):
             response = browser.get(path)
             assert response.status_code == status, path
             assert "Log out" in response.text and "Create account" not in response.text, path
+
+
+def test_checkboxes_and_radios_are_not_stretched_like_text_inputs(client):
+    css = client.get("/static/float.css").text
+    rule = css[css.index('.field input[type="checkbox"]'):]
+    assert "width: auto" in rule[:rule.index("}")]

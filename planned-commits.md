@@ -91,7 +91,7 @@ Branch `feature/bills-goals-and-forecast`. The first four commits are P0; the ne
 Branch `feature/households-and-alerts`. The first four commits are P0; the alerts and API commits are P1.
 
 - [x] `Create households with single-use invitations and membership rules` (FR-17–19)
-- [ ] `Split shared expenses exactly with largest-remainder allocation` (FR-20–22)
+- [x] `Split shared expenses exactly with largest-remainder allocation` (FR-20–22)
 - [ ] `Show household balances, settle-up plans, and confirmed settlements` (FR-23–24)
 - [ ] `Reserve and pay household bills and complete the conservation tests` (FR-25–26, §4.5, household terms in the forecast)
 - [ ] `Add the alert centre and household activity feed` (FR-32–33)

@@ -1,6 +1,30 @@
 """The Households domain's public interface. Code outside the households package imports only this module."""
 
-from app.households.rules import CROCKFORD, INVALID_CODE, MAX_MEMBERS, hash_code, new_invite_code, normalize_code
+from app.households.expenses import (
+    ExpenseDraft,
+    SharedExpense,
+    check_draft,
+    create_expense,
+    delete_expense,
+    editable,
+    get_expense,
+    list_expenses,
+    share_rows,
+    update_expense,
+)
+from app.households.rules import (
+    CROCKFORD,
+    INVALID_CODE,
+    MAX_MEMBERS,
+    SPLIT_METHODS,
+    TEMPLATE_METHODS,
+    SplitEntry,
+    allocate,
+    compute_nets,
+    hash_code,
+    new_invite_code,
+    normalize_code,
+)
 from app.households.service import (
     Household,
     Invitation,
@@ -26,6 +50,21 @@ from app.households.service import (
 )
 
 __all__ = [
+    "SPLIT_METHODS",
+    "TEMPLATE_METHODS",
+    "ExpenseDraft",
+    "SharedExpense",
+    "SplitEntry",
+    "allocate",
+    "check_draft",
+    "compute_nets",
+    "create_expense",
+    "delete_expense",
+    "editable",
+    "get_expense",
+    "list_expenses",
+    "share_rows",
+    "update_expense",
     "CROCKFORD",
     "INVALID_CODE",
     "MAX_MEMBERS",

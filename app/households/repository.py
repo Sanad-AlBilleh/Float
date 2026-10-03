@@ -178,3 +178,72 @@ def active_bill_names(conn: sqlite3.Connection, *, household_id: int, user_id: i
         " WHERE s.household_id = ? AND p.user_id = ? AND s.ended_at IS NULL ORDER BY s.name",
         (household_id, user_id),
     )]
+
+
+# Shared expenses (FR-20–22) -----------------------------------------------------------------------
+
+EXPENSE_COLUMNS = ("id, household_id, payer_user_id, amount_cents, category_id, description, spent_on, split_method,"
+                   " one_off, payer_transaction_id, version")
+
+
+def insert_expense(conn: sqlite3.Connection, *, household_id: int, payer_id: int, amount_cents: int, category_id: int,
+                   description: str, spent_on: date, split_method: str, one_off: bool, payer_transaction_id: int,
+                   now: datetime) -> int:
+    stamp = to_utc_text(now)
+    return conn.execute(
+        "INSERT INTO shared_expenses (household_id, payer_user_id, amount_cents, category_id, description, spent_on,"
+        " split_method, one_off, payer_transaction_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (household_id, payer_id, amount_cents, category_id, description, spent_on.isoformat(), split_method,
+         int(one_off), payer_transaction_id, stamp, stamp),
+    ).lastrowid
+
+
+def replace_splits(conn: sqlite3.Connection, *, expense_id: int, weights: dict[int, int | None],
+                   shares: dict[int, int]) -> None:
+    conn.execute("DELETE FROM shared_expense_splits WHERE expense_id = ?", (expense_id,))
+    conn.executemany("INSERT INTO shared_expense_splits (expense_id, user_id, weight, share_cents) VALUES (?, ?, ?, ?)",
+                     [(expense_id, user, weights.get(user), share) for user, share in shares.items()])
+
+
+def get_expense(conn: sqlite3.Connection, expense_id: int) -> sqlite3.Row | None:
+    return conn.execute(f"SELECT {EXPENSE_COLUMNS} FROM shared_expenses WHERE id = ?", (expense_id,)).fetchone()
+
+
+def list_expenses(conn: sqlite3.Connection, *, household_id: int) -> list[sqlite3.Row]:
+    return conn.execute(f"SELECT {EXPENSE_COLUMNS} FROM shared_expenses WHERE household_id = ?"
+                        " ORDER BY spent_on DESC, id DESC", (household_id,)).fetchall()
+
+
+def splits_of(conn: sqlite3.Connection, expense_id: int) -> list[sqlite3.Row]:
+    return conn.execute("SELECT user_id, weight, share_cents FROM shared_expense_splits WHERE expense_id = ?"
+                        " ORDER BY user_id", (expense_id,)).fetchall()
+
+
+def update_expense(conn: sqlite3.Connection, *, expense_id: int, version: int, amount_cents: int, category_id: int,
+                   description: str, spent_on: date, split_method: str, one_off: bool, now: datetime) -> int:
+    return conn.execute(
+        "UPDATE shared_expenses SET amount_cents = ?, category_id = ?, description = ?, spent_on = ?,"
+        " split_method = ?, one_off = ?, updated_at = ?, version = version + 1 WHERE id = ? AND version = ?",
+        (amount_cents, category_id, description, spent_on.isoformat(), split_method, int(one_off), to_utc_text(now),
+         expense_id, version),
+    ).rowcount
+
+
+def delete_expense(conn: sqlite3.Connection, *, expense_id: int, version: int) -> int:
+    return conn.execute("DELETE FROM shared_expenses WHERE id = ? AND version = ?", (expense_id, version)).rowcount
+
+
+def is_bill_payment(conn: sqlite3.Connection, expense_id: int) -> bool:
+    return conn.execute("SELECT 1 FROM household_bill_occurrences WHERE shared_expense_id = ?",
+                        (expense_id,)).fetchone() is not None
+
+
+def share_rows(conn: sqlite3.Connection, *, user_id: int, start: date, end_exclusive: date) -> list[sqlite3.Row]:
+    """The user's own shares of shared expenses dated in the range, in any household they belong or belonged to."""
+    return conn.execute(
+        "SELECT e.id, e.spent_on, e.category_id, e.one_off, sp.share_cents,"
+        " EXISTS (SELECT 1 FROM household_bill_occurrences AS o WHERE o.shared_expense_id = e.id) AS from_bill"
+        " FROM shared_expense_splits AS sp JOIN shared_expenses AS e ON e.id = sp.expense_id"
+        " WHERE sp.user_id = ? AND sp.share_cents > 0 AND e.spent_on >= ? AND e.spent_on < ? ORDER BY e.spent_on, e.id",
+        (user_id, start.isoformat(), end_exclusive.isoformat()),
+    ).fetchall()

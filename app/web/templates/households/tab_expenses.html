@@ -1,1 +1,34 @@
-<p class="muted">Nothing here yet.</p>
+<h2>Shared expenses</h2>
+{% if page.can_write %}<p class="actions"><a class="button" href="/households/{{ household.id }}/expenses/new">Add a shared expense</a></p>{% endif %}
+{% if page.expenses %}
+  <div class="table-scroll">
+    <table class="table">
+      <caption class="visually-hidden">Shared expenses, newest first</caption>
+      <thead><tr><th scope="col">Date</th><th scope="col">What</th><th scope="col">Paid by</th><th scope="col" class="num">Amount</th><th scope="col">Split</th><th scope="col">Actions</th></tr></thead>
+      <tbody>
+        {% for expense in page.expenses %}
+          <tr>
+            <td><time datetime="{{ expense.spent_on.isoformat() }}">{{ expense.spent_on.isoformat() }}</time></td>
+            <td>{{ expense.description }}{% if expense.one_off %} <span class="tag">one-off</span>{% endif %}
+              {% if expense.id in page.bill_expense_ids %} <span class="tag">bill</span>{% endif %}</td>
+            <td>{{ page.name_of(expense.payer_user_id) }}</td>
+            <td class="num">{{ expense.amount_cents|money }}</td>
+            <td>{% for user, share in expense.shares.items() %}{{ page.name_of(user) }} {{ share|money }}{% if not loop.last %} · {% endif %}{% endfor %}</td>
+            <td>
+              {% if page.can_write and expense.payer_user_id == page.me.user_id and expense.id not in page.bill_expense_ids %}
+                <a href="/households/{{ household.id }}/expenses/{{ expense.id }}/edit">Edit<span class="visually-hidden"> {{ expense.description }}</span></a>
+                <form method="post" action="/households/{{ household.id }}/expenses/{{ expense.id }}/delete" class="inline-form">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="version" value="{{ expense.version }}">
+                  <button type="submit" class="link-button">Delete<span class="visually-hidden"> {{ expense.description }}</span></button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p>No shared expenses yet.</p>
+{% endif %}

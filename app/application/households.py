@@ -2,7 +2,7 @@
 (FR-17–19, FR-33)."""
 
 import sqlite3
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 
 from app.application import audit
 from app.application.authz import require_member, require_owner, require_viewer
@@ -136,6 +136,8 @@ class HouseholdPage:
     me: households.Member
     members: list[MemberView]
     invitations: list[households.Invitation]
+    expenses: list[households.SharedExpense] = field(default_factory=list)
+    bill_expense_ids: frozenset[int] = frozenset()
 
     @property
     def is_owner(self) -> bool:
@@ -162,4 +164,17 @@ def page(conn: sqlite3.Connection, actor: Actor, household_id: int, clock: Clock
         me=me,
         members=member_views(conn, household_id),
         invitations=households.list_invitations(conn, household_id=household_id, now=clock.now_utc()) if owner else [],
+        expenses=_visible(me, households.list_expenses(conn, household_id=household_id)),
     )
+
+
+def _visible(me: households.Member, expenses: list[households.SharedExpense]) -> list[households.SharedExpense]:
+    """Former members see the expenses from their membership period only (FR-19)."""
+    if me.status == "active":
+        return expenses
+    return [e for e in expenses if me.joined_on <= e.spent_on <= me.ended_at.date()]
+
+
+def member(conn: sqlite3.Connection, actor: Actor, household_id: int) -> households.Member:
+    """404 unless the actor is an active member: used before parsing any household form."""
+    return require_member(conn, actor.user_id, household_id)

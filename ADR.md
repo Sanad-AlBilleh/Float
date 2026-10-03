@@ -7,8 +7,8 @@ Float keeps exactly five decision records, as the assignment requires. Each one 
 | ADR-1 | Python, FastAPI, Jinja2, and SQLite in one process | 2026-10-01 |
 | ADR-2 | Three domains behind narrow interfaces, coordinated by an application layer | 2026-10-01 |
 | ADR-3 | Schema: integer cents, STRICT tables, payment links, and append-only history | 2026-10-02 |
-| ADR-4 | Testing strategy (planned for 3 October) | — |
-| ADR-5 | Deliberate omission (planned for 3 October) | — |
+| ADR-4 | Testing strategy: pure rules, properties, real SQLite, and mutation checks | 2026-10-03 |
+| ADR-5 | Deliberate omission: no background scheduler | 2026-10-03 |
 
 ## ADR-1: Python, FastAPI, Jinja2, and SQLite in one process
 
@@ -88,3 +88,55 @@ Float keeps exactly five decision records, as the assignment requires. Each one 
 - Reads do a little more work: status is computed, and protected savings is a `SUM`. That is fine at a student's data volume, and NFR-05 measures it on Day 4.
 - Splitting a series ("this and future") has to follow SRS §4.2 exactly: it shortens the old series, deletes only unpaid later rows, and creates a new series. Paid history is never rewritten.
 - Planning cannot be moved to another database without replacing the foreign key to `transactions` with an application-level check.
+
+## ADR-4: Testing strategy: pure rules, properties, real SQLite, and mutation checks
+
+- **Date:** 2026-10-03, after the household money rules (the riskiest code) were built test-first.
+- **Status:** Accepted
+
+**Context.** Float's value is its numbers. A cent lost in a three-way split, a bill counted twice, or a settlement confirmed twice would be a real bug for real flatmates. Hand-picked examples catch the cases the author thought of, but money bugs hide in the cases nobody thought of: odd amounts, ties, many members, and long sequences of actions. The assignment asks for at least 70% coverage of the business modules, but coverage only proves a line ran, not that a test would notice it was wrong.
+
+**Decision.**
+- **Pure rules first.** Every calculation in SRS §4 is a pure function: recurrence, allocation, nets and simplification, safe-to-spend, goal plans, the forecast, unusual expenses, and alert rules. Each is unit-tested with injected dates and integer cents, including every worked fixture (A–G) from SRS §4.10.
+- **Properties with Hypothesis.** Hypothesis generates many random cases for the invariants that must always hold:
+  - recurrence output is sorted, unique, and consistent across windows;
+  - split shares add up to the amount and stay within a cent of exact;
+  - household nets sum to zero and the settle-up plan clears everyone in at most n − 1 transfers;
+  - **conservation (SRS §4.5):** for random sequences of bill payments, household bill payments, confirmed settlements, and goal protection, every user's discretionary money changes by exactly minus the change in what they are owed.
+- **Real SQLite, not mocks.** Services and workflows run against a temporary SQLite file with the real migrations, so constraints, triggers, and transactions are tested too. Fault injection (a failure after the ledger write) proves that a workflow rolls back completely, and two connections race on the same settlement to prove exactly one transition wins.
+- **HTTP tests.** FastAPI's test client drives the pages and the JSON API: an authorization matrix (other people's records are 404, non-owners get 403), CSRF rejection, and Fixture A on the real dashboard and forecast pages.
+- **Mutation spot-checks.** After each feature, small deliberate bugs are injected into the new code (a `<` turned into `<=`, a check removed), and the relevant tests must fail. Survivors either get a new test or are recorded as equivalent (the change cannot alter behaviour, for example because a SQL condition repeats a Python check).
+- **Coverage as a floor, not a goal.** The 70% target is measured over the business modules only (identity, ledger, planning, households, insights, application, shared), not the templates or web glue.
+
+**Alternatives considered.**
+- **Examples only:** simpler and readable, but they missed exactly the boundary bugs the mutation checks later found (a bill due on payday, a runway equal to the days left, a tie for the lowest point).
+- **Mocking the database:** faster, but it would not test the constraints, triggers, `ON CONFLICT` clauses, and version-checked updates that the correctness depends on.
+- **A full mutation-testing tool such as mutmut:** more thorough, but slow on a 560-test suite and harder to explain. Targeted manual mutants kept the feedback loop under a minute.
+
+**Consequences.**
+- The suite runs in under a minute on a laptop and needs no services.
+- Hypothesis makes some tests slower (the conservation property builds a fresh flat for each example), so its example counts are kept small and deadlines are disabled for that test.
+- Mutation checks found real gaps on every build day: 19 on 2 October and more on 3 October. Each one became a test.
+- Coverage of the business modules is reported in the README with the date it was measured.
+
+## ADR-5: Deliberate omission: no background scheduler
+
+- **Date:** 2026-10-03, when the last time-based feature (alerts) was built without one.
+- **Status:** Accepted
+
+**Context.** Several features depend on time passing: recurring bills must exist before they are due, alerts should appear when a bill is due soon, and a new cycle starts on payday. The usual solution is a background job (cron, Celery, or an in-process scheduler) that wakes up and does the work.
+
+**Decision.** Float has **no background scheduler and no worker process**. Instead:
+- **Bills are materialized lazily.** Before any page or API call that depends on bills, `ensure_materialized` generates the occurrences up to the end of the horizon, inside a transaction, with `INSERT … ON CONFLICT DO NOTHING`. Repeating it, concurrently or after a restart, never creates a duplicate (ADR-3).
+- **Alerts are evaluated on demand,** when the dashboard or the alert centre loads and after every successful change, in their own transaction once the change has committed. Evaluation is idempotent: running it twice without data changes adds nothing.
+- **Dates come from an injected clock,** so "today" is always the moment a request is handled, and tests can move time.
+
+**Alternatives considered.**
+- **A cron job or Celery worker:** would need a second process, a broker, and deployment work that the assignment rules out (NFR-01, NFR-04), and it would be another thing to explain line by line.
+- **An in-process scheduler thread (for example APScheduler):** one process, but a thread that writes to SQLite while requests also write adds locking and testing problems, and it does nothing while the app is stopped anyway.
+
+**Consequences.**
+- Nothing happens while nobody uses Float. An alert for a bill due today appears the next time someone opens the app, not at 9:00. For a personal finance app opened a few times a day, that is acceptable, and the README says so.
+- Every read that depends on bills does a little extra work: usually nothing, because the watermark is already at the horizon.
+- There are no emails or push notifications; alerts are in-app only (the PRD already excludes email, SMS, and push notifications).
+- If Float ever needed time-based notifications, a scheduler could call the same idempotent functions; nothing would need to be rewritten.

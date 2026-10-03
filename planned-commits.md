@@ -38,7 +38,7 @@ Merge commits are counted too, as the conservative reading of the rule.
 | Wed 30 Sep | 2 (requirements v0.2) + 3 (foundation) + 1 (this schedule change) | 3 | 9 | done |
 | Thu 1 Oct | 6 (one unplanned fix) + 1 (branch renames) + 1 (review fixes) | 3 | 11 | done |
 | Fri 2 Oct | 7 | 1 | 8 | done |
-| Sat 3 Oct | 7 (6 if the API is cut) | 1 | 8 | in progress |
+| Sat 3 Oct | 7 + 1 unplanned fix | 1 | 9 | done once the PR is merged |
 | Sun 4 Oct | 3–6 | 1 | 4–7 | planned |
 | **Total** | | | **about 43** | |
 
@@ -96,8 +96,9 @@ Branch `feature/households-and-alerts`. The first four commits are P0; the alert
 - [x] `Reserve and pay household bills and complete the conservation tests` (FR-25–26, §4.5, household terms in the forecast)
 - [x] `Add the alert centre and household activity feed` (FR-32–33)
 - [x] `Expose the JSON API with idempotency keys` (FR-34–35), only if time remains: built, because time remained
-- [ ] `Record the testing decision, final ADR, and report draft` (ADR-4, ADR-5, report draft, AI log)
-- [ ] Merge PR `Build households, alerts, and the report draft`
+- [x] `Fix squeezed checkbox and radio labels in forms`: unplanned, found in the day's browser check.
+- [x] `Record the testing decision, final ADR, and report draft` (ADR-4, ADR-5, report draft, AI log)
+- [ ] Merge PR `Build households, alerts, and the report draft`. This box is ticked in the next day's first commit.
 
 ## Day 4 — Sunday 4 October: testing, fixes, and polish (deadline 23:59)
 
@@ -133,3 +134,4 @@ Anything cut is listed as "not implemented" in the README and report. Nothing is
 
   The branches for 2–4 October are now `feature/bills-goals-and-forecast`, `feature/households-and-alerts`, and `release/testing-and-polish`. Pull requests that were already merged still show their original branch names, because GitHub keeps the name a PR was merged from.
 - **1 October.** At the student's request, a helper agent reviewed Days 0–1. Its 11 findings were fixed the same day in one extra commit on `fix/review-findings`, so 1 October has 11 commits. Migrations `0006` and `0007` hold the fixes, so the plan's later migrations start at `0008`.
+- **3 October.** All of Day 3 was built, including the JSON API (it was not cut, because time remained). The browser check found a CSS bug that squeezed checkbox and radio labels; it was fixed in one extra commit, so 3 October has 9 commits. With 40 commits after today and at least 2 more on 4 October, the largest day (1 October, 11) stays under 27% of the total. "This and future" edits of household bills were not built and are listed as not implemented.

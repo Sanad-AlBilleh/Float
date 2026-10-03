@@ -1,5 +1,26 @@
 """The Households domain's public interface. Code outside the households package imports only this module."""
 
+from app.households.bills import (
+    HouseholdBillSeries,
+    HouseholdOccurrence,
+    HouseholdPosition,
+    bill_problems,
+    create_bill_series,
+    edit_bill_occurrence,
+    end_bill_series,
+    ensure_materialized,
+    get_bill_occurrence,
+    get_bill_series,
+    get_position,
+    link_bill_payment,
+    list_bill_occurrences,
+    list_bill_series,
+    materialize_for_user,
+    payment_draft,
+    set_bill_skipped,
+    share_of,
+    unlink_bill_payment,
+)
 from app.households.expenses import (
     ExpenseDraft,
     SharedExpense,
@@ -62,6 +83,25 @@ from app.households.service import (
 )
 
 __all__ = [
+    "HouseholdBillSeries",
+    "HouseholdOccurrence",
+    "HouseholdPosition",
+    "bill_problems",
+    "create_bill_series",
+    "edit_bill_occurrence",
+    "end_bill_series",
+    "ensure_materialized",
+    "get_bill_occurrence",
+    "get_bill_series",
+    "get_position",
+    "link_bill_payment",
+    "list_bill_occurrences",
+    "list_bill_series",
+    "materialize_for_user",
+    "payment_draft",
+    "set_bill_skipped",
+    "share_of",
+    "unlink_bill_payment",
     "Settlement",
     "Transfer",
     "awaiting",

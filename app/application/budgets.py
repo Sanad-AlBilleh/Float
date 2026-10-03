@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from app.application import audit
 from app.application.context import Actor
+from app.application.dashboard import share_rows
 from app.application.setup import current_settings
 from app.db.unit_of_work import transaction
 from app.insights import api as insights
@@ -44,7 +45,8 @@ def _cycle(conn: sqlite3.Connection, actor: Actor, clock: Clock) -> Cycle:
 def budgets(conn: sqlite3.Connection, actor: Actor, clock: Clock) -> tuple[Cycle, list[BudgetRow]]:
     cycle = _cycle(conn, actor, clock)
     rows = ledger.get_expense_rows(conn, user_id=actor.user_id, start=cycle.start, end_exclusive=cycle.next_allowance)
-    consumption = insights.consumption_by_category(rows)  # household shares join on day 3
+    shares = share_rows(conn, actor.user_id, cycle.start, cycle.next_allowance)
+    consumption = insights.consumption_by_category(rows, shares)
     limits = planning.budget_limits(conn, user_id=actor.user_id, cycle_start=cycle.start)
     return cycle, [BudgetRow(category, consumption.get(category.id, 0),
                              limits.get(category.id, planning.BudgetLimits(None, None)))

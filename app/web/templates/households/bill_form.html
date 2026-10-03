@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% import "macros/forms.html" as forms %}
+{% import "bills/_fields.html" as bill_fields %}
+{% set household = page.household %}
+{% block title %}Add a household bill{% endblock %}
+{% block content %}
+  <h1>Add a household bill</h1>
+  <p class="muted">{{ household.name }} · Rent, internet, or anything the flat pays regularly. The amount can be corrected
+    on each bill when the real invoice arrives, so splits are by equal parts, percentages, or shares.</p>
+  {{ forms.error_summary(errors) }}
+  <form method="post" action="/households/{{ household.id }}/bills/new" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {{ bill_fields.series_fields(values, errors, categories) }}
+    <fieldset class="field{% if errors.split_method %} field-has-error{% endif %}">
+      <legend id="split_method">How to split each bill</legend>
+      {% if errors.split_method %}<p class="field-error">{{ errors.split_method }}</p>{% endif %}
+      {% for value, label in [("equal", "Equally"), ("percentage", "Percentages (%)"), ("shares", "Shares (1–100 each)")] %}
+        <label class="choice"><input type="radio" name="split_method" value="{{ value }}"{% if values.split_method == value %} checked{% endif %}> {{ label }}</label>
+      {% endfor %}
+    </fieldset>
+    <fieldset class="field{% if errors.participants or errors.split %} field-has-error{% endif %}">
+      <legend id="participants">Who shares it</legend>
+      {% if errors.participants %}<p class="field-error">{{ errors.participants }}</p>{% endif %}
+      {% if errors.split %}<p class="field-error" id="split">{{ errors.split }}</p>{% endif %}
+      <table class="table">
+        <thead><tr><th scope="col">Person</th><th scope="col">Percentage or share</th></tr></thead>
+        <tbody>
+          {% for member in page.active_members %}
+            <tr>
+              <td><label class="choice"><input type="checkbox" name="participant" value="{{ member.user_id }}"{% if member.user_id in values.participants %} checked{% endif %}> {{ member.display_name }}</label></td>
+              <td><label class="visually-hidden" for="value_{{ member.user_id }}">Value for {{ member.display_name }}</label>
+                <input id="value_{{ member.user_id }}" name="value_{{ member.user_id }}" inputmode="decimal" size="8" value="{{ values.split_values.get(member.user_id, '') }}"></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </fieldset>
+    <p class="actions"><button type="submit" class="button">Add household bill</button>
+      <a href="/households/{{ household.id }}?tab=bills">Cancel</a></p>
+  </form>
+{% endblock %}

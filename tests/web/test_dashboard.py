@@ -26,7 +26,7 @@ def test_the_dashboard_shows_every_term_with_links(client):
     ready(client)
     page = client.get("/").text
     for text in ("Safe to spend today", "€380.00", "Bills due before", "€120.00", "Protected savings",
-                 "Household bill shares", "Household payables", "Goal plan reserve", 'href="/bills"',
+                 "Household bill shares", "What you owe flatmates", "Goal plan reserve", 'href="/bills"',
                  'href="/goals"', 'href="/transactions"'):
         assert text in page, text
     assert "per day" in page

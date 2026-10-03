@@ -288,3 +288,113 @@ def pending_for_counterparty(conn: sqlite3.Connection, *, user_id: int) -> list[
         f"SELECT {SETTLEMENT_COLUMNS} FROM settlements WHERE status = 'pending' AND initiated_by <> ?"
         " AND ? IN (payer_user_id, payee_user_id) ORDER BY id", (user_id, user_id),
     ).fetchall()
+
+
+# Household bills (FR-25–26) ------------------------------------------------------------------------
+
+H_SERIES_COLUMNS = ("id, household_id, name, amount_cents, category_id, freq, interval, anchor_date, until_date,"
+                    " max_count, split_method, materialized_through, ended_at, version")
+H_OCCURRENCE_COLUMNS = ("o.id, o.series_id, s.household_id, s.name, s.category_id, o.scheduled_date, o.due_date,"
+                        " o.amount_cents, o.skipped_at, o.shared_expense_id, o.version")
+H_OCCURRENCES = "household_bill_occurrences AS o JOIN household_bill_series AS s ON s.id = o.series_id"
+
+
+def insert_bill_series(conn: sqlite3.Connection, *, household_id: int, name: str, amount_cents: int,
+                       category_id: int, freq: str, interval: int, anchor: date, until: date | None,
+                       count: int | None, split_method: str, now: datetime) -> int:
+    return conn.execute(
+        "INSERT INTO household_bill_series (household_id, name, amount_cents, category_id, freq, interval,"
+        " anchor_date, until_date, max_count, split_method, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (household_id, name, amount_cents, category_id, freq, interval, anchor.isoformat(), _iso(until), count,
+         split_method, to_utc_text(now)),
+    ).lastrowid
+
+
+def insert_participants(conn: sqlite3.Connection, *, series_id: int, weights: dict[int, int]) -> None:
+    conn.executemany("INSERT INTO household_bill_participants (series_id, user_id, weight) VALUES (?, ?, ?)",
+                     [(series_id, user, weight) for user, weight in weights.items()])
+
+
+def participants(conn: sqlite3.Connection, series_id: int) -> dict[int, int]:
+    rows = conn.execute("SELECT user_id, weight FROM household_bill_participants WHERE series_id = ? ORDER BY user_id",
+                        (series_id,))
+    return {row["user_id"]: row["weight"] for row in rows}
+
+
+def get_bill_series(conn: sqlite3.Connection, series_id: int) -> sqlite3.Row | None:
+    return conn.execute(f"SELECT {H_SERIES_COLUMNS} FROM household_bill_series WHERE id = ?", (series_id,)).fetchone()
+
+
+def list_bill_series(conn: sqlite3.Connection, *, household_id: int, active_only: bool) -> list[sqlite3.Row]:
+    condition = " AND ended_at IS NULL" if active_only else ""
+    return conn.execute(f"SELECT {H_SERIES_COLUMNS} FROM household_bill_series WHERE household_id = ?{condition}"
+                        " ORDER BY name, id", (household_id,)).fetchall()
+
+
+def insert_bill_occurrence_if_absent(conn: sqlite3.Connection, *, series_id: int, scheduled_date: date,
+                                     amount_cents: int) -> int:
+    return conn.execute(
+        "INSERT INTO household_bill_occurrences (series_id, scheduled_date, due_date, amount_cents) VALUES (?, ?, ?, ?)"
+        " ON CONFLICT (series_id, scheduled_date) DO NOTHING",
+        (series_id, scheduled_date.isoformat(), scheduled_date.isoformat(), amount_cents),
+    ).rowcount
+
+
+def advance_bill_watermark(conn: sqlite3.Connection, *, series_id: int, through: date) -> None:
+    conn.execute("UPDATE household_bill_series SET materialized_through = ? WHERE id = ?"
+                 " AND (materialized_through IS NULL OR materialized_through < ?)",
+                 (through.isoformat(), series_id, through.isoformat()))
+
+
+def get_bill_occurrence(conn: sqlite3.Connection, occurrence_id: int) -> sqlite3.Row | None:
+    return conn.execute(f"SELECT {H_OCCURRENCE_COLUMNS} FROM {H_OCCURRENCES} WHERE o.id = ?",
+                        (occurrence_id,)).fetchone()
+
+
+def list_bill_occurrences(conn: sqlite3.Connection, *, household_id: int, end_exclusive: date) -> list[sqlite3.Row]:
+    return conn.execute(f"SELECT {H_OCCURRENCE_COLUMNS} FROM {H_OCCURRENCES}"
+                        " WHERE s.household_id = ? AND o.due_date < ? ORDER BY o.due_date, s.name, o.id",
+                        (household_id, end_exclusive.isoformat())).fetchall()
+
+
+def update_bill_occurrence(conn: sqlite3.Connection, *, occurrence_id: int, version: int, amount_cents: int,
+                           due_date: date) -> int:
+    return conn.execute("UPDATE household_bill_occurrences SET amount_cents = ?, due_date = ?, version = version + 1"
+                        " WHERE id = ? AND version = ? AND shared_expense_id IS NULL",
+                        (amount_cents, due_date.isoformat(), occurrence_id, version)).rowcount
+
+
+def set_bill_skipped(conn: sqlite3.Connection, *, occurrence_id: int, version: int, skipped_at: datetime | None) -> int:
+    return conn.execute("UPDATE household_bill_occurrences SET skipped_at = ?, version = version + 1"
+                        " WHERE id = ? AND version = ? AND shared_expense_id IS NULL",
+                        (None if skipped_at is None else to_utc_text(skipped_at), occurrence_id, version)).rowcount
+
+
+def link_bill_payment(conn: sqlite3.Connection, *, occurrence_id: int, version: int, expense_id: int) -> int:
+    return conn.execute("UPDATE household_bill_occurrences SET shared_expense_id = ?, version = version + 1"
+                        " WHERE id = ? AND version = ? AND shared_expense_id IS NULL AND skipped_at IS NULL",
+                        (expense_id, occurrence_id, version)).rowcount
+
+
+def unlink_bill_payment(conn: sqlite3.Connection, *, occurrence_id: int, version: int) -> int:
+    return conn.execute("UPDATE household_bill_occurrences SET shared_expense_id = NULL, version = version + 1"
+                        " WHERE id = ? AND version = ? AND shared_expense_id IS NOT NULL",
+                        (occurrence_id, version)).rowcount
+
+
+def end_bill_series(conn: sqlite3.Connection, *, series_id: int, version: int, now: datetime) -> int:
+    return conn.execute("UPDATE household_bill_series SET ended_at = ?, version = version + 1"
+                        " WHERE id = ? AND version = ? AND ended_at IS NULL",
+                        (to_utc_text(now), series_id, version)).rowcount
+
+
+def delete_open_bill_occurrences_from(conn: sqlite3.Connection, *, series_id: int, day: date) -> None:
+    conn.execute("DELETE FROM household_bill_occurrences WHERE series_id = ? AND due_date >= ?"
+                 " AND shared_expense_id IS NULL AND skipped_at IS NULL", (series_id, day.isoformat()))
+
+
+def active_household_ids(conn: sqlite3.Connection, *, user_id: int) -> list[int]:
+    return [row[0] for row in conn.execute(
+        "SELECT m.household_id FROM memberships AS m JOIN households AS h ON h.id = m.household_id"
+        " WHERE m.user_id = ? AND m.status = 'active' AND h.archived_at IS NULL ORDER BY m.household_id",
+        (user_id,))]

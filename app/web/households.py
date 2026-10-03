@@ -14,6 +14,7 @@ from app.shared.errors import ConflictError, NotFoundError, ValidationError
 from app.shared.money import cents_to_input, parse_money
 from app.web.deps import actor_for, get_conn, require_ready_session, verify_csrf
 from app.web.forms import collect, in_form_order, parse_whole_number
+from app.web.bills import parse_rule
 from app.web.rendering import redirect, render
 
 router = APIRouter(prefix="/households")
@@ -25,7 +26,8 @@ NOTICES = {"joined": "Welcome! You joined the household.", "created": "Household
            "over": "Transfer recorded. Note: it is more than the settle-up plan suggests, so they will owe you the rest.",
            "confirmed": "Confirmed. Both ledgers now show the transfer.", "rejected": "Rejected.",
            "cancelled": "Cancelled.", "paid": "Paid. Your share and everyone else's are now in the balances.",
-           "undone": "Payment undone.", "skipped": "Skipped.", "unskipped": "Unskipped.", "ended": "Bill ended."}
+           "undone": "Payment undone.", "skipped": "Skipped.", "unskipped": "Unskipped.",
+           "ended": "Bill ended. Bills already due stay until they are paid or skipped."}
 
 
 def _number(text: str, field: str = "version") -> int:
@@ -69,11 +71,15 @@ def join(request: Request, session: Session = Depends(require_ready_session),
 def household_page(request: Request, conn: sqlite3.Connection, session: Session, household_id: int, *,
                    tab: str = "balances", new_code: str | None = None, notice: str | None = None,
                    errors=None, values=None, status_code: int = 200):
-    view = use_cases.page(conn, actor_for(request, session), household_id, request.app.state.clock)
+    actor = actor_for(request, session)
+    view = use_cases.page(conn, actor, household_id, request.app.state.clock)
+    tab = tab if tab in TABS else "balances"
+    bills = shared_money.household_bills(conn, actor, household_id, request.app.state.clock) if tab == "bills" else None
     return render(request, "households/show.html",
-                  {"page": view, "tab": tab if tab in TABS else "balances", "new_code": new_code, "notice": notice,
+                  {"page": view, "tab": tab, "bills": bills, "new_code": new_code, "notice": notice,
                    "errors": errors or {}, "values": values or {},
-                   "page_today": request.app.state.clock.today().isoformat()}, status_code=status_code)
+                   "page_today": request.app.state.clock.today().isoformat(),
+                   "categories": {c.id: c.name for c in list_categories(conn)}}, status_code=status_code)
 
 
 @router.get("/{household_id}")
@@ -149,7 +155,8 @@ EXPENSE_FIELDS = ["amount", "spent_on", "category_id", "description", "one_off",
                   "split"]
 
 
-def _parse_expense(form, errors: dict[str, str], today) -> tuple[shared_money.ExpenseDraft, dict]:
+def _parse_expense(form, errors: dict[str, str], today,
+                   participants: list[str] | None = None) -> tuple[shared_money.ExpenseDraft, dict]:
     """Read the expense form. Failed fields keep placeholders so every other rule is still checked."""
     amount = collect(errors, parse_money, form.get("amount", ""), field="amount")
     spent_on = collect(errors, parse_iso_date, form.get("spent_on", ""), field="spent_on")
@@ -159,8 +166,9 @@ def _parse_expense(form, errors: dict[str, str], today) -> tuple[shared_money.Ex
     if method not in SPLIT_METHODS:
         errors["split_method"] = "Choose equal, exact, percentage, or shares."
         method = "equal"
+    raw_participants = participants if participants is not None else form.getlist("participant")
     participants = []
-    for raw in form.getlist("participant"):
+    for raw in raw_participants:
         number = collect(errors, parse_whole_number, raw, field="participants", low=1, high=2**63 - 1,
                          message="Choose participants from the household's current members.")
         if number is not None and number not in participants:
@@ -347,3 +355,105 @@ def _settlement_action(action: str):
 for _action in ("confirm", "reject", "cancel"):
     router.add_api_route(f"/{{household_id}}/settlements/{{settlement_id}}/{_action}", _settlement_action(_action),
                          methods=["POST"], dependencies=[Depends(verify_csrf)])
+
+
+# Household bills (FR-25–26) ---------------------------------------------------------------------------
+
+BILL_FIELDS = ["name", "amount", "category_id", "freq", "interval", "anchor_date", "until", "count", "split_method",
+               "participants", "split"]
+
+
+@router.get("/{household_id}/bills/new")
+def new_bill(household_id: int, request: Request, session: Session = Depends(require_ready_session),
+             conn: sqlite3.Connection = Depends(get_conn)):
+    actor = actor_for(request, session)
+    use_cases.owner(conn, actor, household_id)
+    view = use_cases.page(conn, actor, household_id, request.app.state.clock)
+    values = {"name": "", "amount": "", "category_id": "", "freq": "monthly", "interval": "1",
+              "anchor_date": request.app.state.clock.today().isoformat(), "until": "", "count": "",
+              "split_method": "equal", "participants": [m.user_id for m in view.active_members], "split_values": {}}
+    return _bill_form(request, conn, view, values)
+
+
+def _bill_form(request: Request, conn: sqlite3.Connection, view, values: dict, errors=None, status_code: int = 200):
+    return render(request, "households/bill_form.html",
+                  {"page": view, "values": values, "errors": errors or {}, "categories": list_categories(conn)},
+                  status_code=status_code)
+
+
+@router.post("/{household_id}/bills/new", dependencies=[Depends(verify_csrf)])
+async def create_bill(household_id: int, request: Request, session: Session = Depends(require_ready_session),
+                      conn: sqlite3.Connection = Depends(get_conn)):
+    actor, clock = actor_for(request, session), request.app.state.clock
+    use_cases.owner(conn, actor, household_id)
+    form = await request.form()
+    errors: dict[str, str] = {}
+    draft, values = _parse_expense(
+        {"amount": form.get("amount", ""), "spent_on": clock.today().isoformat(), "category_id": form.get("category_id", ""),
+         "description": form.get("name", ""), "split_method": form.get("split_method", "equal"),
+         **{key: form.get(key) for key in form if key.startswith("value_")}}, errors, clock.today(),
+        participants=form.getlist("participant"))
+    series_form = {key: form.get(key, "") for key in ("name", "amount", "category_id", "freq", "interval",
+                                                      "anchor_date", "until", "count")}
+    rule = parse_rule(errors, series_form, clock.today())
+    values.update(series_form)
+    method = form.get("split_method", "equal")
+    data = shared_money.HouseholdBillInput(draft.description, draft.amount_cents, draft.category_id, rule,
+                                           method if method in SPLIT_METHODS else "equal", draft.entries)
+    problems = shared_money.household_bill_problems(conn, actor, household_id, data, clock)
+    errors = {**problems, **errors}
+    if not errors:
+        try:
+            shared_money.add_household_bill(conn, actor, household_id, data, clock)
+        except ValidationError as error:
+            errors.update(error.errors)
+    if errors:
+        view = use_cases.page(conn, actor, household_id, clock)
+        return _bill_form(request, conn, view, values, in_form_order(errors, BILL_FIELDS), status_code=400)
+    return redirect(f"/households/{household_id}?tab=bills&done=saved")
+
+
+def _bill_action(action: str):
+    async def handler(household_id: int, occurrence_id: int, request: Request,
+                      session: Session = Depends(require_ready_session), conn: sqlite3.Connection = Depends(get_conn)):
+        actor, clock = actor_for(request, session), request.app.state.clock
+        use_cases.viewer(conn, actor, household_id)
+        if shared_money.get_household_occurrence(conn, actor, occurrence_id).household_id != household_id:
+            raise NotFoundError("No such bill.")
+        form = await request.form()
+        version = _number(form.get("version", ""))
+        try:
+            if action == "pay":
+                day = parse_iso_date(form.get("paid_on") or clock.today().isoformat(), field="paid_on")
+                shared_money.pay_household_occurrence(conn, actor, occurrence_id, version, day, clock)
+            elif action == "undo":
+                shared_money.undo_household_payment(conn, actor, occurrence_id, version, clock)
+            elif action in ("skip", "unskip"):
+                shared_money.skip_household_occurrence(conn, actor, occurrence_id, version, clock,
+                                                       skipped=action == "skip")
+            else:
+                cents = parse_money(form.get("amount", ""), field="amount")
+                day = parse_iso_date(form.get("due_date", ""), field="due_date")
+                shared_money.edit_household_occurrence(conn, actor, occurrence_id, version, cents, day, clock)
+        except ValidationError as error:
+            return household_page(request, conn, session, household_id, tab="bills", errors=error.errors,
+                                  status_code=400)
+        done = {"pay": "paid", "undo": "undone", "skip": "skipped", "unskip": "unskipped", "edit": "saved"}[action]
+        return redirect(f"/households/{household_id}?tab=bills&done={done}")
+    return handler
+
+
+for _action in ("pay", "undo", "skip", "unskip", "edit"):
+    router.add_api_route(f"/{{household_id}}/bills/occurrences/{{occurrence_id}}/{_action}", _bill_action(_action),
+                         methods=["POST"], dependencies=[Depends(verify_csrf)])
+
+
+@router.post("/{household_id}/bills/{series_id}/end", dependencies=[Depends(verify_csrf)])
+def end_bill(household_id: int, series_id: int, request: Request, session: Session = Depends(require_ready_session),
+             conn: sqlite3.Connection = Depends(get_conn), version: str = Form("")):
+    actor = actor_for(request, session)
+    use_cases.owner(conn, actor, household_id)
+    if shared_money.household_bill_series(conn, actor, series_id).household_id != household_id:
+        raise NotFoundError("No such bill.")
+    shared_money.end_household_bill(conn, actor, series_id, _number(version), request.app.state.clock)
+    return redirect(f"/households/{household_id}?tab=bills&done=ended")

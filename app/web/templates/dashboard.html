@@ -39,14 +39,15 @@
         <tr><th scope="row"><a href="/transactions">Recorded balance</a></th><td class="num">{{ terms.recorded_balance_cents|money }}</td></tr>
         <tr><th scope="row">− <a href="/bills">Bills due before {{ view.cycle.next_allowance.isoformat() }}</a>
           <span class="muted">({{ view.reserved_bills|length }} unpaid)</span></th><td class="num">{{ terms.personal_bills_cents|money }}</td></tr>
-        <tr><th scope="row">− Household bill shares <span class="muted">(no household yet)</span></th><td class="num">{{ terms.household_bill_shares_cents|money }}</td></tr>
+        <tr><th scope="row">− {% if view.in_household %}<a href="/households">Household bill shares</a>{% else %}Household bill shares <span class="muted">(no household yet)</span>{% endif %}</th><td class="num">{{ terms.household_bill_shares_cents|money }}</td></tr>
         <tr><th scope="row">− <a href="/goals">Protected savings</a></th><td class="num">{{ terms.protected_savings_cents|money }}</td></tr>
-        <tr><th scope="row">− Household payables <span class="muted">(no household yet)</span></th><td class="num">{{ terms.household_payables_cents|money }}</td></tr>
+        <tr><th scope="row">− {% if view.in_household %}<a href="/households">What you owe flatmates</a>{% else %}What you owe flatmates <span class="muted">(no household yet)</span>{% endif %}</th><td class="num">{{ terms.household_payables_cents|money }}</td></tr>
         <tr><th scope="row">− <a href="/goals">Goal plan reserve</a></th><td class="num">{{ terms.goal_plan_reserve_cents|money }}</td></tr>
         <tr class="total"><th scope="row">= Discretionary</th><td class="num">{{ safe.discretionary_cents|money }}</td></tr>
       </tbody>
     </table>
-    <p class="muted">Your planned allowance of {{ view.planned_allowance_cents|money }} is expected, not counted, until you record it.</p>
+    <p class="muted">Your planned allowance of {{ view.planned_allowance_cents|money }} is expected, not counted, until you record it.
+      {% if view.household_receivables_cents %}Flatmates owe you {{ view.household_receivables_cents|money }}; it counts once they settle up.{% endif %}</p>
   </section>
   <section aria-labelledby="preview-heading">
     <h2 id="preview-heading">Can I afford it?</h2>

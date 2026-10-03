@@ -187,3 +187,7 @@ def _visible(me: households.Member, expenses: list[households.SharedExpense]) ->
 def member(conn: sqlite3.Connection, actor: Actor, household_id: int) -> households.Member:
     """404 unless the actor is an active member: used before parsing any household form."""
     return require_member(conn, actor.user_id, household_id)
+
+
+def owner(conn: sqlite3.Connection, actor: Actor, household_id: int) -> households.Member:
+    return require_owner(conn, actor.user_id, household_id)

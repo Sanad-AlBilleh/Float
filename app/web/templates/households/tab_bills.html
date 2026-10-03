@@ -1,1 +1,86 @@
-<p class="muted">Nothing here yet.</p>
+{% set labels = {"paid": "Paid", "skipped": "Skipped", "overdue": "Overdue", "reserved": "Reserved", "upcoming": "Upcoming"} %}
+<h2>Household bills</h2>
+<p class="muted">Each person's share of an unpaid bill due before their next allowance is set aside in their safe-to-spend.
+  Whoever pays it turns it into a shared expense, so the others then owe their shares.</p>
+{% if page.is_owner %}<p class="actions"><a class="button" href="/households/{{ household.id }}/bills/new">Add a household bill</a></p>{% endif %}
+{% if bills.occurrences %}
+  <div class="table-scroll">
+    <table class="table">
+      <caption class="visually-hidden">Household bills by due date</caption>
+      <thead><tr><th scope="col">Due</th><th scope="col">Bill</th><th scope="col" class="num">Amount</th><th scope="col" class="num">Your share</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
+      <tbody>
+        {% for row in bills.occurrences %}
+          <tr>
+            <td>{{ row.due_date.isoformat() }}</td>
+            <td>{{ row.name }}<br><span class="muted">{{ categories.get(row.category_id, "") }}</span></td>
+            <td class="num">{{ row.amount_cents|money }}</td>
+            <td class="num">{{ row.my_share_cents|money }}</td>
+            <td><span class="status status-{{ row.status }}">{{ labels[row.status] }}</span>
+              {% if row.payer_user_id %}<br><span class="muted">by {{ page.name_of(row.payer_user_id) }}</span>{% endif %}</td>
+            <td>
+              {% if page.can_write and row.participant %}
+                {% if row.status == "paid" %}
+                  {% if row.payer_user_id == page.me.user_id %}
+                    <form method="post" action="/households/{{ household.id }}/bills/occurrences/{{ row.id }}/undo" class="inline-form">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <input type="hidden" name="version" value="{{ row.version }}">
+                      <button type="submit" class="link-button">Undo payment<span class="visually-hidden"> of {{ row.name }} due {{ row.due_date.isoformat() }}</span></button>
+                    </form>
+                  {% endif %}
+                {% elif row.status == "skipped" %}
+                  <form method="post" action="/households/{{ household.id }}/bills/occurrences/{{ row.id }}/unskip" class="inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="version" value="{{ row.version }}">
+                    <button type="submit" class="link-button">Unskip<span class="visually-hidden"> {{ row.name }} due {{ row.due_date.isoformat() }}</span></button>
+                  </form>
+                {% else %}
+                  <form method="post" action="/households/{{ household.id }}/bills/occurrences/{{ row.id }}/pay" class="inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="version" value="{{ row.version }}">
+                    <button type="submit" class="link-button">I paid it today<span class="visually-hidden">: {{ row.name }} due {{ row.due_date.isoformat() }}</span></button>
+                  </form>
+                  <form method="post" action="/households/{{ household.id }}/bills/occurrences/{{ row.id }}/skip" class="inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="version" value="{{ row.version }}">
+                    <button type="submit" class="link-button">Skip<span class="visually-hidden"> {{ row.name }} due {{ row.due_date.isoformat() }}</span></button>
+                  </form>
+                  <details>
+                    <summary>Change amount or date<span class="visually-hidden"> of {{ row.name }} due {{ row.due_date.isoformat() }}</span></summary>
+                    <form method="post" action="/households/{{ household.id }}/bills/occurrences/{{ row.id }}/edit" class="stack">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <input type="hidden" name="version" value="{{ row.version }}">
+                      <label for="amount-{{ row.id }}">Amount (€)</label>
+                      <input id="amount-{{ row.id }}" name="amount" inputmode="decimal" value="{{ row.amount_cents|money_input }}">
+                      <label for="due-{{ row.id }}">Due date</label>
+                      <input id="due-{{ row.id }}" name="due_date" type="date" value="{{ row.due_date.isoformat() }}">
+                      <button type="submit" class="button button-secondary">Save</button>
+                    </form>
+                  </details>
+                {% endif %}
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p>No household bills yet.</p>
+{% endif %}
+{% if bills.series %}
+  <h3>Repeating household bills</h3>
+  <ul class="list">
+    {% for series in bills.series %}
+      <li>{{ series.name }}: {{ series.amount_cents|money }}, {{ series.rule|rule }}, split {{ series.split_method }} between
+        {% for user in series.weights %}{{ page.name_of(user) }}{% if not loop.last %}, {% endif %}{% endfor %}
+        {% if series.ended %}<span class="tag">ended</span>
+        {% elif page.is_owner %}
+          <form method="post" action="/households/{{ household.id }}/bills/{{ series.id }}/end" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="version" value="{{ series.version }}">
+            <button type="submit" class="link-button">End this bill<span class="visually-hidden">: {{ series.name }}</span></button>
+          </form>
+        {% endif %}</li>
+    {% endfor %}
+  </ul>
+{% endif %}

@@ -2,19 +2,21 @@
 rows in one transaction, with an audit event carrying the household's ID (FR-20–26, FR-33, SRS §6.3)."""
 
 import sqlite3
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import date
 
 from app.application import audit
-from app.application.authz import require_member, require_viewer
+from app.application.authz import require_member, require_owner, require_viewer
 from app.application.context import Actor
 from app.application.households import display_names
 from app.db.unit_of_work import transaction
 from app.households import api as households
-from app.insights import api as insights
 from app.ledger import api as ledger
+from app.planning import api as planning
 from app.shared.clock import Clock
-from app.shared.errors import NotFoundError, ValidationError
+from app.shared.dates import Cycle, cycle_for
+from app.shared.errors import ConflictError, NotFoundError, PermissionDeniedError, ValidationError
+from app.shared.recurrence import Rule
 
 ExpenseDraft = households.ExpenseDraft
 
@@ -124,12 +126,6 @@ def delete_expense(conn: sqlite3.Connection, actor: Actor, expense_id: int, vers
         _audit(conn, actor, before.household_id, "shared_expense", expense_id, "delete", clock, before=asdict(removed))
 
 
-def share_rows(conn: sqlite3.Connection, user_id: int, start: date, end_exclusive: date):
-    """The user's shares of shared expenses, for consumption (SRS §4.7)."""
-    return [insights.ShareRow(row.share_cents, row.spent_on, row.category_id, row.from_household_bill, row.one_off)
-            for row in households.share_rows(conn, user_id=user_id, start=start, end_exclusive=end_exclusive)]
-
-
 # Settlements (FR-24) -----------------------------------------------------------------------------------
 
 def _check_paid_on(conn: sqlite3.Connection, paid_on: date, *user_ids: int) -> None:
@@ -211,3 +207,184 @@ def cancel_settlement(conn: sqlite3.Connection, actor: Actor, settlement_id: int
 
 def settlement_household(conn: sqlite3.Connection, settlement_id: int) -> int:
     return households.get_settlement(conn, settlement_id=settlement_id).household_id
+
+
+# Household bills (FR-25–26) ------------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class HouseholdBillInput:
+    name: str
+    amount_cents: int
+    category_id: int | None
+    rule: Rule
+    split_method: str
+    entries: tuple[households.SplitEntry, ...]
+
+
+@dataclass(frozen=True)
+class HouseholdBillRow:
+    id: int
+    series_id: int
+    name: str
+    category_id: int
+    scheduled_date: date
+    due_date: date
+    amount_cents: int
+    skipped: bool
+    shared_expense_id: int | None
+    version: int
+    status: str  # paid, skipped, overdue, reserved, or upcoming, from the viewer's cycle
+    my_share_cents: int
+    participant: bool
+    payer_user_id: int | None
+
+
+@dataclass(frozen=True)
+class HouseholdBillsView:
+    series: list[households.HouseholdBillSeries]
+    occurrences: list[HouseholdBillRow]
+
+
+def _viewer_cycle(conn: sqlite3.Connection, user_id: int, clock: Clock) -> Cycle:
+    settings = planning.get_settings(conn, user_id)
+    return cycle_for(clock.today(), settings.allowance_day if settings else 1)
+
+
+def household_bills(conn: sqlite3.Connection, actor: Actor, household_id: int, clock: Clock) -> HouseholdBillsView:
+    """The household's bills as the viewer sees them: status from their own cycle, and their share."""
+    require_viewer(conn, actor.user_id, household_id)
+    cycle = _viewer_cycle(conn, actor.user_id, clock)
+    if not households.get_household(conn, household_id=household_id).archived:
+        with transaction(conn):
+            households.ensure_materialized(conn, household_id=household_id, horizon_end=cycle.horizon_end)
+    series = households.list_bill_series(conn, household_id=household_id)
+    by_id = {s.id: s for s in series}
+    rows = []
+    for o in households.list_bill_occurrences(conn, household_id=household_id, end_exclusive=cycle.horizon_end):
+        payer = None
+        if o.shared_expense_id is not None:
+            payer = households.get_expense(conn, expense_id=o.shared_expense_id).payer_user_id
+        status = planning.occurrence_status(
+            planning.Occurrence(o.id, o.series_id, o.name, o.category_id, o.scheduled_date, o.due_date, o.amount_cents,
+                                o.skipped, o.shared_expense_id, o.version),
+            today=cycle.today, next_allowance=cycle.next_allowance)
+        rows.append(HouseholdBillRow(o.id, o.series_id, o.name, o.category_id, o.scheduled_date, o.due_date,
+                                     o.amount_cents, o.skipped, o.shared_expense_id, o.version, status,
+                                     households.share_of(by_id[o.series_id], o, actor.user_id),
+                                     actor.user_id in by_id[o.series_id].weights, payer))
+    return HouseholdBillsView(series, rows)
+
+
+def _participant_occurrence(conn: sqlite3.Connection, actor: Actor, occurrence_id: int) -> households.HouseholdOccurrence:
+    occurrence = households.get_bill_occurrence(conn, occurrence_id=occurrence_id)
+    require_member(conn, actor.user_id, occurrence.household_id)
+    series = households.get_bill_series(conn, series_id=occurrence.series_id)
+    if actor.user_id not in series.weights:
+        raise PermissionDeniedError("Only the people who share this bill can change or pay it.")
+    return occurrence
+
+
+def get_household_occurrence(conn: sqlite3.Connection, actor: Actor,
+                             occurrence_id: int) -> households.HouseholdOccurrence:
+    occurrence = households.get_bill_occurrence(conn, occurrence_id=occurrence_id)
+    require_viewer(conn, actor.user_id, occurrence.household_id)
+    return occurrence
+
+
+def household_bill_problems(conn: sqlite3.Connection, actor: Actor, household_id: int, data: HouseholdBillInput,
+                            clock: Clock) -> dict[str, str]:
+    return households.bill_problems(conn, household_id=household_id, name=data.name, amount_cents=data.amount_cents,
+                                    category_id=data.category_id, rule=data.rule, split_method=data.split_method,
+                                    entries=data.entries, category_ids=_category_ids(conn), today=clock.today())
+
+
+def add_household_bill(conn: sqlite3.Connection, actor: Actor, household_id: int, data: HouseholdBillInput,
+                       clock: Clock) -> households.HouseholdBillSeries:
+    with transaction(conn):
+        require_owner(conn, actor.user_id, household_id)
+        series = households.create_bill_series(
+            conn, household_id=household_id, name=data.name, amount_cents=data.amount_cents,
+            category_id=data.category_id, rule=data.rule, split_method=data.split_method, entries=data.entries,
+            category_ids=_category_ids(conn), today=clock.today(), now=clock.now_utc())
+        horizon = _viewer_cycle(conn, actor.user_id, clock).horizon_end
+        households.ensure_materialized(conn, household_id=household_id, horizon_end=horizon)
+        _audit(conn, actor, household_id, "household_bill", series.id, "create", clock,
+               after={**asdict(series), "rule": asdict(series.rule)})
+    return series
+
+
+def end_household_bill(conn: sqlite3.Connection, actor: Actor, series_id: int, version: int, clock: Clock) -> None:
+    with transaction(conn):
+        series = households.get_bill_series(conn, series_id=series_id)
+        require_owner(conn, actor.user_id, series.household_id)
+        households.end_bill_series(conn, series_id=series_id, version=version, today=clock.today(),
+                                   now=clock.now_utc())
+        _audit(conn, actor, series.household_id, "household_bill", series_id, "end", clock)
+
+
+def edit_household_occurrence(conn: sqlite3.Connection, actor: Actor, occurrence_id: int, version: int,
+                              amount_cents: int, due_date: date, clock: Clock) -> None:
+    with transaction(conn):
+        before = _participant_occurrence(conn, actor, occurrence_id)
+        after = households.edit_bill_occurrence(conn, occurrence_id=occurrence_id, version=version,
+                                                amount_cents=amount_cents, due_date=due_date)
+        _audit(conn, actor, before.household_id, "household_bill_occurrence", occurrence_id, "update", clock,
+               asdict(before), asdict(after))
+
+
+def skip_household_occurrence(conn: sqlite3.Connection, actor: Actor, occurrence_id: int, version: int,
+                              clock: Clock, *, skipped: bool) -> None:
+    with transaction(conn):
+        before = _participant_occurrence(conn, actor, occurrence_id)
+        households.set_bill_skipped(conn, occurrence_id=occurrence_id, version=version, skipped=skipped,
+                                    now=clock.now_utc())
+        _audit(conn, actor, before.household_id, "household_bill_occurrence", occurrence_id,
+               "skip" if skipped else "unskip", clock)
+
+
+def pay_household_occurrence(conn: sqlite3.Connection, actor: Actor, occurrence_id: int, version: int,
+                             paid_on: date, clock: Clock) -> households.SharedExpense:
+    """FR-26: one shared expense split by the template, the payer's ledger expense, and the link, together."""
+    with transaction(conn):
+        occurrence = _participant_occurrence(conn, actor, occurrence_id)
+        draft = households.payment_draft(conn, occurrence_id=occurrence_id, version=version, paid_on=paid_on)
+        errors = expense_problems(conn, actor, occurrence.household_id, draft, clock)
+        if errors:
+            raise ValidationError({"paid_on" if field == "spent_on" else field: message
+                                   for field, message in errors.items()})
+        transaction_id = ledger.create_linked(
+            conn, user_id=actor.user_id, kind="expense", origin="shared", amount_cents=draft.amount_cents,
+            occurred_on=paid_on, category_id=draft.category_id, income_source=None, note=draft.description,
+            today=clock.today(), now=clock.now_utc())
+        expense = households.create_expense(conn, household_id=occurrence.household_id, payer_id=actor.user_id,
+                                            draft=draft, category_ids=_category_ids(conn),
+                                            payer_transaction_id=transaction_id, now=clock.now_utc())
+        households.link_bill_payment(conn, occurrence_id=occurrence_id, version=version, expense_id=expense.id)
+        _audit(conn, actor, occurrence.household_id, "household_bill_occurrence", occurrence_id, "pay", clock,
+               before=asdict(occurrence), after=asdict(expense))
+    return expense
+
+
+def undo_household_payment(conn: sqlite3.Connection, actor: Actor, occurrence_id: int, version: int,
+                           clock: Clock) -> None:
+    """Only the payer, from the current version: link, shared expense, and ledger expense go together."""
+    with transaction(conn):
+        occurrence = households.get_bill_occurrence(conn, occurrence_id=occurrence_id)
+        require_member(conn, actor.user_id, occurrence.household_id)
+        if occurrence.shared_expense_id is None:
+            raise ConflictError("This bill is not paid.")
+        expense = households.get_expense(conn, expense_id=occurrence.shared_expense_id)
+        if expense.payer_user_id != actor.user_id:
+            raise PermissionDeniedError("Only the person who paid this bill can undo the payment.")
+        households.unlink_bill_payment(conn, occurrence_id=occurrence_id, version=version)
+        households.delete_expense(conn, expense_id=expense.id, user_id=actor.user_id, version=expense.version)
+        ledger.delete_linked(conn, user_id=actor.user_id, transaction_id=expense.payer_transaction_id,
+                             origin="shared")
+        _audit(conn, actor, occurrence.household_id, "household_bill_occurrence", occurrence_id, "undo_payment",
+               clock, before=asdict(expense))
+
+
+def household_bill_series(conn: sqlite3.Connection, actor: Actor, series_id: int) -> households.HouseholdBillSeries:
+    series = households.get_bill_series(conn, series_id=series_id)
+    require_viewer(conn, actor.user_id, series.household_id)
+    return series

@@ -116,3 +116,52 @@ def test_an_invalid_transfer_is_explained(client, make_client):
                          {"direction": "paid", "counterparty": str(ids[0]), "amount": "0", "paid_on": "2026-10-05"})
     assert response.status_code == 400
     assert "Enter an amount greater than zero." in response.text
+
+
+def add_bill(client, page, ids, **fields):
+    data = {"name": "Internet", "amount": "36", "category_id": "5", "freq": "monthly", "interval": "1",
+            "anchor_date": "2026-09-30", "until": "", "count": "", "split_method": "equal",
+            "participant": [str(i) for i in ids]}
+    data.update(fields)
+    return post_form(client, page + "/bills/new", page + "/bills/new", data)
+
+
+def test_household_bills_reserve_shares_and_pay_into_balances(client, make_client):
+    page, ben, carla, ids = flat(client, make_client)
+    assert add_bill(client, page, ids).status_code == 303
+    tab = ben.get(page + "?tab=bills").text
+    assert "Internet" in tab and "€12.00" in tab and "Reserved" in tab
+    assert "€488.00" in ben.get("/").text  # €500 − his €12 share, per day with one day left
+    pay = re.search(r'action="(/households/\d+/bills/occurrences/\d+/pay)".*?name="version" value="(\d+)"', tab, re.S)
+    assert post_form(ben, page + "?tab=bills", pay.group(1), {"version": pay.group(2)}).status_code == 303
+    assert "Paid" in client.get(page + "?tab=bills").text
+    assert "Ana pays Ben €12.00" in client.get(page).text
+    assert "€488.00" in client.get("/").text  # Ana's share became a payable: no change
+    undo = re.search(r'action="(/households/\d+/bills/occurrences/\d+/undo)".*?name="version" value="(\d+)"',
+                     ben.get(page + "?tab=bills").text, re.S)
+    assert post_form(ben, page + "?tab=bills", undo.group(1), {"version": undo.group(2)}).status_code == 303
+    assert "Ana pays Ben" not in client.get(page).text
+
+
+def test_household_bill_rules_through_the_form(client, make_client):
+    page, ben, carla, ids = flat(client, make_client)
+    bad = add_bill(client, page, ids, split_method="exact", anchor_date="2026-09-01", name="")
+    assert bad.status_code == 400
+    for message in ("Enter a name of 1 to 100 characters.", "Choose a first due date from today on",
+                    "Choose equal, percentage, or shares"):
+        assert message in bad.text, message
+    assert ben.get(page + "/bills/new").status_code == 403
+
+
+def test_a_participant_can_correct_the_amount_and_the_owner_can_end_it(client, make_client):
+    page, ben, carla, ids = flat(client, make_client)
+    add_bill(client, page, ids)
+    tab = carla.get(page + "?tab=bills").text
+    edit = re.search(r'action="(/households/\d+/bills/occurrences/\d+/edit)".*?name="version" value="(\d+)"', tab, re.S)
+    assert post_form(carla, page + "?tab=bills", edit.group(1),
+                     {"version": edit.group(2), "amount": "45", "due_date": "2026-09-30"}).status_code == 303
+    assert "€15.00" in client.get(page + "?tab=bills").text
+    end = re.search(r'action="(/households/\d+/bills/\d+/end)".*?name="version" value="(\d+)"',
+                    client.get(page + "?tab=bills").text, re.S)
+    assert post_form(client, page + "?tab=bills", end.group(1), {"version": end.group(2)}).status_code == 303
+    assert "ended" in client.get(page + "?tab=bills").text

@@ -45,7 +45,11 @@ def test_goal_plans_are_shown_on_the_goals_page(client):
     post_form(client, "/goals", "/goals/new", {"name": "Laptop", "target": "600", "target_date": "2027-03-01",
                                                  "priority": "2", "auto_reserve": "on"})
     page = client.get("/goals").text
-    assert "Behind" in page and "€100.00 planned this cycle" in page and "€100.00 still to protect" in page
+    assert "On plan" in page and "Behind" not in page  # this cycle's €100 is reserved automatically
+    assert "€100.00 planned this cycle" in page and "€100.00 still to protect, already set aside" in page
+    post_form(client, "/goals", "/goals/new", {"name": "Bike", "target": "600", "target_date": "2027-03-01",
+                                                 "priority": "2"})
+    assert "Behind" in client.get("/goals").text  # a goal without auto-reserve waits on the user
 
 
 def test_users_add_categories_and_use_them(client, make_client):

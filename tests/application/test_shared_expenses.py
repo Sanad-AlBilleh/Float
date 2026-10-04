@@ -1,10 +1,11 @@
 """Shared expenses across Households and the Ledger (FR-20–22, AT-14, AT-15)."""
 
+from dataclasses import replace
 from datetime import date
 
 import pytest
 
-from app.application import shared_money
+from app.application import budgets, categories, shared_money
 from app.households.api import SplitEntry
 from app.ledger.api import get_balance, list_transactions
 from app.shared.errors import ConflictError, NotFoundError, PermissionDeniedError, ValidationError
@@ -130,3 +131,12 @@ def balances(conn, household_id):
     from app.households.api import balances as nets
 
     return nets(conn, household_id=household_id)
+
+
+def test_a_share_in_the_payers_own_category_counts_as_other_for_the_flatmate(conn, clock, flat):
+    household, ana, ben, carla = flat
+    gym = categories.add_category(conn, ana, "Gym", clock)
+    shared_money.record_expense(conn, ana, household.id, replace(draft(ana, ben, carla), category_id=gym.id), clock)
+    spent = {row.category.slug: row.consumption_cents for row in budgets.budgets(conn, ben, clock)[1]}
+    assert spent["other"] == 1000  # Ben cannot see Ana's "Gym", so his share lands in Other
+    assert {row.category.id: row.consumption_cents for row in budgets.budgets(conn, ana, clock)[1]}[gym.id] == 1000

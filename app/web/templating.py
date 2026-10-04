@@ -65,3 +65,12 @@ templates.env.globals["category_style"] = category_style
 templates.env.filters["money_whole"] = money_whole
 templates.env.filters["money_fraction"] = money_fraction
 templates.env.filters["initials"] = initials
+
+
+def _asset_version() -> str:
+    """Changes whenever a static file changes, so browsers fetch the new stylesheet instead of a cached one."""
+    static = TEMPLATES_DIR.parent / "static"
+    return str(max(int(path.stat().st_mtime) for path in static.iterdir() if path.is_file()))
+
+
+templates.env.globals["asset_version"] = _asset_version()

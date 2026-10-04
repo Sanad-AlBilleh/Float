@@ -11,7 +11,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#7356f1">
   <title>{% block title %}Float{% endblock %} · Float</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='float.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='float.css') }}?v={{ asset_version }}">
 </head>
 <body class="{{ 'signed-in' if current_user else 'signed-out' }}">
   <a class="skip-link" href="#content">Skip to content</a>

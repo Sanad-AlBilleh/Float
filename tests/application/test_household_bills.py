@@ -140,3 +140,10 @@ def test_budgets_count_shares_not_the_cash_fronted(conn, flat):
     by_id = {row.category.id: row.consumption_cents for row in rows}
     assert by_id[1] == 18800 + 1000  # her groceries plus her €10 share, not the €30 she fronted
     assert by_id[UTILITIES] == 3000  # her share of Ben's electricity
+
+
+def test_a_zero_percent_participant_is_explained_not_a_crash(conn, flat):
+    """Review finding 3: the schema needs a weight of at least 1, so 0% must be refused with a message."""
+    with pytest.raises(ValidationError) as error:
+        add(conn, flat, flat.ana, flat.ben, method="percentage", values=[10000, 0])
+    assert "split" in error.value.errors and "above zero" in error.value.errors["split"]

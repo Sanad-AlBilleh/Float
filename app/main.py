@@ -31,15 +31,10 @@ def create_app(settings: Settings | None = None, clock: Clock | None = None) -> 
     middleware.install(app)
     errors.install(app)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-    app.include_router(web_router)
-    app.include_router(auth.router)
-    app.include_router(setup.router)
-    app.include_router(transactions.router)
-    app.include_router(bills.router)
-    app.include_router(goals.router)
-    app.include_router(budgets.router)
-    app.include_router(categories.router)
-    app.include_router(households.router)
-    app.include_router(alerts.router)
+    app.include_router(web_router)  # /healthz is documented; the dashboard and forecast pages are not
+    # The HTML pages and their form posts stay out of the OpenAPI schema: /api/docs documents /api/v1 only.
+    for pages in (auth.router, setup.router, transactions.router, bills.router, goals.router,
+                  budgets.router, categories.router, households.router, alerts.router):
+        app.include_router(pages, include_in_schema=False)
     app.include_router(api_v1.router)
     return app

@@ -40,6 +40,13 @@ def test_a_passed_target_date_is_overdue_and_reserves_nothing():
     assert plan([], target_date=date(2026, 9, 2)).status == "behind"  # one cycle left: this one
 
 
+def test_an_auto_reserve_goal_is_on_plan_while_this_cycle_is_reserved_for_it():
+    auto = goal_plan(target_cents=60000, target_date=MARCH, movements=[(date(2026, 9, 2), 5000)], cycle=SEPTEMBER,
+                     allowance_day=1, auto_reserve=True)
+    assert auto == GoalPlan(6, 10000, 5000, "on_plan")  # the €50 pending is held back from safe-to-spend
+    assert plan([(date(2026, 9, 2), 5000)]).status == "behind"  # a manual goal is still behind
+
+
 def test_complete_and_undated_goals_reserve_nothing():
     assert plan([(date(2026, 9, 2), 60000)]).status == "complete"
     assert plan([], target_date=None) == GoalPlan(0, 0, 0, "no_target_date")

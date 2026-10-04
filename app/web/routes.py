@@ -26,7 +26,7 @@ def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.get("/")
+@router.get("/", include_in_schema=False)
 def home(request: Request, session: Session | None = Depends(current_session),
          conn: sqlite3.Connection = Depends(get_conn), cost: str | None = None):
     clock = request.app.state.clock
@@ -57,7 +57,7 @@ def home(request: Request, session: Session | None = Depends(current_session),
                   status_code=400 if errors else 200)
 
 
-@router.get("/forecast")
+@router.get("/forecast", include_in_schema=False)
 def forecast_page(request: Request, session: Session = Depends(require_ready_session),
                   conn: sqlite3.Connection = Depends(get_conn)):
     result = forecast(conn, session.user.id, request.app.state.clock)

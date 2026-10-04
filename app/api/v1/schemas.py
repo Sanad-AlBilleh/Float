@@ -59,6 +59,7 @@ class SetupIn(BaseModel):
     allowance_day: Annotated[int, Field(ge=1, le=31)]
     planned_allowance_cents: Cents = 75000
     allowance_included: bool = False
+    monthly_savings_cents: Cents = 0
 
 
 class PlannedAllowanceIn(BaseModel):

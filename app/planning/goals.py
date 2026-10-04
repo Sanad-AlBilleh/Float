@@ -148,7 +148,7 @@ def plans(conn: sqlite3.Connection, *, user_id: int, cycle: Cycle) -> list[tuple
     return [
         (goal, goal_plan(target_cents=goal.target_cents, target_date=goal.target_date,
                          movements=movements(conn, user_id=user_id, goal_id=goal.id), cycle=cycle,
-                         allowance_day=settings["allowance_day"]))
+                         allowance_day=settings["allowance_day"], auto_reserve=goal.auto_reserve))
         for goal in list_goals(conn, user_id=user_id)
     ]
 

@@ -43,6 +43,11 @@ def test_openapi_schema_is_published(client):
     assert client.get("/api/openapi.json").json()["info"]["title"] == "Float"
 
 
+def test_the_api_docs_list_only_the_json_api(client):
+    paths = client.get("/api/openapi.json").json()["paths"]
+    assert paths and all(path.startswith("/api/v1/") or path == "/healthz" for path in paths)
+
+
 def test_templates_escape_user_text():
     rendered = templates.env.from_string("{{ note }}").render(note="<script>alert(1)</script>")
     assert rendered == "&lt;script&gt;alert(1)&lt;/script&gt;"

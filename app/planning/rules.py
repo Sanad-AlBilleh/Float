@@ -70,8 +70,9 @@ class GoalPlan:
 
 
 def goal_plan(*, target_cents: int, target_date: date | None, movements: Iterable[tuple[date, int]], cycle: Cycle,
-              allowance_day: int) -> GoalPlan:
-    """SRS §4.6. Movements after today are ignored."""
+              allowance_day: int, auto_reserve: bool = False) -> GoalPlan:
+    """SRS §4.6. Movements after today are ignored. An auto-reserve goal is on plan while this cycle's pending
+    amount is held back from safe-to-spend; a manual goal is behind until the user protects it."""
     movements = list(movements)
     protected_now = sum(delta for moved_on, delta in movements if moved_on <= cycle.today)
     if protected_now >= target_cents:
@@ -85,7 +86,7 @@ def goal_plan(*, target_cents: int, target_date: date | None, movements: Iterabl
     planned = -(-max(0, target_cents - protected_at_start) // cycles_left)  # ceiling division
     this_cycle = sum(delta for moved_on, delta in movements if cycle.start <= moved_on <= cycle.today)
     pending = min(planned, max(0, planned - this_cycle), max(0, target_cents - protected_now))
-    return GoalPlan(cycles_left, planned, pending, "on_plan" if pending == 0 else "behind")
+    return GoalPlan(cycles_left, planned, pending, "on_plan" if pending == 0 or auto_reserve else "behind")
 
 
 def next_cycle_contribution(plan: GoalPlan, *, target_cents: int, protected_now_cents: int) -> int:

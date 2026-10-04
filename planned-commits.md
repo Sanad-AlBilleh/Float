@@ -143,3 +143,4 @@ Anything cut is listed as "not implemented" in the README and report. Nothing is
   - the performance script and the final documents.
 
   With the merge, 4 October has 16 of 56 commits, which is 29%, under the 40% rule. Custom categories and automatic categorization are new features on a day planned as "no new features"; the student asked for them after reviewing the app. The journey walkthrough with timings is left for the student.
+- **4 October, evening.** A final review by a helper agent found 1 medium and 4 low issues and no crashes or security holes. They were fixed test-first in 3 commits on `fix/final-review`, and one more commit rewrote the README, ADRs, AI log and report (ADRs in the assignment's exact format, same decisions). With the merge, 4 October has 21 of 61 commits, which is 34%, under the 40% rule.

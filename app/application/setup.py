@@ -12,6 +12,7 @@ from app.planning import api as planning
 from app.shared.clock import Clock
 from app.shared.dates import add_months, cycle_for, scheduled_date
 from app.shared.errors import ConflictError, ValidationError
+from app.shared.money import MAX_CENTS
 
 
 @dataclass(frozen=True)
@@ -36,7 +37,8 @@ def current_settings(conn: sqlite3.Connection, user_id: int) -> tuple[ledger.Led
 
 
 def setup_problems(*, tracking_start: date | None, opening_balance_cents: int | None, allowance_day: int | None,
-                   planned_allowance_cents: int | None, today: date) -> dict[str, str]:
+                   planned_allowance_cents: int | None, today: date,
+                   monthly_savings_cents: int | None = None) -> dict[str, str]:
     """Both domains' rules for whichever fields are present, so a form can show every problem at once.
 
     Missing fields get a harmless placeholder; their own parse errors are reported by the caller.
@@ -58,6 +60,8 @@ def setup_problems(*, tracking_start: date | None, opening_balance_cents: int | 
             check()
         except ValidationError as error:
             errors.update(error.errors)
+    if monthly_savings_cents is not None and not 0 <= monthly_savings_cents <= MAX_CENTS:
+        errors["monthly_savings"] = "Enter an amount between €0.00 and €1,000,000.00."  # the form's range
     return errors
 
 
@@ -66,7 +70,7 @@ def complete_setup(conn: sqlite3.Connection, actor: Actor, data: SetupInput, clo
     today = clock.today()
     errors = setup_problems(tracking_start=data.tracking_start, opening_balance_cents=data.opening_balance_cents,
                             allowance_day=data.allowance_day, planned_allowance_cents=data.planned_allowance_cents,
-                            today=today)
+                            today=today, monthly_savings_cents=data.monthly_savings_cents)
     if errors:
         raise ValidationError(errors)
     with transaction(conn):

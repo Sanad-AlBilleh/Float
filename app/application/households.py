@@ -177,6 +177,7 @@ def page(conn: sqlite3.Connection, actor: Actor, household_id: int, clock: Clock
         members=member_views(conn, household_id, with_balances=me.status == "active"),
         invitations=households.list_invitations(conn, household_id=household_id, now=clock.now_utc()) if owner else [],
         expenses=_visible(me, households.list_expenses(conn, household_id=household_id)),
+        bill_expense_ids=households.bill_expense_ids(conn, household_id=household_id),
         plan=households.simplify(households.balances(conn, household_id=household_id)) if me.status == "active" else [],
         settlements=[s for s in households.list_settlements(conn, household_id=household_id)
                      if me.status == "active" or me.joined_on <= s.paid_on <= me.ended_at.date()],

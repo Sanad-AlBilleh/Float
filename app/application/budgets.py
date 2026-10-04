@@ -1,7 +1,7 @@
 """Budgets: this cycle's consumption per category against its effective limit (FR-16, FR-31)."""
 
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from app.application import audit
 from app.application.context import Actor
@@ -44,13 +44,18 @@ def _cycle(conn: sqlite3.Connection, actor: Actor, clock: Clock) -> Cycle:
 
 def budgets(conn: sqlite3.Connection, actor: Actor, clock: Clock) -> tuple[Cycle, list[BudgetRow]]:
     cycle = _cycle(conn, actor, clock)
+    categories = ledger.list_categories(conn, actor.user_id)
+    visible = {category.id for category in categories}
+    other = next(category.id for category in categories if category.slug == "other")
     rows = ledger.get_expense_rows(conn, user_id=actor.user_id, start=cycle.start, end_exclusive=cycle.next_allowance)
-    shares = share_rows(conn, actor.user_id, cycle.start, cycle.next_allowance)
+    # A share recorded in the payer's own category counts as Other for anyone who cannot see that category.
+    shares = [share if share.category_id in visible else replace(share, category_id=other)
+              for share in share_rows(conn, actor.user_id, cycle.start, cycle.next_allowance)]
     consumption = insights.consumption_by_category(rows, shares)
     limits = planning.budget_limits(conn, user_id=actor.user_id, cycle_start=cycle.start)
     return cycle, [BudgetRow(category, consumption.get(category.id, 0),
                              limits.get(category.id, planning.BudgetLimits(None, None)))
-                   for category in ledger.list_categories(conn, actor.user_id)]
+                   for category in categories]
 
 
 def set_limit(conn: sqlite3.Connection, actor: Actor, category_id: int, limit_cents: int | None, scope: str,

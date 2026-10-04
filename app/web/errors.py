@@ -89,6 +89,11 @@ def install(app: FastAPI) -> None:
             return problem(422, "Check your input", "Part of that request was not valid.", fields)
         return error_page(request, 400, "Check your input", "Part of that request was not valid.")
 
+    @app.exception_handler(OverflowError)
+    async def too_large(request: Request, exc: OverflowError):
+        """An ID too large for SQLite to store can only name a record that does not exist (review finding 5)."""
+        return await not_found(request, NotFoundError())
+
     @app.exception_handler(AuthenticationError)
     async def bad_login(request: Request, exc: AuthenticationError):
         return problem(401, "Login failed", str(exc))

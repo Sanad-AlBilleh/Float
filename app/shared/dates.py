@@ -8,6 +8,9 @@ from datetime import date
 from app.shared.errors import ValidationError
 
 _ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+EARLIEST = date(2000, 1, 1)  # every date Float accepts lies in this range, so date arithmetic cannot overflow
+LATEST = date(2100, 12, 31)
+RANGE_MESSAGE = f"Enter a date between {EARLIEST.isoformat()} and {LATEST.isoformat()}."
 
 
 def last_day_of_month(year: int, month: int) -> int:
@@ -76,6 +79,9 @@ def parse_iso_date(text: str | None, *, field: str = "date") -> date:
     try:
         if not _ISO_DATE.fullmatch(raw):
             raise ValueError(raw)
-        return date.fromisoformat(raw)
+        day = date.fromisoformat(raw)
     except ValueError:
         raise ValidationError.single(field, "Enter a date as YYYY-MM-DD.") from None
+    if not EARLIEST <= day <= LATEST:
+        raise ValidationError.single(field, RANGE_MESSAGE)
+    return day

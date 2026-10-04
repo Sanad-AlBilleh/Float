@@ -31,7 +31,7 @@
       <li>{{ page.name_of(transfer.from_user) }} pays {{ page.name_of(transfer.to_user) }} {{ transfer.amount_cents|money }}</li>
     {% endfor %}
   </ul>
-  <p class="muted">The fewest simple transfers that settle everyone. Pay outside Float, then record it on the
+  <p class="muted">A short list of transfers that settles everyone: never more than one fewer than the people involved. Pay outside Float, then record it on the
     <a href="/households/{{ household.id }}?tab=settlements">Settlements</a> tab.</p>
 {% else %}
   <p>Everyone is settled up.</p>

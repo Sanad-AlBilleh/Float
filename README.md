@@ -42,7 +42,7 @@ The stack is Python/FastAPI with SQLite, server-rendered pages, and (in P1) a JS
 **Day 3 (3 October), households, alerts, and the API:**
 - **Households:** create a household (you become its owner) and invite flatmates with a one-time code: 10 characters, valid for 72 hours, shown once. Up to eight members per household and three households per person. Owners can rename, hand over ownership, remove members, and archive. Anyone can leave once their balance is €0.00, nothing is pending, and they share no active household bill; Float lists whatever is in the way.
 - **Shared expenses:** record what you paid and split it equally, by exact amounts, by percentages, or by shares. The cents always add up. The full amount goes in your transactions; only the payer can edit or delete it.
-- **Balances and settling up:** each member's balance, a plan with the fewest simple transfers ("Carla pays Ben €40.00"), and settlements. Either person records a transfer made outside Float; only the other person can confirm it, and confirming writes it into both people's transactions.
+- **Balances and settling up:** each member's balance, a short settle-up plan ("Carla pays Ben €40.00") that never needs more transfers than one fewer than the people involved, though it is not always the shortest possible, and settlements. Either person records a transfer made outside Float; only the other person can confirm it, and confirming writes it into both people's transactions.
 - **Household bills:** the owner sets up rent or internet with an equal, percentage, or shares split. Each person's share is set aside in their own safe-to-spend. Whoever pays turns it into a shared expense, so the others then owe their share; undo restores everything.
 - **Safe to spend now includes the flat:** your share of household bills and what you owe flatmates are subtracted. What they owe you is shown but not counted until they settle. The forecast and budgets count your shares, not the cash you fronted.
 - **Alerts:** bills due soon or overdue, budgets at 80% or over, a pace that will not last, unusual expenses, settlements waiting for you, new household expenses with a share for you, a missing allowance, and overdue goals. They are checked when you open the dashboard or the alert centre and after every change you save. They disappear when their reason is gone, and a dismissed alert never comes back.
@@ -57,6 +57,8 @@ The stack is Python/FastAPI with SQLite, server-rendered pages, and (in P1) a JS
   - budgets use `PUT /api/v1/budgets/{category_id}` with a `scope` (every cycle, or this cycle only) instead of two separate URLs;
   - revoking an invitation and removing a member are `POST …/revoke` and `POST …/members/{id}/remove` instead of `DELETE`;
   - category consumption is part of `GET /budgets`;
+  - `GET /occurrences` filters with `start` and `end`, not `from` and `to`;
+  - lists return at most 200 items and have no cursor paging;
   - P2 imports are absent.
 - **Idempotency:** a money-creating API call's stored response is written just after its change commits, not in the same transaction (the use cases are shared with the pages). A crash in between leaves the key reserved for 24 hours, which refuses a retry rather than duplicating money. See `app/api/v1/idempotency.py`.
 - **No background jobs (ADR-5):** alerts appear when someone opens Float, not at a set time, and there are no emails or push notifications.

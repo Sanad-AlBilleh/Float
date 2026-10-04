@@ -67,3 +67,18 @@ def test_only_the_planned_allowance_changes_later(conn, clock):
     assert planning_settings(conn, ana.id).planned_allowance_cents == 80000
     actions = [row[0] for row in conn.execute("SELECT action FROM audit_events ORDER BY id")]
     assert actions == ["complete", "update"]
+
+
+def test_setup_can_start_a_monthly_savings_plan(conn, clock):
+    """Student request, 4 October: setup asks how much to save each month and reserves it every cycle."""
+    from app.application.context import Actor
+    from app.application.dashboard import dashboard
+    from app.application.setup import SetupInput, complete_setup
+    from app.planning.api import list_goals
+    from tests.factories import make_user
+
+    user = make_user(conn, clock, "saver")
+    complete_setup(conn, Actor(user.id), SetupInput(date(2026, 9, 1), 50000, 1, 75000, True, 10000), clock)
+    [goal] = list_goals(conn, user_id=user.id)
+    assert (goal.name, goal.target_cents, goal.auto_reserve) == ("Monthly savings", 120000, True)
+    assert dashboard(conn, user.id, clock).safe.inputs.goal_plan_reserve_cents == 10000

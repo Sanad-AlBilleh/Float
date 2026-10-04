@@ -218,3 +218,11 @@ def test_an_expense_is_categorized_from_what_was_bought(client):
     assert missing.status_code == 400 and "Say what you bought" in missing.text
     income = add_transaction(client, kind="income", amount="750", category_id="", note="", income_source="allowance")
     assert income.status_code == 303  # income needs no description
+
+
+def test_setup_asks_how_much_to_save(client):
+    sign_up(client)
+    assert "How much do you want to save each month?" in client.get("/setup").text
+    assert set_up(client, monthly_savings="100").status_code == 303
+    assert "Monthly savings" in client.get("/goals").text
+    assert "€100.00" in client.get("/").text  # reserved as the goal plan this cycle

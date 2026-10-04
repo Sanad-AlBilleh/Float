@@ -10,6 +10,7 @@ from app.db.unit_of_work import transaction
 from app.ledger import api as ledger
 from app.planning import api as planning
 from app.shared.clock import Clock
+from app.shared.dates import add_months, cycle_for, scheduled_date
 from app.shared.errors import ConflictError, ValidationError
 
 
@@ -20,6 +21,7 @@ class SetupInput:
     allowance_day: int
     planned_allowance_cents: int = 75000
     allowance_included: bool = False  # the opening balance already holds the current cycle's allowance
+    monthly_savings_cents: int = 0  # optional: reserved every cycle through an automatic goal
 
 
 def is_setup_complete(conn: sqlite3.Connection, user_id: int) -> bool:
@@ -84,6 +86,24 @@ def complete_setup(conn: sqlite3.Connection, actor: Actor, data: SetupInput, clo
         )
         audit.record(conn, actor_user_id=actor.user_id, entity_type="setup", entity_id=actor.user_id,
                      action="complete", now=clock.now_utc(), after=asdict(data), request_id=actor.request_id)
+        if data.monthly_savings_cents > 0:
+            _start_savings_plan(conn, actor, data, clock)
+
+
+SAVINGS_CYCLES = 12
+
+
+def _start_savings_plan(conn: sqlite3.Connection, actor: Actor, data: SetupInput, clock: Clock) -> None:
+    """Monthly savings become an auto-reserve goal over the next 12 cycles, so the goal plan (SRS §4.6)
+    reserves exactly that amount each cycle and safe-to-spend never counts it."""
+    cycle = cycle_for(clock.today(), data.allowance_day)
+    year, month = add_months(cycle.start.year, cycle.start.month, SAVINGS_CYCLES)
+    goal = planning.create_goal(conn, user_id=actor.user_id, name="Monthly savings",
+                                target_cents=data.monthly_savings_cents * SAVINGS_CYCLES,
+                                target_date=scheduled_date(year, month, data.allowance_day), priority=1,
+                                auto_reserve=True, now=clock.now_utc())
+    audit.record(conn, actor_user_id=actor.user_id, entity_type="savings_goal", entity_id=goal.id, action="create",
+                 now=clock.now_utc(), after=asdict(goal), request_id=actor.request_id)
 
 
 def update_planned_allowance(conn: sqlite3.Connection, actor: Actor, cents: int, clock: Clock) -> None:

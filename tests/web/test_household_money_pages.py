@@ -143,6 +143,17 @@ def test_household_bills_reserve_shares_and_pay_into_balances(client, make_clien
     assert "Ana pays Ben" not in client.get(page).text
 
 
+def test_a_paid_bill_shows_as_a_bill_without_edit_or_delete(client, make_client):
+    page, ben, carla, ids = flat(client, make_client)
+    add_bill(client, page, ids)
+    pay = re.search(r'action="(/households/\d+/bills/occurrences/\d+/pay)".*?name="version" value="(\d+)"',
+                    ben.get(page + "?tab=bills").text, re.S)
+    assert post_form(ben, page + "?tab=bills", pay.group(1), {"version": pay.group(2)}).status_code == 303
+    expenses = ben.get(page + "?tab=expenses").text
+    assert "Internet" in expenses and '<span class="tag">bill</span>' in expenses
+    assert not re.search(r'/expenses/\d+/(edit|delete)', expenses)  # it is managed from the bills tab
+
+
 def test_household_bill_rules_through_the_form(client, make_client):
     page, ben, carla, ids = flat(client, make_client)
     bad = add_bill(client, page, ids, split_method="exact", anchor_date="2026-09-01", name="")

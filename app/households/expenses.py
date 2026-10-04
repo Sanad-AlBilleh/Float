@@ -69,6 +69,11 @@ def list_expenses(conn: sqlite3.Connection, *, household_id: int) -> list[Shared
     return [_expense(conn, row) for row in repository.list_expenses(conn, household_id=household_id)]
 
 
+def bill_expense_ids(conn: sqlite3.Connection, *, household_id: int) -> frozenset[int]:
+    """Expenses that pay a household bill: they are changed through the bill, never edited or deleted directly."""
+    return frozenset(repository.bill_payment_ids(conn, household_id=household_id))
+
+
 def check_draft(conn: sqlite3.Connection, *, household_id: int, draft: ExpenseDraft,
                 category_ids: Collection[int]) -> dict[int, int]:
     """Every problem with the draft, at once; returns the allocated shares when it is valid."""

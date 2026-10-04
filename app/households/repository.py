@@ -238,6 +238,13 @@ def is_bill_payment(conn: sqlite3.Connection, expense_id: int) -> bool:
                         (expense_id,)).fetchone() is not None
 
 
+def bill_payment_ids(conn: sqlite3.Connection, *, household_id: int) -> list[int]:
+    """The shared expenses in the household that pay one of its bill occurrences."""
+    return [row[0] for row in conn.execute(
+        f"SELECT o.shared_expense_id FROM {H_OCCURRENCES} WHERE s.household_id = ? AND o.shared_expense_id IS NOT NULL",
+        (household_id,))]
+
+
 def share_rows(conn: sqlite3.Connection, *, user_id: int, start: date, end_exclusive: date) -> list[sqlite3.Row]:
     """The user's own shares of shared expenses dated in the range, in any household they belong or belonged to."""
     return conn.execute(

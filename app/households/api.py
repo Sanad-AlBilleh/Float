@@ -24,6 +24,7 @@ from app.households.bills import (
 from app.households.expenses import (
     ExpenseDraft,
     SharedExpense,
+    bill_expense_ids,
     check_draft,
     create_expense,
     delete_expense,
@@ -118,6 +119,7 @@ __all__ = [
     "SharedExpense",
     "SplitEntry",
     "allocate",
+    "bill_expense_ids",
     "check_draft",
     "compute_nets",
     "create_expense",

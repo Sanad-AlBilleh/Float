@@ -1,6 +1,6 @@
 # Float: project report (draft)
 
-**Status:** first draft, written on 3 October 2026. Every measured number is marked *(to refresh on 4 October)* and is updated after the final acceptance pass. Sections marked **[Student to write]** must be written by the student in their own words. They cannot be drafted by an AI tool without misrepresenting who did the thinking.
+**Status:** draft written on 3 October 2026; measured numbers refreshed on 4 October from `docs/acceptance-2026-10-04.md`. Sections marked **[Student to write]** must be written by the student in their own words. They cannot be drafted by an AI tool without misrepresenting who did the thinking.
 
 ## 1. The problem and the product
 
@@ -23,17 +23,17 @@ Version 0.1 of the requirements (28 September) was a single-user allowance track
 
 ## 2. Goals (SMART)
 
-The PRD (§10) set these goals for the 4 October 2026 deadline. The results column is filled in from measurements *(to refresh on 4 October)*.
+The PRD (§10) set these goals for the 4 October 2026 deadline. The results column comes from measurements.
 
 | # | Goal (specific, measurable, time-bound) | Result so far |
 |---|---|---|
-| G1 | A new user registers, completes setup, and records an expense in under two minutes | Manual timing during the 4 October walkthrough *(to do)* |
-| G2 | Two flatmates record a shared expense, see matching balances, and complete a confirmed settlement in under three minutes | Automated end to end on 3 October; manual timing on 4 October *(to do)* |
-| G3 | Every domain persists in SQLite across restarts | Real-server smoke tests on 2 and 3 October; restart check on 4 October *(to do)* |
-| G4 | Every SRS fixture passes; splits always sum exactly; household nets always sum to zero; ≥ 70% coverage of business modules | Fixtures A–G pass; Hypothesis properties pass; **97%** coverage *(to refresh on 4 October)* |
+| G1 | A new user registers, completes setup, and records an expense in under two minutes | Manual timing in the student's walkthrough (to be recorded) |
+| G2 | Two flatmates record a shared expense, see matching balances, and complete a confirmed settlement in under three minutes | Automated end to end; manual timing in the student's walkthrough (to be recorded) |
+| G3 | Every domain persists in SQLite across restarts | Real-server smoke tests on 2 and 3 October; the demo database survived repeated restarts on 4 October |
+| G4 | Every SRS fixture passes; splits always sum exactly; household nets always sum to zero; ≥ 70% coverage of business modules | Fixtures A–G pass; Hypothesis properties pass; **97%** coverage of the business modules |
 | G5 | No dashboard number double-counts money | Conservation steps 1–4 of Fixture A and a randomized conservation property pass |
 | G6 | No user can read or change another user's private records | Authorization matrices for pages and API pass |
-| G7 | Clone, install, and one start command give a ready app | Fresh-clone check on 4 October *(to do)* |
+| G7 | Clone, install, and one start command give a ready app | Fresh-clone check passed on 4 October |
 | G8 | README, five ADRs, AI log, diagrams, and this report are accurate | Five ADRs written on 1, 2, and 3 October; this draft |
 
 These goals are achievable because the scope was ordered strictly by priority (P0, then P1, then P2) and each day delivered a tested, merged slice.
@@ -58,6 +58,12 @@ Each day ended with a pull request merged into `main`.
   - on 1 October, the real-server smoke test found that the request log never reached the server output;
   - on 1 October, a helper-agent review found 11 smaller issues, fixed with 36 tests;
   - on 3 October, a browser check found stretched checkboxes.
+- **4 October went beyond fixes, at the student's request:**
+  - a full interface redesign from reference screenshots;
+  - custom categories, automatic categorization, and savings in setup;
+  - a demo-data seeder.
+
+  These were requested on the day and are recorded in `planned-commits.md`.
 - **One planned cut was not needed.** The JSON API was the first item to cut if a day ran late. It was built on 3 October because time remained.
 - **Not built:**
   - the P2 stretch features (CSV import, category suggestions, cycle review);
@@ -65,13 +71,13 @@ Each day ended with a pull request merged into `main`.
 
   Both are listed in the README.
 
-**Commits by day** (from `git log`, merges included) *(to refresh on 4 October)*:
+**Commits by day** (from `git log`, merges included):
 
 | 28 Sep | 30 Sep | 1 Oct | 2 Oct | 3 Oct | 4 Oct |
 |---|---|---|---|---|---|
-| 3 | 9 | 11 | 8 | 9 | — |
+| 3 | 9 | 11 | 8 | 9 | 16 |
 
-The assignment's rules (at least 12 commits on at least 6 days, no day above 40%) hold once 4 October adds its commits: the largest day is about 26% of the total. Nothing was pushed on 29 September, so every later day had to carry real work.
+The assignment's rules (at least 12 commits on at least 6 days, no day above 40%) hold once 4 October adds its commits: the largest day (4 October, 16 of 56) is 29% of the total. Nothing was pushed on 29 September, so every later day had to carry real work.
 
 **[Student to write]:** a paragraph on how working in daily slices felt in practice, what was harder than planned, and what you would plan differently.
 
@@ -152,16 +158,17 @@ The full schema is in `app/db/migrations/0001`–`0011` and SRS §7.
 
 The testing strategy is ADR-4: pure-rule unit tests for every SRS fixture, Hypothesis property tests for the invariants, integration tests on real temporary SQLite databases (with fault injection and race tests), HTTP tests for the pages and the API, and daily mutation spot-checks.
 
-Results *(to refresh on 4 October)*:
+Results (4 October):
 
-| Measure | 3 October |
+| Measure | Result |
 |---|---|
-| Automated tests | 562 passing |
-| Coverage of business modules | 97% (2,836 statements, 84 missed) |
-| Coverage of all modules | 95% (4,625 statements, 250 missed) |
+| Automated tests | 598 passing |
+| Coverage of business modules | 97% (2,910 statements, 83 missed) |
+| Coverage of all modules | 95% (4,794 statements, 245 missed) |
 | Mutation checks on 2 and 3 October | 121 injected bugs. 38 survived the first run: 29 gaps closed with new tests, and 9 recorded as equivalent |
 | Real-server smoke tests | 13 steps (2 October) and 23 steps with two users (3 October), all passing |
-| Dashboard performance (NFR-05) | to be measured on 4 October |
+| Dashboard performance (NFR-05) | p95 48 ms on the SRS synthetic dataset (limit 500 ms); ready in 62 ms |
+| Review findings (3 October) | 9 found, 9 fixed test-first on 4 October |
 
 Coverage is a floor, not the goal. The mutation checks were more useful: they found boundary bugs that full line coverage had hidden, such as a bill due exactly on payday and a runway equal to the days left.
 

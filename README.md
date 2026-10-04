@@ -49,6 +49,14 @@ The stack is Python/FastAPI with SQLite, server-rendered pages, and (in P1) a JS
 - **Activity:** each household has an Activity tab in plain sentences, and the Activity page lists your own changes.
 - **JSON API:** `/api/v1` offers the same features as the pages (67 operations, documented at `/api/docs`). Money is integer cents plus a display string, and errors are `application/problem+json`. Unsafe requests need the `X-CSRF-Token` header (get one from `GET /api/v1/csrf` or the login response). Money-creating posts accept an `Idempotency-Key` header.
 
+**Day 4 (4 October), testing, fixes, and polish:**
+- **New look:** a redesigned interface, modelled on banking-app screenshots the student supplied. It has a sidebar on desktop, and on phones a bottom tab bar with a floating add button. It is always light. See it on a phone on the same Wi-Fi at `http://<your computer's IP>:8000`.
+- **Categories:** add your own categories, such as Gym or Gifts. Only you see them.
+- **Automatic categories:** describe an expense ("Pizza with friends") and Float picks the category. Your own category names are matched first, then keywords. Income forms hide the expense-only fields, and expense forms hide the income source.
+- **Savings in setup:** setup asks how much you want to save each month and sets that aside every cycle as a savings goal.
+- **Review fixes:** all 9 problems found by the 3 October review are fixed (see `docs/acceptance-2026-10-04.md`).
+- **Demo data:** `python scripts/seed_demo.py DATA_DIR USERNAME "Display Name" PASSWORD` fills a fresh database with a month of activity for every feature, including two flatmates (`lucia_demo` and `marco_demo`, same password). Start the app with that `DATA_DIR` to show it.
+
 ### Not implemented
 
 - **P2 stretch features:** CSV import, category suggestions, and the cycle review with savings sweep (FR-36–38). The plan never scheduled them.
@@ -104,6 +112,7 @@ The second command is the NFR-08 coverage set: every business module (the web an
 | 1 Oct, after the review fixes | 285 passed | 99% (800 statements, 9 missed) | 97% (1,418 statements, 42 missed) |
 | 2 Oct | 423 passed | 99% (1,546 statements, 20 missed; now including `app.insights`) | 97% (2,463 statements, 64 missed) |
 | 3 Oct | 562 passed | 97% (2,836 statements, 84 missed; now including `app.households`) | 95% (4,625 statements, 250 missed) |
+| 4 Oct | 598 passed | 97% (2,910 statements, 83 missed) | 95% (4,794 statements, 245 missed) |
 
 These figures were measured on macOS with Python 3.14.7. The suite includes Hypothesis property tests, an architecture test that enforces the domain boundaries, and an authorization test for every page that shows records.
 
@@ -137,6 +146,10 @@ Each day, deliberate bugs were injected into the new code to check that the test
   - a concurrent duplicate idempotent request.
 
   The other six cannot change behaviour, because a SQL condition repeats the Python check. The full SRS Fixture A now passes end to end: €308.00, €28.00/day, every forecast value, and all four conservation steps. A Hypothesis property checks the conservation rule over random sequences of actions.
+- **4 October:** every review finding was fixed test-first.
+  - **Fresh clone:** a fresh clone installed, started, and passed the suite.
+  - **Performance (NFR-05):** `python scripts/perf_smoke.py` measured, on an Apple M5 with the full SRS synthetic dataset (16,000 transactions, 1,000 shared expenses, 20 bills): ready in 62 ms, and a dashboard p95 of **48 ms** against the 500 ms limit.
+  - **Details:** see `docs/acceptance-2026-10-04.md`.
 - **3 October, real server:** a 23-step smoke test on `python app.py` with two flatmates covered setup, a household, an invitation, a shared expense, the settle-up plan, a household bill, a confirmed settlement, the dashboard, forecast, alerts, activity, and the JSON API. Every step passed, with one request-log line per request and no server errors. The browser check found one real bug: checkboxes and radio buttons were stretched like text boxes, which squeezed their labels. It was fixed the same day.
 - **2 October, real server:** a 13-step smoke test on `python app.py` covered registering, setting up, adding and paying a bill, adding a goal, the dashboard and preview, the forecast, and budgets. Every step passed, with one request-log line per request and no server errors. The dashboard, bills, and forecast pages were also checked in a browser.
 

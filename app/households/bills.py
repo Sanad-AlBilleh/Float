@@ -117,6 +117,8 @@ def bill_problems(conn: sqlite3.Connection, *, household_id: int, name: str, amo
     members = set(active_member_ids(conn, household_id=household_id))
     if not entries or any(entry.user_id not in members for entry in entries):
         errors["participants"] = "Choose participants from the household's current members."
+    if split_method != "equal" and any(entry.value is not None and entry.value <= 0 for entry in entries):
+        errors["split"] = "Give every participant a share above zero; leave out anyone who pays nothing."
     if not errors:
         try:
             allocate(amount_cents, split_method, entries)

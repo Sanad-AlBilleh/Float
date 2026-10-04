@@ -12,7 +12,7 @@
       The form now shows the latest version; make your changes again.</p></div>
   {% endif %}
   {{ forms.error_summary(errors) }}
-  <form method="post" action="{{ action }}" class="stack">
+  <form method="post" action="{{ action }}" class="stack card">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {% if editing %}<input type="hidden" name="version" value="{{ values.version }}">{% endif %}
     {{ forms.field("amount", "Amount you paid (€)", errors, values.amount, inputmode="decimal") }}
@@ -21,7 +21,7 @@
       <label for="category_id">Category</label>
       {% if errors.category_id %}<p class="field-error" id="category_id-error">{{ errors.category_id }}</p>{% endif %}
       <select id="category_id" name="category_id"{% if errors.category_id %} aria-invalid="true" aria-describedby="category_id-error"{% endif %}>
-        <option value="">Choose a category</option>
+        <option value="">Automatic, from the description</option>
         {% for category in categories %}
           <option value="{{ category.id }}"{% if values.category_id|string == category.id|string %} selected{% endif %}>{{ category.name }}</option>
         {% endfor %}
@@ -30,7 +30,7 @@
     {{ forms.field("description", "Description", errors, values.description, hint="For example Weekly groceries.") }}
     <div class="field">
       <label class="choice"><input type="checkbox" id="one_off" name="one_off"{% if values.one_off %} checked{% endif %}>
-        One-off <span class="muted">(left out of everyone's usual spending pace)</span></label>
+        <span>One-off <span class="muted">(left out of everyone's usual spending pace)</span></span></label>
     </div>
     <fieldset class="field{% if errors.split_method %} field-has-error{% endif %}">
       <legend>How to split it</legend>

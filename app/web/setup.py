@@ -14,7 +14,8 @@ from app.web.forms import collect, in_form_order, parse_whole_number
 from app.web.rendering import redirect, render
 
 router = APIRouter()
-SETUP_FIELDS = ["tracking_start", "opening_balance", "allowance_included", "allowance_day", "planned_allowance"]
+SETUP_FIELDS = ["tracking_start", "opening_balance", "allowance_included", "allowance_day", "planned_allowance",
+                "monthly_savings"]
 ALLOWANCE_QUESTION = "Tell Float whether this cycle's allowance is already in that amount."
 
 
@@ -25,7 +26,7 @@ def setup_form(request: Request, session: Session = Depends(require_session),
         return redirect("/")
     today = request.app.state.clock.today()
     values = {"tracking_start": today.isoformat(), "opening_balance": "", "allowance_included": "",
-              "allowance_day": "1", "planned_allowance": "750.00"}
+              "allowance_day": "1", "planned_allowance": "750.00", "monthly_savings": ""}
     return render(request, "setup.html", {"values": values})
 
 
@@ -39,10 +40,11 @@ def setup_submit(
     allowance_day: str = Form(""),
     planned_allowance: str = Form(""),
     allowance_included: str = Form(""),
+    monthly_savings: str = Form(""),
 ):
     values = {"tracking_start": tracking_start, "opening_balance": opening_balance,
               "allowance_included": allowance_included, "allowance_day": allowance_day,
-              "planned_allowance": planned_allowance}
+              "planned_allowance": planned_allowance, "monthly_savings": monthly_savings}
     errors: dict[str, str] = {}
     start = collect(errors, parse_iso_date, tracking_start, field="tracking_start")
     opening = collect(errors, parse_money, opening_balance, field="opening_balance", allow_zero=True,
@@ -50,6 +52,8 @@ def setup_submit(
     day = collect(errors, parse_whole_number, allowance_day, field="allowance_day", low=1, high=31,
                   message="Choose a day between 1 and 31.")
     planned = collect(errors, parse_money, planned_allowance, field="planned_allowance")
+    savings = collect(errors, parse_money, monthly_savings, field="monthly_savings", allow_zero=True) \
+        if monthly_savings.strip() else 0
     if allowance_included not in ("yes", "no"):
         errors["allowance_included"] = ALLOWANCE_QUESTION
     problems = setup.setup_problems(tracking_start=start, opening_balance_cents=opening, allowance_day=day,
@@ -58,7 +62,7 @@ def setup_submit(
     if not errors:
         try:
             setup.complete_setup(conn, actor_for(request, session),
-                                 setup.SetupInput(start, opening, day, planned, allowance_included == "yes"),
+                                 setup.SetupInput(start, opening, day, planned, allowance_included == "yes", savings or 0),
                                  request.app.state.clock)
         except ValidationError as error:
             errors.update(error.errors)

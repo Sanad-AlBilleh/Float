@@ -105,3 +105,28 @@ def test_archiving_needs_everyone_settled(conn, clock, flat):
         households.archive(conn, ana, household.id, household.version, clock)
     with pytest.raises(ConflictError, match="owe"):
         households.leave(conn, ben, household.id, clock)
+
+
+def test_an_expense_shared_with_someone_who_left_can_no_longer_change(conn, clock, flat):
+    """Review finding 1: changing it would move a former member's balance, which nobody could then settle."""
+    from app.application import households
+
+    household, ana, ben, carla = flat
+    expense = shared_money.record_expense(conn, ana, household.id, draft(ana, ben, carla), clock)
+    settlement, _ = shared_money.record_settlement(conn, ben, household.id, ben.user_id, ana.user_id, 1000,
+                                                   date(2026, 9, 30), clock)
+    shared_money.confirm_settlement(conn, ana, settlement.id, settlement.version, clock)
+    households.leave(conn, ben, household.id, clock)
+    before = balances(conn, household.id)
+    with pytest.raises(ConflictError, match="left"):
+        shared_money.delete_expense(conn, ana, expense.id, expense.version, clock)
+    with pytest.raises(ConflictError, match="left"):
+        shared_money.edit_expense(conn, ana, expense.id, expense.version, draft(ana, carla), clock)
+    assert balances(conn, household.id) == before
+    assert len(shared_rows(conn, ana)) == 1
+
+
+def balances(conn, household_id):
+    from app.households.api import balances as nets
+
+    return nets(conn, household_id=household_id)

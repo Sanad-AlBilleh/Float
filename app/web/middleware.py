@@ -11,6 +11,7 @@ from starlette.responses import PlainTextResponse, Response
 from app.application import alerts
 from app.application.setup import is_setup_complete
 from app.db.connection import connect
+from app.api.v1.problems import problem
 from app.web.errors import error_page
 from app.web.security import UNSAFE_METHODS
 
@@ -37,6 +38,9 @@ def _too_large(request: Request) -> bool:
 
 
 def _server_error_page(request: Request) -> Response:
+    if request.url.path.startswith("/api/"):
+        return problem(500, "Something went wrong", "Float hit an unexpected error. Quote the request ID if it "
+                       "keeps happening.", request_id=request.state.request_id)
     try:
         return error_page(request, 500, "Something went wrong",
                           "Float hit an unexpected error. Please try again; if it keeps happening, "

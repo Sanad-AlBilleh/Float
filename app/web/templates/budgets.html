@@ -1,50 +1,57 @@
 {% extends "base.html" %}
+{% import "macros/icons.html" as icons %}
+{% import "macros/visuals.html" as visuals %}
 {% block title %}Budgets{% endblock %}
 {% block content %}
-  <h1>Budgets</h1>
-  {% if saved %}<p class="notice" role="status">Budget saved.</p>{% endif %}
-  <p class="muted">Your own spending this cycle, from <time datetime="{{ cycle.start.isoformat() }}">{{ cycle.start.isoformat() }}</time>
-    to the day before <time datetime="{{ cycle.next_allowance.isoformat() }}">{{ cycle.next_allowance.isoformat() }}</time>.
-    Limits warn you; they never set money aside.</p>
-  <div class="table-scroll">
-    <table class="table">
-      <caption class="visually-hidden">Spending against limits by category</caption>
-      <thead><tr><th scope="col">Category</th><th scope="col" class="num">Spent</th><th scope="col" class="num">Limit</th><th scope="col">State</th><th scope="col">Change limit</th></tr></thead>
-      <tbody>
-        {% for row in rows %}
-          <tr>
-            <th scope="row">{{ row.category.name }}</th>
-            <td class="num">{{ row.consumption_cents|money }}</td>
-            <td class="num">
-              {% if row.limit_cents is none %}No limit{% else %}{{ row.limit_cents|money }}
-                <br><span class="muted">{{ "This cycle only" if row.limits.override_cents is not none else "Every cycle" }}</span>{% endif %}
-            </td>
-            <td>
-              {% if row.state == "over" %}<span class="status status-over">Over by {{ (row.consumption_cents - row.limit_cents)|money }}</span>
-              {% elif row.state == "warning" %}<span class="status status-warning">{{ row.percent_used }}% used</span>
-              {% elif row.state == "ok" %}<span class="status">OK{% if row.percent_used is not none %}, {{ row.percent_used }}% used{% endif %}</span>
-              {% else %}<span class="muted">—</span>{% endif %}
-            </td>
-            <td>
-              {% if row_errors.get(row.category.id) %}<p class="field-error" role="alert" id="limit-{{ row.category.id }}-error">{{ row_errors[row.category.id] }}</p>{% endif %}
-              <form method="post" action="/budgets/{{ row.category.id }}" class="inline-form budget-form">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <label for="limit-{{ row.category.id }}" class="visually-hidden">Limit for {{ row.category.name }} (€)</label>
-                <input id="limit-{{ row.category.id }}" name="limit" inputmode="decimal" size="7" placeholder="€"
-                  {%- if row_errors.get(row.category.id) %} aria-invalid="true" aria-describedby="limit-{{ row.category.id }}-error"{% endif %}>
-                <label for="scope-{{ row.category.id }}" class="visually-hidden">Applies to</label>
-                <select id="scope-{{ row.category.id }}" name="scope">
-                  <option value="template">Every cycle</option>
-                  <option value="cycle">This cycle only</option>
-                </select>
-                <button type="submit" class="link-button">Save<span class="visually-hidden"> {{ row.category.name }} limit</span></button>
-              </form>
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="page-head">
+    <div>
+      <h1>Budgets</h1>
+      <p class="muted">Your own spending this cycle, from <time datetime="{{ cycle.start.isoformat() }}">{{ cycle.start.isoformat() }}</time>
+        to the day before <time datetime="{{ cycle.next_allowance.isoformat() }}">{{ cycle.next_allowance.isoformat() }}</time>.
+        Limits warn you; they never set money aside.</p>
+    </div>
   </div>
+  {% if saved %}<p class="notice" role="status">Budget saved.</p>{% endif %}
+  <section class="card" aria-label="Spending against limits by category">
+    <ul class="rows">
+      {% for row in rows %}
+        {% set style = category_style(row.category.id) %}
+        {% set pct = (row.consumption_cents * 100 // row.limit_cents) if row.limit_cents else 0 %}
+        <li class="row budget-row">
+          <span class="row-icon tone-{{ style.tone }}">{{ icons.icon(style.icon) }}</span>
+          <div class="row-main">
+            <div class="card-head flush">
+              <span class="row-title">{{ row.category.name }}</span>
+              <span class="amount">{{ row.consumption_cents|money }}{% if row.limit_cents is not none %} <span class="muted">/ {{ row.limit_cents|money }}</span>{% endif %}</span>
+            </div>
+            {% if row.limit_cents is not none %}
+              <span class="tone-{{ style.tone }}">{{ visuals.progress(pct, "progress-over" if row.state == "over" else ("progress-warning" if row.state == "warning" else "")) }}</span>
+            {% endif %}
+            <p class="row-meta budget-meta">
+              {% if row.limit_cents is none %}No limit
+              {% else %}{{ "This cycle only" if row.limits.override_cents is not none else "Every cycle" }}{% endif %}
+              {% if row.state == "over" %} · <span class="status status-over">Over by {{ (row.consumption_cents - row.limit_cents)|money }}</span>
+              {% elif row.state == "warning" %} · <span class="status status-warning">{{ row.percent_used }}% used</span>
+              {% elif row.state == "ok" %} · <span class="status status-paid">OK{% if row.percent_used is not none %}, {{ row.percent_used }}% used{% endif %}</span>{% endif %}
+            </p>
+            {% if row_errors.get(row.category.id) %}<p class="field-error" role="alert" id="limit-{{ row.category.id }}-error">{{ row_errors[row.category.id] }}</p>{% endif %}
+            <form method="post" action="/budgets/{{ row.category.id }}" class="budget-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <label for="limit-{{ row.category.id }}" class="visually-hidden">Limit for {{ row.category.name }} (€)</label>
+              <input id="limit-{{ row.category.id }}" name="limit" inputmode="decimal" placeholder="Limit €"
+                {%- if row_errors.get(row.category.id) %} aria-invalid="true" aria-describedby="limit-{{ row.category.id }}-error"{% endif %}>
+              <label for="scope-{{ row.category.id }}" class="visually-hidden">Applies to</label>
+              <select id="scope-{{ row.category.id }}" name="scope">
+                <option value="template">Every cycle</option>
+                <option value="cycle">This cycle only</option>
+              </select>
+              <button type="submit" class="button button-secondary button-small">Save<span class="visually-hidden"> {{ row.category.name }} limit</span></button>
+            </form>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
   <p class="muted">Leave the amount empty and save to remove a limit. A limit of €0.00 is different from no limit:
     any spending is over it.</p>
 {% endblock %}

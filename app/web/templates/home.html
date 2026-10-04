@@ -1,15 +1,24 @@
 {% extends "base.html" %}
+{% import "macros/icons.html" as icons %}
 {% block title %}Welcome{% endblock %}
 {% block content %}
-  <h1>Float</h1>
-  <p class="lead">What can I safely spend today, after my bills, my share of the flat, what I owe my flatmates, and my savings plan?</p>
-  {% if current_user %}
-    <p>Signed in as {{ current_user.display_name }}.</p>
-  {% else %}
-    <p class="actions">
-      <a class="button" href="/register">Create an account</a>
-      <a class="button button-secondary" href="/login">Log in</a>
-    </p>
-  {% endif %}
-  <p class="muted">Today is <time datetime="{{ today.isoformat() }}">{{ today.isoformat() }}</time> ({{ timezone }}).</p>
+  <section class="welcome">
+    <span class="brand-mark">{{ icons.icon("wallet") }}</span>
+    <h1>Float</h1>
+    <p class="lead">What can I safely spend today, after my bills, my share of the flat, what I owe my flatmates, and my savings plan?</p>
+    {% if current_user %}
+      <p>Signed in as {{ current_user.display_name }}.</p>
+    {% else %}
+      <p class="actions">
+        <a class="button" href="/register">Create an account</a>
+        <a class="button button-secondary" href="/login">Log in</a>
+      </p>
+    {% endif %}
+    <ul class="feature-list card">
+      <li><span class="row-icon tone-violet">{{ icons.icon("wallet") }}</span>One number for today: safe to spend per day, until your next allowance.</li>
+      <li><span class="row-icon tone-orange">{{ icons.icon("receipt") }}</span>Bills and savings goals are set aside before you spend.</li>
+      <li><span class="row-icon tone-blue">{{ icons.icon("users") }}</span>Split flat costs to the cent and settle up with flatmates.</li>
+    </ul>
+    <p class="muted">Today is <time datetime="{{ today.isoformat() }}">{{ today.isoformat() }}</time> ({{ timezone }}).</p>
+  </section>
 {% endblock %}

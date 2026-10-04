@@ -7,7 +7,7 @@
   {% if changed %}<p class="notice" role="status">Password changed. Other browsers have been signed out.</p>{% endif %}
   <h2>Change password</h2>
   {{ forms.error_summary(errors) }}
-  <form method="post" action="/account/password" class="stack">
+  <form method="post" action="/account/password" class="stack card">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {{ forms.field("current_password", "Current password", errors, "", type="password", autocomplete="current-password") }}
     {{ forms.field("new_password", "New password", errors, "", type="password", autocomplete="new-password",

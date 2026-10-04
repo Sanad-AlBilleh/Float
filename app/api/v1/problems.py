@@ -12,8 +12,8 @@ PROBLEM_TYPE = "application/problem+json"
 
 
 def problem(status: int, title: str, detail: str = "", errors: dict[str, str] | None = None,
-            headers: dict[str, str] | None = None) -> JSONResponse:
-    body: dict[str, Any] = {"type": "about:blank", "title": title, "status": status}
+            headers: dict[str, str] | None = None, **extra: Any) -> JSONResponse:
+    body: dict[str, Any] = {"type": "about:blank", "title": title, "status": status, **extra}
     if detail:
         body["detail"] = detail
     if errors:

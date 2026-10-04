@@ -11,43 +11,48 @@
     </div>
   {% endif %}
   {{ forms.error_summary(errors) }}
-  <form method="post" action="{{ action }}" class="stack">
+  <form method="post" action="{{ action }}" class="stack card txn-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {% if editing %}<input type="hidden" name="version" value="{{ values.version }}">{% endif %}
     <fieldset class="field{% if errors.kind %} field-has-error{% endif %}">
-      <legend>Type</legend>
+      <legend class="visually-hidden">Type</legend>
       {% if errors.kind %}<p class="field-error" id="kind-error">{{ errors.kind }}</p>{% endif %}
-      <label class="choice"><input type="radio" id="kind" name="kind" value="expense"{% if values.kind == "expense" %} checked{% endif %}> Expense</label>
-      <label class="choice"><input type="radio" name="kind" value="income"{% if values.kind == "income" %} checked{% endif %}> Income</label>
+      <div class="segmented">
+        <label><input type="radio" id="kind" name="kind" value="expense"{% if values.kind == "expense" %} checked{% endif %}> Expense</label>
+        <label><input type="radio" id="kind-income" name="kind" value="income"{% if values.kind == "income" %} checked{% endif %}> Income</label>
+      </div>
     </fieldset>
-    {{ forms.field("amount", "Amount (€)", errors, values.amount, inputmode="decimal", hint="For example 12.50 or 12,50.") }}
+    {{ forms.field("amount", "Amount (€)", errors, values.amount, inputmode="decimal", hint="For example 12.50 or 12,50.",
+                   extra_class="amount-field", placeholder="0.00") }}
+    <div class="field{% if errors.note %} field-has-error{% endif %}">
+      <label for="note"><span class="expense-only">What did you buy?</span><span class="income-only">Note <span class="muted">(optional)</span></span></label>
+      <p class="hint expense-only" id="note-hint">For example “Pizza with friends” or “Metro card”. Float picks the category from this.</p>
+      {% if errors.note %}<p class="field-error" id="note-error">{{ errors.note }}</p>{% endif %}
+      <input id="note" name="note" maxlength="500" value="{{ values.note }}" autocomplete="off"
+        {%- if errors.note %} aria-invalid="true" aria-describedby="note-error"{% endif %}>
+    </div>
     {{ forms.field("occurred_on", "Date", errors, values.occurred_on, type="date") }}
-    <div class="field{% if errors.category_id %} field-has-error{% endif %}">
-      <label for="category_id">Category <span class="muted">(expenses)</span></label>
+    <div class="field expense-only{% if errors.category_id %} field-has-error{% endif %}">
+      <label for="category_id">Category</label>
       {% if errors.category_id %}<p class="field-error" id="category_id-error">{{ errors.category_id }}</p>{% endif %}
       <select id="category_id" name="category_id"{% if errors.category_id %} aria-invalid="true" aria-describedby="category_id-error"{% endif %}>
-        <option value="">Choose a category</option>
+        <option value="">Automatic, from what you bought</option>
         {% for category in categories %}
           <option value="{{ category.id }}"{% if values.category_id|string == category.id|string %} selected{% endif %}>{{ category.name }}</option>
         {% endfor %}
       </select>
     </div>
-    <div class="field{% if errors.income_source %} field-has-error{% endif %}">
-      <label for="income_source">Income source <span class="muted">(income)</span></label>
+    <div class="field expense-only">
+      <label class="choice"><input type="checkbox" id="one_off" name="one_off"{% if values.one_off %} checked{% endif %}>
+        <span>One-off expense <span class="muted">(left out of your usual spending pace)</span></span></label>
+    </div>
+    <div class="field income-only{% if errors.income_source %} field-has-error{% endif %}">
+      <label for="income_source">Income source</label>
       {% if errors.income_source %}<p class="field-error" id="income_source-error">{{ errors.income_source }}</p>{% endif %}
       <select id="income_source" name="income_source"{% if errors.income_source %} aria-invalid="true" aria-describedby="income_source-error"{% endif %}>
         <option value="allowance"{% if values.income_source == "allowance" %} selected{% endif %}>Allowance</option>
         <option value="other"{% if values.income_source == "other" %} selected{% endif %}>Other income</option>
       </select>
-    </div>
-    <div class="field">
-      <label class="choice"><input type="checkbox" id="one_off" name="one_off"{% if values.one_off %} checked{% endif %}>
-        One-off expense <span class="muted">(left out of your usual spending pace)</span></label>
-    </div>
-    <div class="field{% if errors.note %} field-has-error{% endif %}">
-      <label for="note">Note <span class="muted">(optional)</span></label>
-      {% if errors.note %}<p class="field-error" id="note-error">{{ errors.note }}</p>{% endif %}
-      <textarea id="note" name="note" rows="2" maxlength="500"{% if errors.note %} aria-invalid="true" aria-describedby="note-error"{% endif %}>{{ values.note }}</textarea>
     </div>
     <p class="actions">
       <button type="submit" class="button">{{ "Save changes" if editing else "Add" }}</button>

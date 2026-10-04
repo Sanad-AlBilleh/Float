@@ -2,6 +2,7 @@
 {% import "macros/forms.html" as forms %}
 {% block title %}Set up Float{% endblock %}
 {% block content %}
+<div class="narrow-center">
   <h1>Set up Float</h1>
   <p class="lead">Tell Float where you are starting from. Everything after this is worked out from your records.</p>
   <div class="warning">
@@ -9,7 +10,7 @@
       so your history always means the same thing. You can change the planned allowance at any time.</p>
   </div>
   {{ forms.error_summary(errors) }}
-  <form method="post" action="/setup" class="stack">
+  <form method="post" action="/setup" class="stack card">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {{ forms.field("tracking_start", "Tracking start date", errors, values.tracking_start, type="date",
                    hint="Usually today. Transactions are recorded from this date on.") }}
@@ -29,6 +30,10 @@
                    hint="The day of the month your allowance arrives, 1–31. Shorter months use their last day.") }}
     {{ forms.field("planned_allowance", "Planned allowance (€)", errors, values.planned_allowance, inputmode="decimal",
                    hint="What you expect each month. It only counts once you record it as received.") }}
+    {{ forms.field("monthly_savings", "How much do you want to save each month? (€, optional)", errors,
+                   values.monthly_savings, inputmode="decimal", placeholder="0.00",
+                   hint="Float sets this aside every cycle as a savings goal, so it is never counted as safe to spend.") }}
     <button type="submit" class="button">Start tracking</button>
   </form>
+</div>
 {% endblock %}

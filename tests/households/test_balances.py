@@ -56,3 +56,13 @@ def test_nets_sum_to_zero_and_the_plan_settles_everyone(case):
         after[transfer.to_user] -= transfer.amount_cents
     assert not any(after.values())
     assert len(plan) <= max(0, sum(1 for net in nets.values() if net) - 1)
+
+
+def test_greedy_is_not_always_the_fewest_so_nothing_claims_it_is():
+    """Review finding 9: +4, +3, +2, −5, −4 can settle in 3 transfers; the greedy plan uses 4."""
+    assert len(simplify({1: 400, 2: 300, 3: 200, 4: -500, 5: -400})) == 4
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    for path in ("README.md", "app/web/templates/households/tab_balances.html"):
+        assert "fewest" not in (root / path).read_text(encoding="utf-8"), path

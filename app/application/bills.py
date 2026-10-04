@@ -58,8 +58,8 @@ def _context(conn: sqlite3.Connection, actor: Actor, clock: Clock) -> tuple[date
     return ledger_settings.tracking_start, cycle_for(clock.today(), planning_settings.allowance_day)
 
 
-def _category_ids(conn: sqlite3.Connection) -> set[int]:
-    return {category.id for category in ledger.list_categories(conn)}
+def _category_ids(conn: sqlite3.Connection, user_id: int) -> set[int]:
+    return {category.id for category in ledger.list_categories(conn, user_id)}
 
 
 def materialize(conn: sqlite3.Connection, actor: Actor, clock: Clock) -> Cycle:
@@ -89,7 +89,7 @@ def series_problems(conn: sqlite3.Connection, actor: Actor, *, name: str, amount
                     category_id: int | None, anchor: date) -> dict[str, str]:
     tracking_start = ledger.get_settings(conn, actor.user_id).tracking_start
     return planning.series_problems(name=name, amount_cents=amount_cents, category_id=category_id, anchor=anchor,
-                                    tracking_start=tracking_start, category_ids=_category_ids(conn))
+                                    tracking_start=tracking_start, category_ids=_category_ids(conn, actor.user_id))
 
 
 def _series_record(series: planning.BillSeries) -> dict:
@@ -102,7 +102,7 @@ def add_series(conn: sqlite3.Connection, actor: Actor, data: SeriesInput, clock:
         created = planning.create_series(
             conn, user_id=actor.user_id, name=data.name, amount_cents=data.amount_cents,
             category_id=data.category_id, rule=data.rule, tracking_start=tracking_start,
-            category_ids=_category_ids(conn), now=clock.now_utc(),
+            category_ids=_category_ids(conn, actor.user_id), now=clock.now_utc(),
         )
         planning.ensure_materialized(conn, user_id=actor.user_id, horizon_end=cycle.horizon_end)
         audit.record(conn, actor_user_id=actor.user_id, entity_type="bill_series", entity_id=created.id,
@@ -207,7 +207,7 @@ def split_series(conn: sqlite3.Connection, actor: Actor, occurrence_id: int, ver
         result = planning.split_series(
             conn, user_id=actor.user_id, occurrence_id=occurrence_id, version=version, name=data.name,
             amount_cents=data.amount_cents, category_id=data.category_id, rule=data.rule,
-            tracking_start=tracking_start, category_ids=_category_ids(conn), horizon_end=cycle.horizon_end,
+            tracking_start=tracking_start, category_ids=_category_ids(conn, actor.user_id), horizon_end=cycle.horizon_end,
             now=clock.now_utc(),
         )
         old = planning.get_series(conn, user_id=actor.user_id, series_id=before.id)

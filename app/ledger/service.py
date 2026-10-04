@@ -18,11 +18,12 @@ from app.ledger.rules import (
     validate_occurred_on,
     validate_settings,
 )
-from app.shared.errors import ConflictError, NotFoundError
+from app.shared.errors import ConflictError, NotFoundError, ValidationError
 
 LINKED_MESSAGE = "This transaction is managed by its bill, shared expense, or settlement."
 STALE_MESSAGE = "This transaction changed since you opened it. Reload the page and try again."
 SETUP_MESSAGE = "Complete setup first."
+CATEGORY_NAME_LIMIT = 40
 SQLITE_MAX_ID = 2**63 - 1  # larger numbers cannot be stored, so no such record exists
 
 
@@ -38,6 +39,7 @@ class Category:
     id: int
     slug: str
     name: str
+    custom: bool = False  # added by its owner; the fixed eleven are shared by everyone
 
 
 @dataclass(frozen=True)
@@ -110,12 +112,29 @@ def _require_settings(conn: sqlite3.Connection, user_id: int) -> LedgerSettings:
     return settings
 
 
-def list_categories(conn: sqlite3.Connection) -> list[Category]:
-    return [Category(row["id"], row["slug"], row["name"]) for row in repository.list_categories(conn)]
+def list_categories(conn: sqlite3.Connection, user_id: int | None = None) -> list[Category]:
+    """The fixed categories, then ``user_id``'s own categories when given."""
+    return [Category(row["id"], row["slug"], row["name"], row["owner_user_id"] is not None)
+            for row in repository.list_categories(conn, user_id)]
 
 
-def _category_ids(conn: sqlite3.Connection) -> set[int]:
-    return {category.id for category in list_categories(conn)}
+def category_names(conn: sqlite3.Connection) -> dict[int, str]:
+    """Every category's name, including other people's, for showing records such as shared expenses."""
+    return repository.all_category_names(conn)
+
+
+def create_category(conn: sqlite3.Connection, *, user_id: int, name: str) -> Category:
+    name = " ".join((name or "").split())
+    if not 1 <= len(name) <= CATEGORY_NAME_LIMIT:
+        raise ValidationError.single("name", f"Enter a name of 1 to {CATEGORY_NAME_LIMIT} characters.")
+    if name.lower() in {category.name.lower() for category in list_categories(conn, user_id)}:
+        raise ValidationError.single("name", "You already have a category with that name.")
+    category_id = repository.insert_category(conn, user_id=user_id, name=name)
+    return next(c for c in list_categories(conn, user_id) if c.id == category_id)
+
+
+def _category_ids(conn: sqlite3.Connection, user_id: int | None = None) -> set[int]:
+    return {category.id for category in list_categories(conn, user_id)}
 
 
 def get_transaction(conn: sqlite3.Connection, *, user_id: int, transaction_id: int) -> Transaction:
@@ -130,7 +149,8 @@ def get_transaction(conn: sqlite3.Connection, *, user_id: int, transaction_id: i
 def create_manual(conn: sqlite3.Connection, *, user_id: int, draft: TransactionDraft, today: date,
                   now: datetime) -> Transaction:
     settings = _require_settings(conn, user_id)
-    validate_draft(draft, tracking_start=settings.tracking_start, today=today, category_ids=_category_ids(conn))
+    validate_draft(draft, tracking_start=settings.tracking_start, today=today,
+                   category_ids=_category_ids(conn, user_id))
     transaction_id = repository.insert_transaction(
         conn,
         user_id=user_id,
@@ -153,7 +173,8 @@ def update_manual(conn: sqlite3.Connection, *, user_id: int, transaction_id: int
     if not current.directly_editable:
         raise ConflictError(LINKED_MESSAGE)
     settings = _require_settings(conn, user_id)
-    validate_draft(draft, tracking_start=settings.tracking_start, today=today, category_ids=_category_ids(conn))
+    validate_draft(draft, tracking_start=settings.tracking_start, today=today,
+                   category_ids=_category_ids(conn, user_id))
     changed = repository.update_manual(
         conn,
         transaction_id=transaction_id,

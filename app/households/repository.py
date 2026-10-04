@@ -398,3 +398,15 @@ def active_household_ids(conn: sqlite3.Connection, *, user_id: int) -> list[int]
         "SELECT m.household_id FROM memberships AS m JOIN households AS h ON h.id = m.household_id"
         " WHERE m.user_id = ? AND m.status = 'active' AND h.archived_at IS NULL ORDER BY m.household_id",
         (user_id,))]
+
+
+def unpaid_bill_names(conn: sqlite3.Connection, *, household_id: int, user_id: int) -> list[str]:
+    """Household bills the user shares that still have an unpaid, unskipped occurrence (even if the series ended)."""
+    return [row[0] for row in conn.execute(
+        "SELECT DISTINCT s.name FROM household_bill_series AS s"
+        " JOIN household_bill_participants AS p ON p.series_id = s.id"
+        " JOIN household_bill_occurrences AS o ON o.series_id = s.id"
+        " WHERE s.household_id = ? AND p.user_id = ? AND o.shared_expense_id IS NULL AND o.skipped_at IS NULL"
+        " ORDER BY s.name",
+        (household_id, user_id),
+    )]

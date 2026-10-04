@@ -50,13 +50,13 @@ def budgets(conn: sqlite3.Connection, actor: Actor, clock: Clock) -> tuple[Cycle
     limits = planning.budget_limits(conn, user_id=actor.user_id, cycle_start=cycle.start)
     return cycle, [BudgetRow(category, consumption.get(category.id, 0),
                              limits.get(category.id, planning.BudgetLimits(None, None)))
-                   for category in ledger.list_categories(conn)]
+                   for category in ledger.list_categories(conn, actor.user_id)]
 
 
 def set_limit(conn: sqlite3.Connection, actor: Actor, category_id: int, limit_cents: int | None, scope: str,
               clock: Clock) -> None:
     """Set or clear (``None``) a category's limit for every cycle or for this cycle only."""
-    if category_id not in {category.id for category in ledger.list_categories(conn)}:
+    if category_id not in {category.id for category in ledger.list_categories(conn, actor.user_id)}:
         raise NotFoundError("No such category.")
     with transaction(conn):
         cycle = _cycle(conn, actor, clock)

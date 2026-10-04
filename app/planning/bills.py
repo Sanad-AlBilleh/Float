@@ -278,6 +278,9 @@ def split_series(conn: sqlite3.Connection, *, user_id: int, occurrence_id: int, 
         repository.delete_unpaid_from(conn, series_id=series.id, scheduled_date=split_on)  # step 3
         if remaining is not None and rule.until is None and rule.count is None:
             rule = Rule(rule.freq, rule.interval, rule.anchor, count=max(1, remaining))
+        elif series.rule.until is not None and rule.until is None and rule.count is None \
+                and series.rule.until >= rule.anchor:  # the old end date still applies (review finding 2)
+            rule = Rule(rule.freq, rule.interval, rule.anchor, until=series.rule.until)
         target = create_series(conn, user_id=user_id, name=name, amount_cents=amount_cents,  # step 4
                                category_id=category_id, rule=rule, tracking_start=tracking_start,
                                category_ids=category_ids, now=now)

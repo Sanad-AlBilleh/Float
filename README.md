@@ -42,12 +42,20 @@ The stack is Python/FastAPI with SQLite, server-rendered pages, and (in P1) a JS
 **Day 3 (3 October), households, alerts, and the API:**
 - **Households:** create a household (you become its owner) and invite flatmates with a one-time code: 10 characters, valid for 72 hours, shown once. Up to eight members per household and three households per person. Owners can rename, hand over ownership, remove members, and archive. Anyone can leave once their balance is €0.00, nothing is pending, and they share no active household bill; Float lists whatever is in the way.
 - **Shared expenses:** record what you paid and split it equally, by exact amounts, by percentages, or by shares. The cents always add up. The full amount goes in your transactions; only the payer can edit or delete it.
-- **Balances and settling up:** each member's balance, a plan with the fewest simple transfers ("Carla pays Ben €40.00"), and settlements. Either person records a transfer made outside Float; only the other person can confirm it, and confirming writes it into both people's transactions.
+- **Balances and settling up:** each member's balance, a short settle-up plan ("Carla pays Ben €40.00") that never needs more transfers than one fewer than the people involved, though it is not always the shortest possible, and settlements. Either person records a transfer made outside Float; only the other person can confirm it, and confirming writes it into both people's transactions.
 - **Household bills:** the owner sets up rent or internet with an equal, percentage, or shares split. Each person's share is set aside in their own safe-to-spend. Whoever pays turns it into a shared expense, so the others then owe their share; undo restores everything.
 - **Safe to spend now includes the flat:** your share of household bills and what you owe flatmates are subtracted. What they owe you is shown but not counted until they settle. The forecast and budgets count your shares, not the cash you fronted.
 - **Alerts:** bills due soon or overdue, budgets at 80% or over, a pace that will not last, unusual expenses, settlements waiting for you, new household expenses with a share for you, a missing allowance, and overdue goals. They are checked when you open the dashboard or the alert centre and after every change you save. They disappear when their reason is gone, and a dismissed alert never comes back.
 - **Activity:** each household has an Activity tab in plain sentences, and the Activity page lists your own changes.
 - **JSON API:** `/api/v1` offers the same features as the pages (67 operations, documented at `/api/docs`). Money is integer cents plus a display string, and errors are `application/problem+json`. Unsafe requests need the `X-CSRF-Token` header (get one from `GET /api/v1/csrf` or the login response). Money-creating posts accept an `Idempotency-Key` header.
+
+**Day 4 (4 October), testing, fixes, and polish:**
+- **New look:** a redesigned interface, modelled on banking-app screenshots the student supplied. It has a sidebar on desktop, and on phones a bottom tab bar with a floating add button. It is always light. See it on a phone on the same Wi-Fi at `http://<your computer's IP>:8000`.
+- **Categories:** add your own categories, such as Gym or Gifts. Only you see them.
+- **Automatic categories:** describe an expense ("Pizza with friends") and Float picks the category. Your own category names are matched first, then keywords. Income forms hide the expense-only fields, and expense forms hide the income source.
+- **Savings in setup:** setup asks how much you want to save each month and sets that aside every cycle as a savings goal.
+- **Review fixes:** all 9 problems found by the 3 October review are fixed (see `docs/acceptance-2026-10-04.md`).
+- **Demo data:** `python scripts/seed_demo.py DATA_DIR USERNAME "Display Name" PASSWORD` fills a fresh database with a month of activity for every feature, including two flatmates (`lucia_demo` and `marco_demo`, same password). Start the app with that `DATA_DIR` to show it.
 
 ### Not implemented
 
@@ -57,6 +65,8 @@ The stack is Python/FastAPI with SQLite, server-rendered pages, and (in P1) a JS
   - budgets use `PUT /api/v1/budgets/{category_id}` with a `scope` (every cycle, or this cycle only) instead of two separate URLs;
   - revoking an invitation and removing a member are `POST …/revoke` and `POST …/members/{id}/remove` instead of `DELETE`;
   - category consumption is part of `GET /budgets`;
+  - `GET /occurrences` filters with `start` and `end`, not `from` and `to`;
+  - lists return at most 200 items and have no cursor paging;
   - P2 imports are absent.
 - **Idempotency:** a money-creating API call's stored response is written just after its change commits, not in the same transaction (the use cases are shared with the pages). A crash in between leaves the key reserved for 24 hours, which refuses a retry rather than duplicating money. See `app/api/v1/idempotency.py`.
 - **No background jobs (ADR-5):** alerts appear when someone opens Float, not at a set time, and there are no emails or push notifications.
@@ -102,6 +112,7 @@ The second command is the NFR-08 coverage set: every business module (the web an
 | 1 Oct, after the review fixes | 285 passed | 99% (800 statements, 9 missed) | 97% (1,418 statements, 42 missed) |
 | 2 Oct | 423 passed | 99% (1,546 statements, 20 missed; now including `app.insights`) | 97% (2,463 statements, 64 missed) |
 | 3 Oct | 562 passed | 97% (2,836 statements, 84 missed; now including `app.households`) | 95% (4,625 statements, 250 missed) |
+| 4 Oct | 598 passed | 97% (2,910 statements, 83 missed) | 95% (4,794 statements, 245 missed) |
 
 These figures were measured on macOS with Python 3.14.7. The suite includes Hypothesis property tests, an architecture test that enforces the domain boundaries, and an authorization test for every page that shows records.
 
@@ -135,6 +146,10 @@ Each day, deliberate bugs were injected into the new code to check that the test
   - a concurrent duplicate idempotent request.
 
   The other six cannot change behaviour, because a SQL condition repeats the Python check. The full SRS Fixture A now passes end to end: €308.00, €28.00/day, every forecast value, and all four conservation steps. A Hypothesis property checks the conservation rule over random sequences of actions.
+- **4 October:** every review finding was fixed test-first.
+  - **Fresh clone:** a fresh clone installed, started, and passed the suite.
+  - **Performance (NFR-05):** `python scripts/perf_smoke.py` measured, on an Apple M5 with the full SRS synthetic dataset (16,000 transactions, 1,000 shared expenses, 20 bills): ready in 62 ms, and a dashboard p95 of **48 ms** against the 500 ms limit.
+  - **Details:** see `docs/acceptance-2026-10-04.md`.
 - **3 October, real server:** a 23-step smoke test on `python app.py` with two flatmates covered setup, a household, an invitation, a shared expense, the settle-up plan, a household bill, a confirmed settlement, the dashboard, forecast, alerts, activity, and the JSON API. Every step passed, with one request-log line per request and no server errors. The browser check found one real bug: checkboxes and radio buttons were stretched like text boxes, which squeezed their labels. It was fixed the same day.
 - **2 October, real server:** a 13-step smoke test on `python app.py` covered registering, setting up, adding and paying a bill, adding a goal, the dashboard and preview, the forecast, and budgets. Every step passed, with one request-log line per request and no server errors. The dashboard, bills, and forecast pages were also checked in a browser.
 

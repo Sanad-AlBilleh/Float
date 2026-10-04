@@ -21,7 +21,7 @@ class MemberView:
     display_name: str
     role: str
     status: str
-    net_cents: int
+    net_cents: int | None  # None when the viewer has left: current balances are for current members only
 
 
 def _audit(conn, actor: Actor, household_id: int, entity_type: str, entity_id: int | None, action: str,
@@ -39,11 +39,12 @@ def my_households(conn: sqlite3.Connection, actor: Actor) -> list[tuple[househol
     return households.user_households(conn, user_id=actor.user_id)
 
 
-def member_views(conn: sqlite3.Connection, household_id: int) -> list[MemberView]:
+def member_views(conn: sqlite3.Connection, household_id: int, *, with_balances: bool = True) -> list[MemberView]:
     nets = households.balances(conn, household_id=household_id)
     people = households.members(conn, household_id=household_id)
     names = display_names(conn, [m.user_id for m in people])
-    return [MemberView(m.user_id, names[m.user_id], m.role, m.status, nets.get(m.user_id, 0)) for m in people]
+    return [MemberView(m.user_id, names[m.user_id], m.role, m.status, nets.get(m.user_id, 0) if with_balances else None)
+            for m in people]
 
 
 def create_household(conn: sqlite3.Connection, actor: Actor, name: str, clock: Clock) -> households.Household:
@@ -143,7 +144,12 @@ class HouseholdPage:
 
     @property
     def my_net_cents(self) -> int:
-        return next((m.net_cents for m in self.members if m.user_id == self.me.user_id), 0)
+        return next((m.net_cents or 0 for m in self.members if m.user_id == self.me.user_id), 0)
+
+    @property
+    def current(self) -> bool:
+        """Only current members see the household as it is now (review finding 6)."""
+        return self.me.status == "active"
 
     @property
     def is_owner(self) -> bool:
@@ -168,10 +174,10 @@ def page(conn: sqlite3.Connection, actor: Actor, household_id: int, clock: Clock
     return HouseholdPage(
         household=household,
         me=me,
-        members=member_views(conn, household_id),
+        members=member_views(conn, household_id, with_balances=me.status == "active"),
         invitations=households.list_invitations(conn, household_id=household_id, now=clock.now_utc()) if owner else [],
         expenses=_visible(me, households.list_expenses(conn, household_id=household_id)),
-        plan=households.simplify(households.balances(conn, household_id=household_id)),
+        plan=households.simplify(households.balances(conn, household_id=household_id)) if me.status == "active" else [],
         settlements=[s for s in households.list_settlements(conn, household_id=household_id)
                      if me.status == "active" or me.joined_on <= s.paid_on <= me.ended_at.date()],
     )

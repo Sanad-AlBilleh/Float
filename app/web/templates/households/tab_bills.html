@@ -46,7 +46,7 @@
                   </form>
                   <details>
                     <summary>Change amount or date<span class="visually-hidden"> of {{ row.name }} due {{ row.due_date.isoformat() }}</span></summary>
-                    <form method="post" action="/households/{{ household.id }}/bills/occurrences/{{ row.id }}/edit" class="stack">
+                    <form method="post" action="/households/{{ household.id }}/bills/occurrences/{{ row.id }}/edit" class="stack card">
                       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                       <input type="hidden" name="version" value="{{ row.version }}">
                       <label for="amount-{{ row.id }}">Amount (€)</label>

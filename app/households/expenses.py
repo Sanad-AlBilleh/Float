@@ -18,6 +18,8 @@ from app.shared.money import MAX_CENTS
 SQLITE_MAX_ID = 2**63 - 1
 STALE_MESSAGE = "This expense changed since you opened it. Reload the page and try again."
 BILL_MESSAGE = "This expense pays a household bill. Undo that payment on the Bills tab instead."
+FORMER_MEMBER_MESSAGE = ("Someone who shares this expense has left the household, so it can no longer change: "
+                         "their balance was settled when they left.")
 
 
 @dataclass(frozen=True)
@@ -113,6 +115,8 @@ def editable(conn: sqlite3.Connection, *, expense_id: int, user_id: int, version
         raise PermissionDeniedError("Only the person who paid can change this expense.")
     if repository.is_bill_payment(conn, expense_id):
         raise ConflictError(BILL_MESSAGE)
+    if not set(expense.shares) <= set(active_member_ids(conn, household_id=expense.household_id)):
+        raise ConflictError(FORMER_MEMBER_MESSAGE)
     if version is not None and expense.version != version:
         raise ConflictError(STALE_MESSAGE)
     return expense

@@ -1,4 +1,8 @@
 <h2>Balances</h2>
+{% if not page.current %}
+  <p>Balances and the settle-up plan are shown to only current members. You can still read the expenses,
+    settlements, and activity from when you were a member.</p>
+{% else %}
 {% if page.me.status == "active" %}
   {% set mine = page.my_net_cents %}
   <p class="lead">{% if mine > 0 %}The others owe you <strong>{{ mine|money }}</strong>.
@@ -27,8 +31,9 @@
       <li>{{ page.name_of(transfer.from_user) }} pays {{ page.name_of(transfer.to_user) }} {{ transfer.amount_cents|money }}</li>
     {% endfor %}
   </ul>
-  <p class="muted">The fewest simple transfers that settle everyone. Pay outside Float, then record it on the
+  <p class="muted">A short list of transfers that settles everyone: never more than one fewer than the people involved. Pay outside Float, then record it on the
     <a href="/households/{{ household.id }}?tab=settlements">Settlements</a> tab.</p>
 {% else %}
   <p>Everyone is settled up.</p>
+{% endif %}
 {% endif %}

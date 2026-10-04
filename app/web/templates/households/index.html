@@ -1,16 +1,23 @@
 {% extends "base.html" %}
 {% import "macros/forms.html" as forms %}
+{% import "macros/icons.html" as icons %}
 {% block title %}Households{% endblock %}
 {% block content %}
   <h1>Households</h1>
   <p class="muted">Share costs with your flatmates: split expenses to the cent, share recurring bills, and settle up.</p>
   {% if mine %}
-    <ul class="list">
-      {% for household, active in mine %}
-        <li><a href="/households/{{ household.id }}">{{ household.name }}</a>
-          {% if household.archived %}<span class="tag">archived</span>{% elif not active %}<span class="tag">former member</span>{% endif %}</li>
-      {% endfor %}
-    </ul>
+    <section class="card" aria-label="Your households">
+      <ul class="rows">
+        {% for household, active in mine %}
+          <li class="row">
+            <span class="row-icon tone-blue">{{ icons.icon("users") }}</span>
+            <span class="row-main"><a class="row-title" href="/households/{{ household.id }}">{{ household.name }}</a>
+              <span class="row-meta">{% if household.archived %}Archived{% elif not active %}Former member{% else %}Active member{% endif %}</span></span>
+            {% if household.archived %}<span class="tag">archived</span>{% elif not active %}<span class="tag">former member</span>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
   {% else %}
     <p>You are not in a household yet.</p>
   {% endif %}

@@ -5,10 +5,24 @@ learns whether their request body was valid.
 """
 
 from datetime import date
-from typing import Any, Literal, TypeVar
+from typing import Annotated, Any, Literal, TypeVar
 
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, ValidationError as PydanticError
+from pydantic import AfterValidator, BaseModel, Field
+from pydantic import ValidationError as PydanticError
+
+from app.shared.dates import EARLIEST, LATEST, RANGE_MESSAGE
+
+
+def _in_range(day: date) -> date:
+    if not EARLIEST <= day <= LATEST:
+        raise ValueError(RANGE_MESSAGE)
+    return day
+
+
+Day = Annotated[date, AfterValidator(_in_range)]  # the same range the pages accept
+Id = Annotated[int, Field(ge=1, le=2**63 - 1)]  # anything larger cannot be stored, so it is refused up front
+Cents = Annotated[int, Field(ge=-(10**9), le=10**9)]  # the services apply the exact money limits
 
 Model = TypeVar("Model", bound=BaseModel)
 
@@ -40,29 +54,29 @@ class PasswordChange(BaseModel):
 
 
 class SetupIn(BaseModel):
-    tracking_start: date
-    opening_balance_cents: int
-    allowance_day: int
-    planned_allowance_cents: int = 75000
+    tracking_start: Day
+    opening_balance_cents: Cents
+    allowance_day: Annotated[int, Field(ge=1, le=31)]
+    planned_allowance_cents: Cents = 75000
     allowance_included: bool = False
 
 
 class PlannedAllowanceIn(BaseModel):
-    planned_allowance_cents: int
+    planned_allowance_cents: Cents
 
 
 class TransactionIn(BaseModel):
     kind: Literal["income", "expense"]
-    amount_cents: int
-    occurred_on: date
-    category_id: int | None = None
+    amount_cents: Cents
+    occurred_on: Day
+    category_id: Id | None = None
     income_source: str | None = None
     one_off: bool = False
     note: str = ""
 
 
 class Versioned(BaseModel):
-    version: int
+    version: Id
 
 
 class TransactionEdit(TransactionIn, Versioned):
@@ -71,13 +85,13 @@ class TransactionEdit(TransactionIn, Versioned):
 
 class SeriesIn(BaseModel):
     name: str
-    amount_cents: int
-    category_id: int
+    amount_cents: Cents
+    category_id: Id
     freq: Literal["once", "weekly", "monthly"]
-    interval: int = 1
-    anchor_date: date
-    until: date | None = None
-    count: int | None = None
+    interval: Annotated[int, Field(ge=1, le=52)] = 1
+    anchor_date: Day
+    until: Day | None = None
+    count: Annotated[int, Field(ge=1, le=500)] | None = None
 
 
 class SplitIn(SeriesIn, Versioned):
@@ -85,19 +99,19 @@ class SplitIn(SeriesIn, Versioned):
 
 
 class OccurrenceEdit(Versioned):
-    amount_cents: int
-    due_date: date
+    amount_cents: Cents
+    due_date: Day
 
 
 class PaymentIn(Versioned):
-    paid_on: date | None = None
+    paid_on: Day | None = None
 
 
 class GoalIn(BaseModel):
     name: str
-    target_cents: int
-    target_date: date | None = None
-    priority: int = 2
+    target_cents: Cents
+    target_date: Day | None = None
+    priority: Annotated[int, Field(ge=1, le=3)] = 2
     auto_reserve: bool = False
 
 
@@ -106,11 +120,11 @@ class GoalEdit(GoalIn, Versioned):
 
 
 class MovementIn(BaseModel):
-    delta_cents: int
+    delta_cents: Cents
 
 
 class LimitIn(BaseModel):
-    limit_cents: int | None
+    limit_cents: Cents | None
     scope: Literal["template", "cycle"] = "template"
 
 
@@ -127,18 +141,18 @@ class CodeIn(BaseModel):
 
 
 class TransferIn(Versioned):
-    new_owner_id: int
+    new_owner_id: Id
 
 
 class Participant(BaseModel):
-    user_id: int
-    value: int | None = None
+    user_id: Id
+    value: Cents | None = None
 
 
 class ExpenseIn(BaseModel):
-    amount_cents: int
-    spent_on: date
-    category_id: int
+    amount_cents: Cents
+    spent_on: Day
+    category_id: Id
     description: str
     one_off: bool = False
     split_method: Literal["equal", "exact", "percentage", "shares"] = "equal"
@@ -150,10 +164,10 @@ class ExpenseEdit(ExpenseIn, Versioned):
 
 
 class SettlementIn(BaseModel):
-    payer_user_id: int
-    payee_user_id: int
-    amount_cents: int
-    paid_on: date
+    payer_user_id: Id
+    payee_user_id: Id
+    amount_cents: Cents
+    paid_on: Day
 
 
 class ReasonIn(Versioned):

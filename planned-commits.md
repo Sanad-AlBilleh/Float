@@ -38,9 +38,9 @@ Merge commits are counted too, as the conservative reading of the rule.
 | Wed 30 Sep | 2 (requirements v0.2) + 3 (foundation) + 1 (this schedule change) | 3 | 9 | done |
 | Thu 1 Oct | 6 (one unplanned fix) + 1 (branch renames) + 1 (review fixes) | 3 | 11 | done |
 | Fri 2 Oct | 7 | 1 | 8 | done |
-| Sat 3 Oct | 7 + 1 unplanned fix | 1 | 9 | done once the PR is merged |
-| Sun 4 Oct | 3–6 | 1 | 4–7 | planned |
-| **Total** | | | **about 43** | |
+| Sat 3 Oct | 7 + 1 unplanned fix | 1 | 9 | done |
+| Sun 4 Oct | 15 (fixes, redesign, and student-requested changes) | 1 | 16 | done once the PR is merged |
+| **Total** | | | **56** | |
 
 With about 43 commits, the largest day (1 Oct, 11 commits) is about 26%. Even if every remaining day from 2 October manages only 3 content commits plus a merge, the total is 35 and 1 Oct is 31%, still under 40%. **No more commits on 1 October.** **No more commits on 30 September.**
 
@@ -98,17 +98,18 @@ Branch `feature/households-and-alerts`. The first four commits are P0; the alert
 - [x] `Expose the JSON API with idempotency keys` (FR-34–35), only if time remains: built, because time remained
 - [x] `Fix squeezed checkbox and radio labels in forms`: unplanned, found in the day's browser check.
 - [x] `Record the testing decision, final ADR, and report draft` (ADR-4, ADR-5, report draft, AI log)
-- [ ] Merge PR `Build households, alerts, and the report draft`. This box is ticked in the next day's first commit.
+- [x] Merge PR `Build households, alerts, and the report draft` (PR #9). This box was ticked in the next day's first commit.
 
 ## Day 4 — Sunday 4 October: testing, fixes, and polish (deadline 23:59)
 
 Branch `release/testing-and-polish`. **No new features.** Merge by 20:00 to keep a buffer before the deadline.
 
-- [ ] `Record the acceptance pass and performance measurements` (fresh-clone check, full suite and coverage, performance smoke test, walkthrough with the student; AT-29–31, NFR-05)
-- [ ] `Fix <symptom>`: one commit per bug or small related group, each with a regression test written first
-- [ ] `Improve <page or flow>`: UI changes from the student's own review
-- [ ] `Record final measurements and verification results` (README numbers, report numbers, AI log, final status here)
-- [ ] Merge PR `Verify, fix, and polish Float for submission`
+- [x] `Record the acceptance pass and performance measurements` (fresh-clone check, full suite and coverage, performance smoke test; AT-29–31, NFR-05). Done as `Add the NFR-05 performance smoke test` and `docs/acceptance-2026-10-04.md`. The walkthrough with the student is still the student's to do.
+- [x] `Fix <symptom>`: one commit per bug or small related group, each with a regression test written first. Eight commits fixed the nine review findings.
+- [x] `Improve <page or flow>`: UI changes from the student's own review. Done as `Redesign the interface for desktop and phones`, from reference screenshots the student supplied.
+- [x] Student-requested changes on the day: `Let users add their own categories`, `Categorize expenses from what was bought and tidy the forms`, `Centre setup, ask for monthly savings, and pad the welcome card`, and `Add a demo-data seeder and refresh cached stylesheets`.
+- [x] `Record final measurements and verification results` (README numbers, report numbers, AI log, final status here)
+- [ ] Merge PR `Verify, fix, and polish Float for submission` (made today; its merge commit is the last commit).
 
 ## Cut order if a day runs late
 
@@ -135,3 +136,10 @@ Anything cut is listed as "not implemented" in the README and report. Nothing is
   The branches for 2–4 October are now `feature/bills-goals-and-forecast`, `feature/households-and-alerts`, and `release/testing-and-polish`. Pull requests that were already merged still show their original branch names, because GitHub keeps the name a PR was merged from.
 - **1 October.** At the student's request, a helper agent reviewed Days 0–1. Its 11 findings were fixed the same day in one extra commit on `fix/review-findings`, so 1 October has 11 commits. Migrations `0006` and `0007` hold the fixes, so the plan's later migrations start at `0008`.
 - **3 October.** All of Day 3 was built, including the JSON API (it was not cut, because time remained). The browser check found a CSS bug that squeezed checkbox and radio labels; it was fixed in one extra commit, so 3 October has 9 commits. With 40 commits after today and at least 2 more on 4 October, the largest day (1 October, 11) stays under 27% of the total. "This and future" edits of household bills were not built and are listed as not implemented.
+- **4 October.** The day held more than the planned 3–6 commits:
+  - eight fix commits for the review findings;
+  - the interface redesign the student asked for late on 3 October, committed as today's first commit;
+  - four student-requested changes: custom categories, automatic categorization, savings in setup, and a demo seeder;
+  - the performance script and the final documents.
+
+  With the merge, 4 October has 16 of 56 commits, which is 29%, under the 40% rule. Custom categories and automatic categorization are new features on a day planned as "no new features"; the student asked for them after reviewing the app. The journey walkthrough with timings is left for the student.

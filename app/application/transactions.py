@@ -30,7 +30,7 @@ def draft_problems(conn: sqlite3.Connection, actor: Actor, draft: ledger.Transac
                    clock: Clock) -> dict[str, str]:
     """The ledger's rules for a draft, as field messages (empty when valid)."""
     settings = ledger.get_settings(conn, actor.user_id)
-    category_ids = {category.id for category in ledger.list_categories(conn)}
+    category_ids = {category.id for category in ledger.list_categories(conn, actor.user_id)}
     try:
         ledger.validate_draft(draft, tracking_start=settings.tracking_start, today=clock.today(),
                               category_ids=category_ids)

@@ -82,7 +82,7 @@ def evaluate(conn: sqlite3.Connection, user_id: int, clock: Clock) -> None:
     _, budget_rows = budgets(conn, actor, clock)
     recent = [t for t in ledger.list_transactions(conn, user_id=user_id, limit=200)
               if t.occurred_on > today - timedelta(days=7)]
-    names = {c.id: c.name for c in ledger.list_categories(conn)}
+    names = ledger.category_names(conn)
     by_id = {t.id: t for t in recent}
     unusual = [insights.UnusualFact(tid, by_id[tid].amount_cents, typical, names.get(by_id[tid].category_id, ""),
                                     by_id[tid].occurred_on)

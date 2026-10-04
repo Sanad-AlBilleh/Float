@@ -7,7 +7,15 @@ from fastapi import APIRouter, Depends, Form, Request
 
 from app.application import transactions as use_cases
 from app.identity.api import Session
-from app.ledger.api import KINDS, MANUAL_INCOME_SOURCES, Transaction, TransactionDraft, list_categories
+from app.ledger.api import (
+    KINDS,
+    MANUAL_INCOME_SOURCES,
+    Transaction,
+    TransactionDraft,
+    category_names,
+    list_categories,
+    suggest_category,
+)
 from app.shared.dates import parse_iso_date
 from app.shared.errors import ConflictError, ValidationError
 from app.shared.money import cents_to_input, parse_money
@@ -44,6 +52,17 @@ def _parse(errors: dict[str, str], *, kind: str, amount: str, occurred_on: str, 
     )
 
 
+def _auto_category(conn: sqlite3.Connection, user_id: int, kind: str, category_id: str, note: str,
+                   errors: dict[str, str]) -> str:
+    """An expense left on "Automatic" gets the category its description suggests (student request, 4 October)."""
+    if kind != "expense" or category_id.strip():
+        return category_id
+    if not note.strip():
+        errors["note"] = "Say what you bought so Float can pick a category, or choose one."
+        return category_id
+    return str(suggest_category(note, list_categories(conn, user_id)))
+
+
 def _problems(conn: sqlite3.Connection, actor, parse_errors: dict[str, str], draft: TransactionDraft,
               clock) -> dict[str, str]:
     problems = use_cases.draft_problems(conn, actor, draft, clock)
@@ -56,7 +75,7 @@ def _form(request: Request, conn: sqlite3.Connection, *, action: str, values: di
         request,
         "transactions/form.html",
         {"action": action, "values": values, "errors": errors or {}, "editing": editing, "conflict": conflict,
-         "categories": list_categories(conn), "income_sources": MANUAL_INCOME_SOURCES},
+         "categories": list_categories(conn, request.state.session.user.id), "income_sources": MANUAL_INCOME_SOURCES},
         status_code=status_code,
     )
 
@@ -95,7 +114,7 @@ def list_page(request: Request, session: Session = Depends(require_ready_session
     if len(items) > PAGE_SIZE:
         items = items[:PAGE_SIZE]
         older = f"{items[-1].occurred_on.isoformat()}:{items[-1].id}"
-    categories = {category.id: category.name for category in list_categories(conn)}
+    categories = category_names(conn)
     balance = use_cases.current_balance(conn, actor_for(request, session), request.app.state.clock)
     unusual = use_cases.unusual_expenses(conn, actor_for(request, session), items)
     return render(request, "transactions/list.html",
@@ -126,6 +145,7 @@ def create(
 ):
     actor, clock = actor_for(request, session), request.app.state.clock
     parse_errors: dict[str, str] = {}
+    category_id = _auto_category(conn, actor.user_id, kind, category_id, note, parse_errors)
     draft = _parse(parse_errors, kind=kind, amount=amount, occurred_on=occurred_on, category_id=category_id,
                    income_source=income_source, one_off=one_off, note=note, today=clock.today())
     errors = _problems(conn, actor, parse_errors, draft, clock)
@@ -172,6 +192,7 @@ def update(
     parse_errors: dict[str, str] = {}
     expected = collect(parse_errors, parse_whole_number, version, field="version", low=1, high=10**9,
                        message="Reload the page and try again.")
+    category_id = _auto_category(conn, actor.user_id, kind, category_id, note, parse_errors)
     draft = _parse(parse_errors, kind=kind, amount=amount, occurred_on=occurred_on, category_id=category_id,
                    income_source=income_source, one_off=one_off, note=note, today=clock.today())
     errors = _problems(conn, actor, parse_errors, draft, clock)

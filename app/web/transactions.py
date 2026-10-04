@@ -14,7 +14,6 @@ from app.ledger.api import (
     TransactionDraft,
     category_names,
     list_categories,
-    suggest_category,
 )
 from app.shared.dates import parse_iso_date
 from app.shared.errors import ConflictError, ValidationError
@@ -52,15 +51,16 @@ def _parse(errors: dict[str, str], *, kind: str, amount: str, occurred_on: str, 
     )
 
 
-def _auto_category(conn: sqlite3.Connection, user_id: int, kind: str, category_id: str, note: str,
+def _auto_category(conn: sqlite3.Connection, actor, kind: str, category_id: str, note: str,
                    errors: dict[str, str]) -> str:
     """An expense left on "Automatic" gets the category its description suggests (student request, 4 October)."""
     if kind != "expense" or category_id.strip():
         return category_id
-    if not note.strip():
-        errors["note"] = "Say what you bought so Float can pick a category, or choose one."
+    suggested = use_cases.suggested_category(conn, actor, note)
+    if suggested is None:
+        errors["note"] = use_cases.NOTE_FOR_CATEGORY
         return category_id
-    return str(suggest_category(note, list_categories(conn, user_id)))
+    return str(suggested)
 
 
 def _problems(conn: sqlite3.Connection, actor, parse_errors: dict[str, str], draft: TransactionDraft,
@@ -145,7 +145,7 @@ def create(
 ):
     actor, clock = actor_for(request, session), request.app.state.clock
     parse_errors: dict[str, str] = {}
-    category_id = _auto_category(conn, actor.user_id, kind, category_id, note, parse_errors)
+    category_id = _auto_category(conn, actor, kind, category_id, note, parse_errors)
     draft = _parse(parse_errors, kind=kind, amount=amount, occurred_on=occurred_on, category_id=category_id,
                    income_source=income_source, one_off=one_off, note=note, today=clock.today())
     errors = _problems(conn, actor, parse_errors, draft, clock)
@@ -192,7 +192,7 @@ def update(
     parse_errors: dict[str, str] = {}
     expected = collect(parse_errors, parse_whole_number, version, field="version", low=1, high=10**9,
                        message="Reload the page and try again.")
-    category_id = _auto_category(conn, actor.user_id, kind, category_id, note, parse_errors)
+    category_id = _auto_category(conn, actor, kind, category_id, note, parse_errors)
     draft = _parse(parse_errors, kind=kind, amount=amount, occurred_on=occurred_on, category_id=category_id,
                    income_source=income_source, one_off=one_off, note=note, today=clock.today())
     errors = _problems(conn, actor, parse_errors, draft, clock)

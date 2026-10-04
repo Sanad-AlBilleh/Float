@@ -26,6 +26,17 @@ def get_transaction(conn: sqlite3.Connection, actor: Actor, transaction_id: int)
     return ledger.get_transaction(conn, user_id=actor.user_id, transaction_id=transaction_id)
 
 
+NOTE_FOR_CATEGORY = "Say what you bought so Float can pick a category, or choose one."
+
+
+def suggested_category(conn: sqlite3.Connection, actor: Actor, note: str) -> int | None:
+    """The category an expense's description suggests, for an expense left on "Automatic" (student request,
+    4 October); ``None`` when there is no description to go on. The form and the API both use it."""
+    if not note.strip():
+        return None
+    return ledger.suggest_category(note, ledger.list_categories(conn, actor.user_id))
+
+
 def draft_problems(conn: sqlite3.Connection, actor: Actor, draft: ledger.TransactionDraft,
                    clock: Clock) -> dict[str, str]:
     """The ledger's rules for a draft, as field messages (empty when valid)."""

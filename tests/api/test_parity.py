@@ -78,6 +78,25 @@ def test_transactions_round_trip(client):
     assert api.get("/transactions").json() == []
 
 
+def test_setup_takes_monthly_savings_like_the_form(client):
+    api = signed_up(client, setup=False)
+    body = {"tracking_start": "2026-09-01", "opening_balance_cents": 50000, "allowance_day": 1}
+    refused = api.post("/setup", {**body, "monthly_savings_cents": -100})
+    assert refused.status_code == 422 and "monthly_savings" in refused.json()["errors"]
+    assert api.post("/setup", {**body, "monthly_savings_cents": 10000}).status_code == 200
+    [goal] = api.get("/goals").json()
+    assert (goal["name"], goal["target_cents"], goal["auto_reserve"]) == ("Monthly savings", 120000, True)
+
+
+def test_an_expense_without_a_category_gets_one_from_its_note(client):
+    api = signed_up(client)
+    created = api.post("/transactions", {"kind": "expense", "amount_cents": 850, "occurred_on": "2026-09-20",
+                                         "note": "Pizza with friends"})
+    assert created.status_code == 201 and created.json()["category_id"] == 2  # Eating out, as the form picks
+    silent = api.post("/transactions", {"kind": "expense", "amount_cents": 850, "occurred_on": "2026-09-20"})
+    assert silent.status_code == 422 and "note" in silent.json()["errors"]
+
+
 def test_validation_errors_are_problem_json_with_fields(client):
     api = signed_up(client)
     response = api.post("/transactions", {"kind": "expense", "amount_cents": 0, "occurred_on": "2026-10-05",

@@ -57,6 +57,7 @@ from app.households.api import SplitEntry, simplify
 from app.identity.api import Session, new_token
 from app.insights.api import preview
 from app.ledger.api import TransactionDraft
+from app.shared.errors import ValidationError
 from app.shared.money import parse_money
 from app.shared.recurrence import Rule
 from app.web.deps import actor_for, current_session, get_conn, require_ready_session, require_session, verify_csrf
@@ -157,7 +158,8 @@ def complete_setup(request: Request, session: Session = Depends(require_session)
     data = parse(SetupIn, payload)
     setup.complete_setup(conn, actor_for(request, session),
                          setup.SetupInput(data.tracking_start, data.opening_balance_cents, data.allowance_day,
-                                          data.planned_allowance_cents, data.allowance_included), _clock(request))
+                                          data.planned_allowance_cents, data.allowance_included,
+                                          data.monthly_savings_cents), _clock(request))
     return settings(session, conn)
 
 
@@ -177,8 +179,14 @@ def update_settings(request: Request, session: Session = Depends(require_ready_s
 
 # Transactions ------------------------------------------------------------------------------------------
 
-def _draft(data: TransactionIn) -> TransactionDraft:
-    return TransactionDraft(data.kind, data.amount_cents, data.occurred_on, data.category_id, data.income_source,
+def _draft(conn: sqlite3.Connection, actor: Actor, data: TransactionIn) -> TransactionDraft:
+    """An expense without a category gets the one its note suggests, exactly as on the form."""
+    category_id = data.category_id
+    if data.kind == "expense" and category_id is None:
+        category_id = transactions.suggested_category(conn, actor, data.note)
+        if category_id is None:
+            raise ValidationError.single("note", transactions.NOTE_FOR_CATEGORY)
+    return TransactionDraft(data.kind, data.amount_cents, data.occurred_on, category_id, data.income_source,
                             data.one_off, data.note.strip())
 
 
@@ -195,7 +203,7 @@ def create_transaction(request: Request, session: Session = Depends(require_read
 
     def produce():
         data = parse(TransactionIn, payload)
-        return 201, to_json(transactions.add_transaction(conn, actor, _draft(data), _clock(request)))
+        return 201, to_json(transactions.add_transaction(conn, actor, _draft(conn, actor, data), _clock(request)))
     return idempotency.run(conn, request, user_id=actor.user_id, payload=payload, clock=_clock(request),
                            produce=produce)
 
@@ -212,7 +220,8 @@ def edit_transaction(transaction_id: int, request: Request, session: Session = D
     actor = actor_for(request, session)
     transactions.get_transaction(conn, actor, transaction_id)
     data = parse(TransactionEdit, payload)
-    return ok(transactions.edit_transaction(conn, actor, transaction_id, data.version, _draft(data), _clock(request)))
+    return ok(transactions.edit_transaction(conn, actor, transaction_id, data.version, _draft(conn, actor, data),
+                                           _clock(request)))
 
 
 @router.delete("/transactions/{transaction_id}", status_code=204, openapi_extra=body_doc(Versioned))

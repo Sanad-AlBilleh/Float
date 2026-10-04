@@ -9,7 +9,7 @@ from app.application import shared_money
 from app.application.activity import household_activity
 from app.households.api import SPLIT_METHODS, SplitEntry
 from app.identity.api import Session
-from app.ledger.api import category_names, list_categories
+from app.ledger.api import category_names, list_categories, suggest_category
 from app.shared.dates import parse_iso_date
 from app.shared.errors import ConflictError, NotFoundError, ValidationError
 from app.shared.money import cents_to_input, parse_money
@@ -159,13 +159,13 @@ EXPENSE_FIELDS = ["amount", "spent_on", "category_id", "description", "one_off",
                   "split"]
 
 
-def _parse_expense(form, errors: dict[str, str], today,
-                   participants: list[str] | None = None) -> tuple[shared_money.ExpenseDraft, dict]:
+def _parse_expense(form, errors: dict[str, str], today, participants: list[str] | None = None,
+                   auto_category: str = "") -> tuple[shared_money.ExpenseDraft, dict]:
     """Read the expense form. Failed fields keep placeholders so every other rule is still checked."""
     amount = collect(errors, parse_money, form.get("amount", ""), field="amount")
     spent_on = collect(errors, parse_iso_date, form.get("spent_on", ""), field="spent_on")
-    category = collect(errors, parse_whole_number, form.get("category_id", ""), field="category_id", low=1,
-                       high=10**6, message="Choose a category.")
+    category = collect(errors, parse_whole_number, form.get("category_id", "") or auto_category, field="category_id",
+                       low=1, high=10**6, message="Choose a category.")
     method = form.get("split_method", "equal")
     if method not in SPLIT_METHODS:
         errors["split_method"] = "Choose equal, exact, percentage, or shares."
@@ -199,6 +199,11 @@ def _parse_expense(form, errors: dict[str, str], today,
               "one_off": form.get("one_off") is not None, "split_method": method, "participants": participants,
               "split_values": {user_id: form.get(f"value_{user_id}", "") for user_id in participants}}
     return draft, values
+
+
+def _suggested(conn: sqlite3.Connection, user_id: int, text: str) -> str:
+    """The category a description suggests, used when the form is left on "Automatic"."""
+    return str(suggest_category(text, list_categories(conn, user_id))) if text.strip() else ""
 
 
 def _expense_values(expense) -> dict:
@@ -241,7 +246,9 @@ async def create_expense(household_id: int, request: Request, session: Session =
     actor, clock = actor_for(request, session), request.app.state.clock
     use_cases.member(conn, actor, household_id)
     errors: dict[str, str] = {}
-    draft, values = _parse_expense(await request.form(), errors, clock.today())
+    form = await request.form()
+    draft, values = _parse_expense(form, errors, clock.today(),
+                                   auto_category=_suggested(conn, actor.user_id, form.get("description", "")))
     problems = shared_money.expense_problems(conn, actor, household_id, draft, clock)
     errors = in_form_order({**problems, **errors}, EXPENSE_FIELDS)
     if not errors:
@@ -278,7 +285,8 @@ async def edit_expense(household_id: int, expense_id: int, request: Request,
     errors: dict[str, str] = {}
     version = collect(errors, parse_whole_number, form.get("version", ""), field="version", low=1, high=10**9,
                       message="Reload the page and try again.")
-    draft, values = _parse_expense(form, errors, clock.today())
+    draft, values = _parse_expense(form, errors, clock.today(),
+                                   auto_category=_suggested(conn, actor.user_id, form.get("description", "")))
     problems = shared_money.expense_problems(conn, actor, household_id, draft, clock)
     errors = in_form_order({**problems, **errors}, EXPENSE_FIELDS)
     action = f"/households/{household_id}/expenses/{expense_id}/edit"
@@ -398,7 +406,7 @@ async def create_bill(household_id: int, request: Request, session: Session = De
         {"amount": form.get("amount", ""), "spent_on": clock.today().isoformat(), "category_id": form.get("category_id", ""),
          "description": form.get("name", ""), "split_method": form.get("split_method", "equal"),
          **{key: form.get(key) for key in form if key.startswith("value_")}}, errors, clock.today(),
-        participants=form.getlist("participant"))
+        participants=form.getlist("participant"), auto_category=_suggested(conn, actor.user_id, form.get("name", "")))
     series_form = {key: form.get(key, "") for key in ("name", "amount", "category_id", "freq", "interval",
                                                       "anchor_date", "until", "count")}
     rule = parse_rule(errors, series_form, clock.today())

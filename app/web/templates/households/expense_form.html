@@ -21,7 +21,7 @@
       <label for="category_id">Category</label>
       {% if errors.category_id %}<p class="field-error" id="category_id-error">{{ errors.category_id }}</p>{% endif %}
       <select id="category_id" name="category_id"{% if errors.category_id %} aria-invalid="true" aria-describedby="category_id-error"{% endif %}>
-        <option value="">Choose a category</option>
+        <option value="">Automatic, from the description</option>
         {% for category in categories %}
           <option value="{{ category.id }}"{% if values.category_id|string == category.id|string %} selected{% endif %}>{{ category.name }}</option>
         {% endfor %}

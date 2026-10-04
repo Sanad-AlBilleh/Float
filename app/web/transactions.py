@@ -7,7 +7,15 @@ from fastapi import APIRouter, Depends, Form, Request
 
 from app.application import transactions as use_cases
 from app.identity.api import Session
-from app.ledger.api import KINDS, MANUAL_INCOME_SOURCES, Transaction, TransactionDraft, category_names, list_categories
+from app.ledger.api import (
+    KINDS,
+    MANUAL_INCOME_SOURCES,
+    Transaction,
+    TransactionDraft,
+    category_names,
+    list_categories,
+    suggest_category,
+)
 from app.shared.dates import parse_iso_date
 from app.shared.errors import ConflictError, ValidationError
 from app.shared.money import cents_to_input, parse_money
@@ -42,6 +50,17 @@ def _parse(errors: dict[str, str], *, kind: str, amount: str, occurred_on: str, 
         one_off=kind == "expense" and one_off is not None,
         note=note.strip(),
     )
+
+
+def _auto_category(conn: sqlite3.Connection, user_id: int, kind: str, category_id: str, note: str,
+                   errors: dict[str, str]) -> str:
+    """An expense left on "Automatic" gets the category its description suggests (student request, 4 October)."""
+    if kind != "expense" or category_id.strip():
+        return category_id
+    if not note.strip():
+        errors["note"] = "Say what you bought so Float can pick a category, or choose one."
+        return category_id
+    return str(suggest_category(note, list_categories(conn, user_id)))
 
 
 def _problems(conn: sqlite3.Connection, actor, parse_errors: dict[str, str], draft: TransactionDraft,
@@ -126,6 +145,7 @@ def create(
 ):
     actor, clock = actor_for(request, session), request.app.state.clock
     parse_errors: dict[str, str] = {}
+    category_id = _auto_category(conn, actor.user_id, kind, category_id, note, parse_errors)
     draft = _parse(parse_errors, kind=kind, amount=amount, occurred_on=occurred_on, category_id=category_id,
                    income_source=income_source, one_off=one_off, note=note, today=clock.today())
     errors = _problems(conn, actor, parse_errors, draft, clock)
@@ -172,6 +192,7 @@ def update(
     parse_errors: dict[str, str] = {}
     expected = collect(parse_errors, parse_whole_number, version, field="version", low=1, high=10**9,
                        message="Reload the page and try again.")
+    category_id = _auto_category(conn, actor.user_id, kind, category_id, note, parse_errors)
     draft = _parse(parse_errors, kind=kind, amount=amount, occurred_on=occurred_on, category_id=category_id,
                    income_source=income_source, one_off=one_off, note=note, today=clock.today())
     errors = _problems(conn, actor, parse_errors, draft, clock)

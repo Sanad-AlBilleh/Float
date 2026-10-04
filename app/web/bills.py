@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Form, Request
 
 from app.application import bills as use_cases
 from app.identity.api import Session
-from app.ledger.api import category_names, list_categories
+from app.ledger.api import category_names, list_categories, suggest_category
 from app.shared.dates import parse_iso_date
 from app.shared.errors import ValidationError
 from app.shared.money import cents_to_input, parse_money
@@ -21,6 +21,13 @@ SERIES_FIELDS = ["name", "amount", "category_id", "freq", "interval", "anchor_da
 NOTICES = {"saved": "Bill saved.", "paid": "Paid. The expense is in your transactions.",
            "undone": "Payment undone. The expense was removed.", "skipped": "Skipped.", "unskipped": "Unskipped.",
            "ended": "Bill ended. Overdue bills stay until you pay or skip them."}
+
+
+def _auto_category(conn: sqlite3.Connection, user_id: int, values: dict[str, str]) -> dict[str, str]:
+    """A bill left on "Automatic" gets the category its name suggests (student request, 4 October)."""
+    if values["category_id"].strip() or not values["name"].strip():
+        return values
+    return {**values, "category_id": str(suggest_category(values["name"], list_categories(conn, user_id)))}
 
 
 def _version(text: str) -> int:
@@ -95,7 +102,7 @@ def create(request: Request, session: Session = Depends(require_ready_session),
     actor, clock = actor_for(request, session), request.app.state.clock
     values = _form(name, amount, category_id, freq, interval, anchor_date, until, count)
     parse_errors: dict[str, str] = {}
-    data = _parse_series(parse_errors, values, clock.today())
+    data = _parse_series(parse_errors, _auto_category(conn, actor.user_id, values), clock.today())
     problems = use_cases.series_problems(conn, actor, name=data.name, amount_cents=data.amount_cents,
                                          category_id=data.category_id, anchor=data.rule.anchor)
     errors = in_form_order({**problems, **parse_errors}, SERIES_FIELDS)
@@ -203,7 +210,7 @@ def split(occurrence_id: int, request: Request, session: Session = Depends(requi
     use_cases.get_occurrence(conn, actor, occurrence_id)
     values = _form(name, amount, category_id, freq, interval, anchor_date, until, count)
     errors: dict[str, str] = {}
-    data = _parse_series(errors, values, clock.today())
+    data = _parse_series(errors, _auto_category(conn, actor.user_id, values), clock.today())
     if not errors:
         try:
             use_cases.split_series(conn, actor, occurrence_id, _version(version), data, clock)

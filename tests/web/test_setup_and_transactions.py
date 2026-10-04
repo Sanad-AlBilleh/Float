@@ -206,3 +206,15 @@ def test_out_of_range_numbers_never_cause_server_errors(client):
     assert response.status_code == 404
     assert client.get(f"/transactions?before=2026-10-01:{huge}").status_code == 200
     assert add_transaction(client, amount="1" * 5000).status_code == 400
+
+
+def test_an_expense_is_categorized_from_what_was_bought(client):
+    """Student request, 4 October: describe the purchase and Float picks the category."""
+    sign_up(client)
+    set_up(client)
+    assert add_transaction(client, amount="12", category_id="", note="Pizza with friends").status_code == 303
+    assert "Eating out" in client.get("/transactions").text
+    missing = add_transaction(client, amount="5", category_id="", note="")
+    assert missing.status_code == 400 and "Say what you bought" in missing.text
+    income = add_transaction(client, kind="income", amount="750", category_id="", note="", income_source="allowance")
+    assert income.status_code == 303  # income needs no description

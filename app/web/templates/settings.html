@@ -14,7 +14,7 @@
   <p class="muted">These cannot be changed after setup, so your history always means the same thing.</p>
   <h2>Planned allowance</h2>
   {{ forms.error_summary(errors) }}
-  <form method="post" action="/settings/planned-allowance" class="stack">
+  <form method="post" action="/settings/planned-allowance" class="stack card">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {{ forms.field("planned_allowance", "Planned allowance (€)", errors, values.planned_allowance, inputmode="decimal",
                    hint="What you expect each month. Float never counts it until you record it as received.") }}

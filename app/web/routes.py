@@ -4,16 +4,18 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, Request
 
-from app.application import alerts
+from app.application import alerts, budgets, transactions
 from app.application.dashboard import dashboard, forecast
 from app.application.setup import is_setup_complete
 from app.identity.api import Session
 from app.insights.api import preview
+from app.ledger.api import list_categories
 from app.shared.errors import ValidationError
 from app.shared.money import parse_money
-from app.web.charts import projection_chart
+from app.web.charts import donut, projection_chart
 from app.web.deps import actor_for, current_session, get_conn, require_ready_session
 from app.web.rendering import redirect, render
+from app.web.templating import category_style
 
 router = APIRouter()
 
@@ -42,9 +44,16 @@ def home(request: Request, session: Session | None = Depends(current_session),
             result = preview(view.safe, parse_money(cost, field="cost"))
         except ValidationError as error:
             errors = error.errors
+    actor = actor_for(request, session)
+    _, budget_rows = budgets.budgets(conn, actor, clock)
+    slices, spent = donut([(row.category.name, row.consumption_cents, category_style(row.category.id)["colour"])
+                           for row in budget_rows])
+    recent = transactions.list_transactions(conn, actor, limit=5)
+    categories = {category.id: category.name for category in list_categories(conn)}
     return render(request, "dashboard.html",
                   {"view": view, "preview": result, "errors": errors, "values": {"cost": cost or ""},
-                   "alerts": open_alerts},
+                   "alerts": open_alerts, "slices": slices, "spent_cents": spent, "recent": recent,
+                   "categories": categories},
                   status_code=400 if errors else 200)
 
 

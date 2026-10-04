@@ -1,11 +1,21 @@
 {% extends "base.html" %}
 {% import "macros/forms.html" as forms %}
+{% import "macros/icons.html" as icons %}
 {% block title %}Dashboard{% endblock %}
 {% set safe = view.safe %}
 {% set terms = safe.inputs %}
 {% set days = view.cycle.days_remaining %}
 {% block content %}
-  <h1>Today, <time datetime="{{ view.cycle.today.isoformat() }}">{{ view.cycle.today.isoformat() }}</time></h1>
+  <div class="page-head">
+    <div>
+      <h1>Today, <time datetime="{{ view.cycle.today.isoformat() }}">{{ view.cycle.today.isoformat() }}</time></h1>
+      <p class="muted">Your money at a glance, until your next allowance.</p>
+    </div>
+    <div class="actions">
+      <a class="button button-secondary button-small" href="/transactions/new?kind=income">{{ icons.icon("arrow-down") }}<span>Add income</span></a>
+    </div>
+  </div>
+
   {% if safe.shortfall_cents %}
     <div class="warning warning-strong" role="alert">
       <p><strong>Shortfall: {{ safe.shortfall_cents|money }}.</strong> Your bills and protected savings add up to more
@@ -24,75 +34,152 @@
         <a href="/transactions/new?kind=income&amp;source=allowance">record it as income</a>. Float never assumes it arrived.</p>
     </div>
   {% endif %}
-  {% set unread = alerts|rejectattr("read")|list %}
-  {% if unread %}
-    <section class="card" aria-labelledby="alerts-heading">
-      <h2 id="alerts-heading"><a href="/alerts">{{ unread|length }} new alert{{ "" if unread|length == 1 else "s" }}</a></h2>
-      <ul class="list">{% for alert in unread[:3] %}<li>{{ alert.message }}</li>{% endfor %}</ul>
-    </section>
-  {% endif %}
-  <section class="card hero" aria-labelledby="safe-heading">
-    <h2 id="safe-heading">Safe to spend today</h2>
-    <p class="figure figure-large">{{ safe.daily_cents|money }} per day</p>
-    <p class="muted">{{ safe.discretionary_cents|money }} to last {{ days }} day{{ "" if days == 1 else "s" }}, until your
-      next allowance on <time datetime="{{ view.cycle.next_allowance.isoformat() }}">{{ view.cycle.next_allowance.isoformat() }}</time>.
-      Rounded down to the cent.</p>
-  </section>
-  <section aria-labelledby="breakdown-heading">
-    <h2 id="breakdown-heading">How Float worked it out</h2>
-    <table class="table breakdown">
-      <caption class="visually-hidden">Safe-to-spend breakdown</caption>
-      <tbody>
-        <tr><th scope="row"><a href="/transactions">Recorded balance</a></th><td class="num">{{ terms.recorded_balance_cents|money }}</td></tr>
-        <tr><th scope="row">− <a href="/bills">Bills due before {{ view.cycle.next_allowance.isoformat() }}</a>
-          <span class="muted">({{ view.reserved_bills|length }} unpaid)</span></th><td class="num">{{ terms.personal_bills_cents|money }}</td></tr>
-        <tr><th scope="row">− {% if view.in_household %}<a href="/households">Household bill shares</a>{% else %}Household bill shares <span class="muted">(no household yet)</span>{% endif %}</th><td class="num">{{ terms.household_bill_shares_cents|money }}</td></tr>
-        <tr><th scope="row">− <a href="/goals">Protected savings</a></th><td class="num">{{ terms.protected_savings_cents|money }}</td></tr>
-        <tr><th scope="row">− {% if view.in_household %}<a href="/households">What you owe flatmates</a>{% else %}What you owe flatmates <span class="muted">(no household yet)</span>{% endif %}</th><td class="num">{{ terms.household_payables_cents|money }}</td></tr>
-        <tr><th scope="row">− <a href="/goals">Goal plan reserve</a></th><td class="num">{{ terms.goal_plan_reserve_cents|money }}</td></tr>
-        <tr class="total"><th scope="row">= Discretionary</th><td class="num">{{ safe.discretionary_cents|money }}</td></tr>
-      </tbody>
-    </table>
-    <p class="muted">Your planned allowance of {{ view.planned_allowance_cents|money }} is expected, not counted, until you record it.
-      {% if view.household_receivables_cents %}Flatmates owe you {{ view.household_receivables_cents|money }}; it counts once they settle up.{% endif %}</p>
-  </section>
-  <section aria-labelledby="preview-heading">
-    <h2 id="preview-heading">Can I afford it?</h2>
-    {{ forms.error_summary(errors) }}
-    <form method="get" action="/" class="stack">
-      {{ forms.field("cost", "Total cost (€)", errors, values.cost, inputmode="decimal",
-                     hint="A purchase or trip. Nothing is saved.") }}
-      <button type="submit" class="button button-secondary">Preview</button>
-    </form>
-    {% if preview %}
-      <div class="card" role="status">
-        {% if preview.after_shortfall_cents %}
-          <p><strong>You would be {{ preview.after_shortfall_cents|money }} short.</strong> After spending {{ preview.cost_cents|money }},
-            nothing would be safe to spend ({{ preview.after_daily_cents|money }} per day).</p>
+
+  <div class="dash">
+    <div class="dash-col">
+      <section class="hero" aria-labelledby="safe-heading">
+        <h2 id="safe-heading">Safe to spend today</h2>
+        <p class="figure figure-large" aria-hidden="true">{{ safe.daily_cents|money_whole }}<span class="fraction">{{ safe.daily_cents|money_fraction }}</span> <span class="hero-unit">per day</span></p>
+        <p class="visually-hidden">{{ safe.daily_cents|money }} per day</p>
+        <p>{{ safe.discretionary_cents|money }} to last {{ days }} day{{ "" if days == 1 else "s" }}, until your
+          next allowance on <time datetime="{{ view.cycle.next_allowance.isoformat() }}">{{ view.cycle.next_allowance.isoformat() }}</time>.
+          Rounded down to the cent.</p>
+        <p class="actions">
+          <span class="pill">{{ icons.icon("calendar") }}{{ days }} day{{ "" if days == 1 else "s" }} left</span>
+          {% if view.household_receivables_cents %}<span class="pill">{{ icons.icon("users") }}Owed to you {{ view.household_receivables_cents|money }}</span>{% endif %}
+        </p>
+      </section>
+
+      <section class="cards" aria-label="Your numbers">
+        <div class="card stat">
+          <span class="stat-icon">{{ icons.icon("wallet") }}</span>
+          <h2 class="stat-label">Recorded balance</h2>
+          <p class="figure">{{ view.recorded_balance_cents|money }}</p>
+          <p class="muted">Opening balance plus everything recorded since
+            <time datetime="{{ view.tracking_start.isoformat() }}">{{ view.tracking_start.isoformat() }}</time>.</p>
+        </div>
+        <div class="card stat">
+          <span class="stat-icon tone-teal">{{ icons.icon("calendar") }}</span>
+          <h2 class="stat-label">Next allowance</h2>
+          <p class="figure"><time datetime="{{ view.cycle.next_allowance.isoformat() }}">{{ view.cycle.next_allowance.isoformat() }}</time></p>
+          <p class="muted">In {{ days }} day{{ "" if days == 1 else "s" }}.
+            Expected {{ view.planned_allowance_cents|money }}, not counted until you record it.</p>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="spending-heading">
+        <div class="card-head">
+          <h2 id="spending-heading">Spending this cycle</h2>
+          <a href="/budgets">Budgets</a>
+        </div>
+        {% if slices %}
+          <div class="donut-wrap">
+            <svg class="donut" viewBox="0 0 42 42" role="img" aria-label="Spending by category: {{ spent_cents|money }} in total">
+              <circle class="donut-track" cx="21" cy="21" r="15.9155"/>
+              {% for slice in slices %}
+                <circle cx="21" cy="21" r="15.9155" fill="none" stroke="{{ slice.colour }}" stroke-width="6"
+                  stroke-dasharray="{{ slice.dash }}" stroke-dashoffset="{{ slice.offset }}" stroke-linecap="round"/>
+              {% endfor %}
+              <text x="21" y="22" text-anchor="middle" class="donut-label">{{ spent_cents|money_whole }}</text>
+              <text x="21" y="26.5" text-anchor="middle" class="donut-sub">spent</text>
+            </svg>
+            <ul class="legend-list">
+              {% for slice in slices[:6] %}
+                <li><svg class="swatch" viewBox="0 0 10 10" aria-hidden="true"><rect width="10" height="10" rx="3" fill="{{ slice.colour }}"/></svg>{{ slice.label }}
+                  <span class="muted">{{ slice.percent }}%</span><span class="amount">{{ slice.cents|money }}</span></li>
+              {% endfor %}
+            </ul>
+          </div>
         {% else %}
-          <p>After spending {{ preview.cost_cents|money }}: <strong>{{ preview.after_cents|money }}</strong> left,
-            or <strong>{{ preview.after_daily_cents|money }} per day</strong> instead of {{ safe.daily_cents|money }}.</p>
+          <p class="muted">No spending recorded this cycle yet.</p>
         {% endif %}
-      </div>
-    {% endif %}
-  </section>
-  <section class="cards" aria-label="Your numbers">
-    <div class="card">
-      <h2>Recorded balance</h2>
-      <p class="figure">{{ view.recorded_balance_cents|money }}</p>
-      <p class="muted">Your opening balance plus everything recorded since
-        <time datetime="{{ view.tracking_start.isoformat() }}">{{ view.tracking_start.isoformat() }}</time>.</p>
+      </section>
+
+      <section class="card" aria-labelledby="breakdown-heading">
+        <div class="card-head"><h2 id="breakdown-heading">How Float worked it out</h2></div>
+        <div class="table-scroll">
+          <table class="table breakdown">
+            <caption class="visually-hidden">Safe-to-spend breakdown</caption>
+            <tbody>
+              <tr><th scope="row"><a href="/transactions">Recorded balance</a></th><td class="num">{{ terms.recorded_balance_cents|money }}</td></tr>
+              <tr><th scope="row">− <a href="/bills">Bills due before {{ view.cycle.next_allowance.isoformat() }}</a>
+                <span class="muted">({{ view.reserved_bills|length }} unpaid)</span></th><td class="num">{{ terms.personal_bills_cents|money }}</td></tr>
+              <tr><th scope="row">− {% if view.in_household %}<a href="/households">Household bill shares</a>{% else %}Household bill shares <span class="muted">(no household yet)</span>{% endif %}</th><td class="num">{{ terms.household_bill_shares_cents|money }}</td></tr>
+              <tr><th scope="row">− <a href="/goals">Protected savings</a></th><td class="num">{{ terms.protected_savings_cents|money }}</td></tr>
+              <tr><th scope="row">− {% if view.in_household %}<a href="/households">What you owe flatmates</a>{% else %}What you owe flatmates <span class="muted">(no household yet)</span>{% endif %}</th><td class="num">{{ terms.household_payables_cents|money }}</td></tr>
+              <tr><th scope="row">− <a href="/goals">Goal plan reserve</a></th><td class="num">{{ terms.goal_plan_reserve_cents|money }}</td></tr>
+              <tr class="total"><th scope="row">= Discretionary</th><td class="num">{{ safe.discretionary_cents|money }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="muted">Your planned allowance of {{ view.planned_allowance_cents|money }} is expected, not counted, until you record it.
+          {% if view.household_receivables_cents %}Flatmates owe you {{ view.household_receivables_cents|money }}; it counts once they settle up.{% endif %}</p>
+      </section>
     </div>
-    <div class="card">
-      <h2>Next allowance</h2>
-      <p class="figure"><time datetime="{{ view.cycle.next_allowance.isoformat() }}">{{ view.cycle.next_allowance.isoformat() }}</time></p>
-      <p class="muted">In {{ days }} day{{ "" if days == 1 else "s" }}.
-        Expected {{ view.planned_allowance_cents|money }}, not counted until you record it.</p>
+
+    <div class="dash-col">
+      {% set unread = alerts|rejectattr("read")|list %}
+      {% if unread %}
+        <section class="card" aria-labelledby="alerts-heading">
+          <div class="card-head">
+            <h2 id="alerts-heading">{{ unread|length }} new alert{{ "" if unread|length == 1 else "s" }}</h2>
+            <a href="/alerts">View all</a>
+          </div>
+          <ul class="rows">
+            {% for alert in unread[:3] %}
+              <li class="row">
+                <span class="row-icon {{ 'tone-red' if alert.severity == 'critical' else ('tone-amber' if alert.severity == 'warning' else 'tone-blue') }}">{{ icons.icon("bell") }}</span>
+                <span class="row-main"><span class="row-meta">{{ alert.message }}</span></span>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+
+      <section class="card" aria-labelledby="preview-heading">
+        <div class="card-head"><h2 id="preview-heading">Can I afford it?</h2></div>
+        {{ forms.error_summary(errors) }}
+        <form method="get" action="/" class="preview-form">
+          {{ forms.field("cost", "Total cost (€)", errors, values.cost, inputmode="decimal",
+                         hint="A purchase or trip. Nothing is saved.") }}
+          <button type="submit" class="button">Preview</button>
+        </form>
+        {% if preview %}
+          <div class="notice preview-result" role="status">
+            {% if preview.after_shortfall_cents %}
+              <p><strong>You would be {{ preview.after_shortfall_cents|money }} short.</strong> After spending {{ preview.cost_cents|money }},
+                nothing would be safe to spend ({{ preview.after_daily_cents|money }} per day).</p>
+            {% else %}
+              <p>After spending {{ preview.cost_cents|money }}: <strong>{{ preview.after_cents|money }}</strong> left,
+                or <strong>{{ preview.after_daily_cents|money }} per day</strong> instead of {{ safe.daily_cents|money }}.</p>
+            {% endif %}
+          </div>
+        {% endif %}
+      </section>
+
+      <section class="card" aria-labelledby="recent-heading">
+        <div class="card-head">
+          <h2 id="recent-heading">Recent activity</h2>
+          <a href="/transactions">See all</a>
+        </div>
+        {% if recent %}
+          <ul class="rows">
+            {% for item in recent %}
+              {% set style = category_style(item.category_id) %}
+              <li class="row">
+                <span class="row-icon {% if item.kind == 'income' %}tone-green{% else %}tone-{{ style.tone }}{% endif %}">{{ icons.icon("income" if item.kind == "income" else style.icon) }}</span>
+                <span class="row-main">
+                  <span class="row-title">{% if item.kind == "income" %}{{ "Allowance" if item.income_source == "allowance" else ("Settlement received" if item.income_source == "settlement" else "Other income") }}{% else %}{{ categories.get(item.category_id, "Settlement") }}{% endif %}</span>
+                  <span class="row-meta">{{ item.occurred_on.isoformat() }}{% if item.note %} · {{ item.note }}{% endif %}</span>
+                </span>
+                <span class="amount {{ 'amount-in' if item.kind == 'income' else 'amount-out' }}">{{ "+" if item.kind == "income" else "−" }}{{ item.amount_cents|money }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted">Nothing recorded yet. Tap + to add your first expense.</p>
+        {% endif %}
+      </section>
     </div>
-  </section>
-  <p class="actions">
-    <a class="button" href="/transactions/new">Add expense</a>
-    <a class="button button-secondary" href="/transactions/new?kind=income">Add income</a>
-    <a href="/transactions">All transactions</a>
-  </p>
+  </div>
 {% endblock %}

@@ -11,16 +11,19 @@
     </div>
   {% endif %}
   {{ forms.error_summary(errors) }}
-  <form method="post" action="{{ action }}" class="stack">
+  <form method="post" action="{{ action }}" class="stack card">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {% if editing %}<input type="hidden" name="version" value="{{ values.version }}">{% endif %}
     <fieldset class="field{% if errors.kind %} field-has-error{% endif %}">
-      <legend>Type</legend>
+      <legend class="visually-hidden">Type</legend>
       {% if errors.kind %}<p class="field-error" id="kind-error">{{ errors.kind }}</p>{% endif %}
-      <label class="choice"><input type="radio" id="kind" name="kind" value="expense"{% if values.kind == "expense" %} checked{% endif %}> Expense</label>
-      <label class="choice"><input type="radio" name="kind" value="income"{% if values.kind == "income" %} checked{% endif %}> Income</label>
+      <div class="segmented">
+        <label><input type="radio" id="kind" name="kind" value="expense"{% if values.kind == "expense" %} checked{% endif %}> Expense</label>
+        <label><input type="radio" name="kind" value="income"{% if values.kind == "income" %} checked{% endif %}> Income</label>
+      </div>
     </fieldset>
-    {{ forms.field("amount", "Amount (€)", errors, values.amount, inputmode="decimal", hint="For example 12.50 or 12,50.") }}
+    {{ forms.field("amount", "Amount (€)", errors, values.amount, inputmode="decimal", hint="For example 12.50 or 12,50.",
+                   extra_class="amount-field", placeholder="0.00") }}
     {{ forms.field("occurred_on", "Date", errors, values.occurred_on, type="date") }}
     <div class="field{% if errors.category_id %} field-has-error{% endif %}">
       <label for="category_id">Category <span class="muted">(expenses)</span></label>
@@ -42,7 +45,7 @@
     </div>
     <div class="field">
       <label class="choice"><input type="checkbox" id="one_off" name="one_off"{% if values.one_off %} checked{% endif %}>
-        One-off expense <span class="muted">(left out of your usual spending pace)</span></label>
+        <span>One-off expense <span class="muted">(left out of your usual spending pace)</span></span></label>
     </div>
     <div class="field{% if errors.note %} field-has-error{% endif %}">
       <label for="note">Note <span class="muted">(optional)</span></label>

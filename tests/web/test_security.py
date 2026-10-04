@@ -147,4 +147,5 @@ def test_error_pages_keep_the_signed_in_navigation(app):
 def test_checkboxes_and_radios_are_not_stretched_like_text_inputs(client):
     css = client.get("/static/float.css").text
     rule = css[css.index('.field input[type="checkbox"]'):]
-    assert "width: auto" in rule[:rule.index("}")]
+    declarations = rule[:rule.index("}")]
+    assert "width: 100%" not in declarations and "width: 1.2rem" in declarations

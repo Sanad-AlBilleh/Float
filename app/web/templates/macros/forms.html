@@ -13,17 +13,18 @@
   {% endif %}
 {% endmacro %}
 
-{% macro field(name, label, errors, value="", type="text", hint=None, autocomplete=None, inputmode=None) %}
+{% macro field(name, label, errors, value="", type="text", hint=None, autocomplete=None, inputmode=None, extra_class="", placeholder=None) %}
   {%- set described = [] -%}
   {%- if hint %}{% set _ = described.append(name ~ "-hint") %}{% endif -%}
   {%- if errors.get(name) %}{% set _ = described.append(name ~ "-error") %}{% endif -%}
-  <div class="field{% if errors.get(name) %} field-has-error{% endif %}">
+  <div class="field {{ extra_class }}{% if errors.get(name) %} field-has-error{% endif %}">
     <label for="{{ name }}">{{ label }}</label>
     {% if hint %}<p class="hint" id="{{ name }}-hint">{{ hint }}</p>{% endif %}
     {% if errors.get(name) %}<p class="field-error" id="{{ name }}-error">{{ errors[name] }}</p>{% endif %}
     <input id="{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ value }}"
       {%- if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}
       {%- if inputmode %} inputmode="{{ inputmode }}"{% endif %}
+      {%- if placeholder %} placeholder="{{ placeholder }}"{% endif %}
       {%- if errors.get(name) %} aria-invalid="true"{% endif %}
       {%- if described %} aria-describedby="{{ described|join(' ') }}"{% endif %}>
   </div>

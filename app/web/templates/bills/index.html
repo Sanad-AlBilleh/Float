@@ -1,19 +1,22 @@
 {% extends "base.html" %}
+{% import "macros/icons.html" as icons %}
 {% block title %}Bills{% endblock %}
 {% set labels = {"paid": "Paid", "skipped": "Skipped", "overdue": "Overdue", "reserved": "Reserved", "upcoming": "Upcoming"} %}
 {% macro occurrence_table(rows, caption) %}
-  <div class="table-scroll">
-    <table class="table">
-      <caption class="visually-hidden">{{ caption }}</caption>
-      <thead><tr><th scope="col">Due</th><th scope="col">Bill</th><th scope="col" class="num">Amount</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
-      <tbody>
-        {% for row in rows %}
-          <tr>
-            <td><time datetime="{{ row.due_date.isoformat() }}">{{ row.due_date.isoformat() }}</time></td>
-            <td><a href="/bills/occurrences/{{ row.id }}">{{ row.name }}</a><br><span class="muted">{{ categories.get(row.category_id, "") }}</span></td>
-            <td class="num">{{ row.amount_cents|money }}</td>
-            <td><span class="status status-{{ row.status }}">{{ labels[row.status] }}</span></td>
-            <td>
+  <section class="card" aria-label="{{ caption }}">
+    <ul class="rows">
+      {% for row in rows %}
+        {% set style = category_style(row.category_id) %}
+        <li class="row">
+          <span class="row-icon tone-{{ style.tone }}">{{ icons.icon(style.icon) }}</span>
+          <span class="row-main">
+            <a class="row-title" href="/bills/occurrences/{{ row.id }}">{{ row.name }}</a>
+            <span class="row-meta">Due <time datetime="{{ row.due_date.isoformat() }}">{{ row.due_date.isoformat() }}</time> · {{ categories.get(row.category_id, "") }}</span>
+            <span class="status status-{{ row.status }}">{{ labels[row.status] }}</span>
+          </span>
+          <span class="row-side">
+            <span class="amount">{{ row.amount_cents|money }}</span>
+            <span class="row-actions">
               {% if row.status == "paid" %}
                 <form method="post" action="/bills/occurrences/{{ row.id }}/undo" class="inline-form">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -39,20 +42,25 @@
                 </form>
                 <a href="/bills/occurrences/{{ row.id }}">Change<span class="visually-hidden"> {{ row.name }} due {{ row.due_date.isoformat() }}</span></a>
               {% endif %}
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+            </span>
+          </span>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
 {% endmacro %}
 {% block content %}
-  <h1>Bills</h1>
+  <div class="page-head">
+    <h1>Bills</h1>
+    <a class="button button-small" href="/bills/new">{{ icons.icon("plus") }}<span>Add a bill</span></a>
+  </div>
   {% if notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
-  <p class="lead">Reserved this cycle: <strong>{{ view.reserved_cents|money }}</strong>
-    <span class="muted">— unpaid bills due before your next allowance on
-    <time datetime="{{ view.cycle.next_allowance.isoformat() }}">{{ view.cycle.next_allowance.isoformat() }}</time>, overdue ones included.</span></p>
-  <p class="actions"><a class="button" href="/bills/new">Add a bill</a></p>
+  <section class="hero" aria-label="Reserved this cycle">
+    <h2>Reserved this cycle</h2>
+    <p class="figure figure-large">{{ view.reserved_cents|money_whole }}<span class="fraction">{{ view.reserved_cents|money_fraction }}</span></p>
+    <p>Reserved this cycle: {{ view.reserved_cents|money }} — unpaid bills due before your next allowance on
+      <time datetime="{{ view.cycle.next_allowance.isoformat() }}">{{ view.cycle.next_allowance.isoformat() }}</time>, overdue ones included.</p>
+  </section>
   {% set earlier = view.in_range(None, view.cycle.start) %}
   {% set this_cycle = view.in_range(view.cycle.start, view.cycle.next_allowance) %}
   {% set next_cycle = view.in_range(view.cycle.next_allowance, view.cycle.horizon_end) %}

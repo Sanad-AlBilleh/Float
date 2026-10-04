@@ -9,7 +9,7 @@
       so your history always means the same thing. You can change the planned allowance at any time.</p>
   </div>
   {{ forms.error_summary(errors) }}
-  <form method="post" action="/setup" class="stack">
+  <form method="post" action="/setup" class="stack card">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {{ forms.field("tracking_start", "Tracking start date", errors, values.tracking_start, type="date",
                    hint="Usually today. Transactions are recorded from this date on.") }}

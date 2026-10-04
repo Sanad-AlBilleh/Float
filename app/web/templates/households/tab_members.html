@@ -49,7 +49,7 @@
     </ul>
   {% endif %}
   <h2>Household settings</h2>
-  <form method="post" action="/households/{{ household.id }}/rename" class="stack">
+  <form method="post" action="/households/{{ household.id }}/rename" class="stack card">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <input type="hidden" name="version" value="{{ household.version }}">
     {{ forms.field("name", "Name", errors, values.name or household.name) }}
@@ -57,7 +57,7 @@
   </form>
   {% set others = page.active_members|rejectattr("role", "equalto", "owner")|list %}
   {% if others %}
-    <form method="post" action="/households/{{ household.id }}/transfer" class="stack">
+    <form method="post" action="/households/{{ household.id }}/transfer" class="stack card">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="version" value="{{ household.version }}">
       <div class="field">
@@ -69,14 +69,14 @@
       <button type="submit" class="button button-secondary">Transfer ownership</button>
     </form>
   {% endif %}
-  <form method="post" action="/households/{{ household.id }}/archive" class="stack">
+  <form method="post" action="/households/{{ household.id }}/archive" class="stack card">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <input type="hidden" name="version" value="{{ household.version }}">
     <p class="muted">Archiving needs every balance at €0.00 and no pending settlement. It ends every membership and cannot be undone.</p>
     <button type="submit" class="button button-secondary">Archive household</button>
   </form>
 {% elif page.can_write %}
-  <form method="post" action="/households/{{ household.id }}/leave" class="stack">
+  <form method="post" action="/households/{{ household.id }}/leave" class="stack card">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button type="submit" class="button button-secondary">Leave this household</button>
   </form>

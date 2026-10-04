@@ -4,7 +4,7 @@
 {% block content %}
   <h1>Create your account</h1>
   {{ forms.error_summary(errors) }}
-  <form method="post" action="/register" class="stack">
+  <form method="post" action="/register" class="stack card">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {{ forms.field("username", "Username", errors, values.get("username", ""), autocomplete="username",
                    hint="3–32 characters: lowercase letters, digits, or _.") }}

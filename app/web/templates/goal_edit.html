@@ -6,7 +6,7 @@
   <h1>Edit {{ goal.name }}</h1>
   <p class="muted">{{ goal.protected_cents|money }} is protected, so the target cannot go below that.</p>
   {{ forms.error_summary(errors) }}
-  <form method="post" action="/goals/{{ goal.id }}/edit" class="stack">
+  <form method="post" action="/goals/{{ goal.id }}/edit" class="stack card">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <input type="hidden" name="version" value="{{ values.version }}">
     {{ goal_form.goal_fields(values, errors, priorities) }}

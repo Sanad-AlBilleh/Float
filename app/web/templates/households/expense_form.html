@@ -12,7 +12,7 @@
       The form now shows the latest version; make your changes again.</p></div>
   {% endif %}
   {{ forms.error_summary(errors) }}
-  <form method="post" action="{{ action }}" class="stack">
+  <form method="post" action="{{ action }}" class="stack card">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {% if editing %}<input type="hidden" name="version" value="{{ values.version }}">{% endif %}
     {{ forms.field("amount", "Amount you paid (€)", errors, values.amount, inputmode="decimal") }}
@@ -30,7 +30,7 @@
     {{ forms.field("description", "Description", errors, values.description, hint="For example Weekly groceries.") }}
     <div class="field">
       <label class="choice"><input type="checkbox" id="one_off" name="one_off"{% if values.one_off %} checked{% endif %}>
-        One-off <span class="muted">(left out of everyone's usual spending pace)</span></label>
+        <span>One-off <span class="muted">(left out of everyone's usual spending pace)</span></span></label>
     </div>
     <fieldset class="field{% if errors.split_method %} field-has-error{% endif %}">
       <legend>How to split it</legend>

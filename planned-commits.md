@@ -38,8 +38,8 @@ Merge commits are counted too, as the conservative reading of the rule.
 | Wed 30 Sep | 2 (requirements v0.2) + 3 (foundation) + 1 (this schedule change) | 3 | 9 | done |
 | Thu 1 Oct | 6 (one unplanned fix) + 1 (branch renames) + 1 (review fixes) | 3 | 11 | done |
 | Fri 2 Oct | 7 | 1 | 8 | done |
-| Sat 3 Oct | 7 + 1 unplanned fix | 1 | 9 | done once the PR is merged |
-| Sun 4 Oct | 3–6 | 1 | 4–7 | planned |
+| Sat 3 Oct | 7 + 1 unplanned fix | 1 | 9 | done |
+| Sun 4 Oct | 3–6 | 1 | 4–7 | in progress |
 | **Total** | | | **about 43** | |
 
 With about 43 commits, the largest day (1 Oct, 11 commits) is about 26%. Even if every remaining day from 2 October manages only 3 content commits plus a merge, the total is 35 and 1 Oct is 31%, still under 40%. **No more commits on 1 October.** **No more commits on 30 September.**
@@ -98,7 +98,7 @@ Branch `feature/households-and-alerts`. The first four commits are P0; the alert
 - [x] `Expose the JSON API with idempotency keys` (FR-34–35), only if time remains: built, because time remained
 - [x] `Fix squeezed checkbox and radio labels in forms`: unplanned, found in the day's browser check.
 - [x] `Record the testing decision, final ADR, and report draft` (ADR-4, ADR-5, report draft, AI log)
-- [ ] Merge PR `Build households, alerts, and the report draft`. This box is ticked in the next day's first commit.
+- [x] Merge PR `Build households, alerts, and the report draft` (PR #9). This box was ticked in the next day's first commit.
 
 ## Day 4 — Sunday 4 October: testing, fixes, and polish (deadline 23:59)
 
@@ -106,7 +106,7 @@ Branch `release/testing-and-polish`. **No new features.** Merge by 20:00 to keep
 
 - [ ] `Record the acceptance pass and performance measurements` (fresh-clone check, full suite and coverage, performance smoke test, walkthrough with the student; AT-29–31, NFR-05)
 - [ ] `Fix <symptom>`: one commit per bug or small related group, each with a regression test written first
-- [ ] `Improve <page or flow>`: UI changes from the student's own review
+- [x] `Improve <page or flow>`: UI changes from the student's own review. Done as `Redesign the interface for desktop and phones`, from reference screenshots the student supplied.
 - [ ] `Record final measurements and verification results` (README numbers, report numbers, AI log, final status here)
 - [ ] Merge PR `Verify, fix, and polish Float for submission`
 

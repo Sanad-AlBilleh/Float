@@ -1,8 +1,15 @@
 {% extends "base.html" %}
+{% import "macros/icons.html" as icons %}
 {% block title %}Transactions{% endblock %}
 {% set managers = {"bill": "bill", "shared": "shared expense", "settlement": "settlement"} %}
 {% block content %}
-  <h1>Transactions</h1>
+  <div class="page-head">
+    <h1>Transactions</h1>
+    <div class="actions">
+      <a class="button button-secondary button-small" href="/transactions/new?kind=income">{{ icons.icon("arrow-down") }}<span>Add income</span></a>
+      <a class="button button-small" href="/transactions/new">{{ icons.icon("plus") }}<span>Add expense</span></a>
+    </div>
+  </div>
   {% if saved %}<p class="notice" role="status">Saved.</p>{% endif %}
   {% if deleted %}<p class="notice" role="status">Deleted.</p>{% endif %}
   {% if balance < 0 %}
@@ -11,33 +18,29 @@
         The expense was saved; check for income you have not recorded yet.</p>
     </div>
   {% endif %}
-  <p class="actions">
-    <a class="button" href="/transactions/new">Add expense</a>
-    <a class="button button-secondary" href="/transactions/new?kind=income">Add income</a>
-  </p>
   {% if items %}
-    <div class="table-scroll">
-      <table class="table">
-        <caption class="visually-hidden">Your transactions, newest first</caption>
-        <thead>
-          <tr><th scope="col">Date</th><th scope="col">What</th><th scope="col" class="num">Amount</th><th scope="col">Actions</th></tr>
-        </thead>
-        <tbody>
-          {% for item in items %}
-            <tr>
-              <td><time datetime="{{ item.occurred_on.isoformat() }}">{{ item.occurred_on.isoformat() }}</time></td>
-              <td>
+    <section class="card" aria-label="Your transactions, newest first">
+      <ul class="rows">
+        {% for item in items %}
+          {% set style = category_style(item.category_id) %}
+          <li class="row">
+            <span class="row-icon {% if item.kind == 'income' %}tone-green{% elif item.origin == 'settlement' %}tone-slate{% else %}tone-{{ style.tone }}{% endif %}">{{ icons.icon("income" if item.kind == "income" else ("swap" if item.origin == "settlement" else style.icon)) }}</span>
+            <span class="row-main">
+              <span class="row-title">
                 {% if item.kind == "expense" %}{{ categories.get(item.category_id, "Settlement") }}
                 {% elif item.income_source == "allowance" %}Allowance
                 {% elif item.income_source == "settlement" %}Settlement received
                 {% else %}Other income{% endif %}
                 {% if item.one_off %}<span class="tag">one-off</span>{% endif %}
-                {% if item.id in unusual %}<span class="tag tag-unusual">Unusual</span>
-                  <br><span class="muted">{{ item.amount_cents|money }} is well above your typical {{ unusual[item.id]|money }} for {{ categories.get(item.category_id) }}.</span>{% endif %}
-                {% if item.note %}<br><span class="muted">{{ item.note }}</span>{% endif %}
-              </td>
-              <td class="num">{{ "+" if item.kind == "income" else "−" }}{{ item.amount_cents|money }}</td>
-              <td>
+                {% if item.id in unusual %}<span class="tag tag-unusual">Unusual</span>{% endif %}
+              </span>
+              <span class="row-meta"><time datetime="{{ item.occurred_on.isoformat() }}">{{ item.occurred_on.isoformat() }}</time>{% if item.note %} · {{ item.note }}{% endif %}</span>
+              {% if item.id in unusual %}<span class="row-meta">{{ item.amount_cents|money }} is well above your typical {{ unusual[item.id]|money }} for {{ categories.get(item.category_id) }}.</span>{% endif %}
+              {% if not item.directly_editable %}<span class="row-meta">Managed by its {{ managers[item.origin] }}</span>{% endif %}
+            </span>
+            <span class="row-side">
+              <span class="amount {{ 'amount-in' if item.kind == 'income' else 'amount-out' }}">{{ "+" if item.kind == "income" else "−" }}{{ item.amount_cents|money }}</span>
+              <span class="row-actions">
                 {% if item.directly_editable %}
                   <a href="/transactions/{{ item.id }}/edit">Edit<span class="visually-hidden"> the {{ item.occurred_on.isoformat() }} transaction</span></a>
                   <form method="post" action="/transactions/{{ item.id }}/delete" class="inline-form">
@@ -45,17 +48,15 @@
                     <input type="hidden" name="version" value="{{ item.version }}">
                     <button type="submit" class="link-button">Delete</button>
                   </form>
-                {% else %}
-                  <span class="muted">Managed by its {{ managers[item.origin] }}</span>
                 {% endif %}
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% if older %}<p><a href="/transactions?before={{ older|urlencode }}">Older transactions</a></p>{% endif %}
+              </span>
+            </span>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% if older %}<p class="actions"><a class="button button-secondary" href="/transactions?before={{ older|urlencode }}">Older transactions</a></p>{% endif %}
   {% else %}
-    <p>No transactions yet. Add your first expense or income above.</p>
+    <div class="card"><p>No transactions yet. Add your first expense or income above.</p></div>
   {% endif %}
 {% endblock %}

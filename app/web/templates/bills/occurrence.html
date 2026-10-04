@@ -22,7 +22,7 @@
   {% else %}
     {% if row.status != "skipped" %}
       <h2>Pay</h2>
-      <form method="post" action="/bills/occurrences/{{ row.id }}/pay" class="stack">
+      <form method="post" action="/bills/occurrences/{{ row.id }}/pay" class="stack card">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="version" value="{{ row.version }}">
         {{ forms.field("paid_on", "Paid on", errors, values.paid_on, type="date", hint="Today or an earlier date since tracking started.") }}
@@ -30,7 +30,7 @@
       </form>
     {% endif %}
     <h2>Change this bill only</h2>
-    <form method="post" action="/bills/occurrences/{{ row.id }}/edit" class="stack">
+    <form method="post" action="/bills/occurrences/{{ row.id }}/edit" class="stack card">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="version" value="{{ row.version }}">
       {{ forms.field("edit_amount", "Amount (€)", errors, values.edit_amount, inputmode="decimal") }}
@@ -40,7 +40,7 @@
     {% if not series.ended %}
       <h2>Change this and future bills</h2>
       <p class="muted">Earlier bills keep their amounts. Refused if a bill on or after this date is already paid.</p>
-      <form method="post" action="/bills/occurrences/{{ row.id }}/split" class="stack">
+      <form method="post" action="/bills/occurrences/{{ row.id }}/split" class="stack card">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="version" value="{{ row.version }}">
         {{ bill_fields.series_fields(values, errors, categories) }}

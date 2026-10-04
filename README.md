@@ -81,19 +81,21 @@ Example: `PORT=9000 DATA_DIR=/tmp/float python app.py`
 
 All data lives in one SQLite file: **`DATA_DIR/float.sqlite3`**, so `data/float.sqlite3` by default. The `data/` folder is in `.gitignore`, so every clone starts with an empty database. To back it up, copy that file while the app is stopped.
 
-## Demo data
+## Log in as the demo user (Borja)
 
-To see every feature without typing a month of data, fill a fresh folder with demo data and start Float on it:
+To see every feature with a month of data already filled in, create the demo account **before the first start**, then start Float as normal:
 
 ```bash
-python scripts/seed_demo.py demo-data your_username "Your Name" your_password
+python scripts/seed_demo.py data Borjita_Best_Prof "Borja Planelles" Password-is-Password
 ```
 
 ```bash
-DATA_DIR=demo-data PORT=8001 python app.py
+python app.py
 ```
 
-This creates your account plus two flatmates, `lucia_demo` and `marco_demo` (same password), with a month of income, expenses, bills, goals, budgets, alerts, a shared household, invitation codes and settlements. The password is only passed on the command line and is never saved in the repository.
+Open http://localhost:8000 and log in with username **Borjita_Best_Prof** and password **Password-is-Password**.
+
+The script fills `data/float.sqlite3` with a month of income, expenses, bills, goals, budgets, custom categories, alerts and a shared flat ("Piso Ruzafa"). Two flatmates joined it with invitation codes, and you can log in as them too: `lucia_demo` and `marco_demo`, with the same password. If you already started Float once, delete the `data` folder first, because the script only fills an empty database. These are made-up demo accounts with no real data.
 
 ## Tests and coverage
 
@@ -151,4 +153,4 @@ Each domain only exposes its `api.py`. Domains never import each other; the appl
 
 ## Commit history
 
-The project was built in daily slices between 28 September and 4 October 2026, with one pull request merged per day. 61 commits were pushed on 6 different days (3, 9, 11, 8, 9 and 21), and the biggest day, 4 October, holds 34% of them, under the 40% limit.
+The project was built in daily slices between 28 September and 4 October 2026, with one pull request merged per day. 62 commits were pushed on 6 different days (3, 9, 11, 8, 9 and 22), and the biggest day, 4 October, holds 35% of them, under the 40% limit.

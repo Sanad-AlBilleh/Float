@@ -61,7 +61,7 @@ def _series_values(series, *, anchor: date | None = None, count: int | None = No
     rule = series.rule
     return {"name": series.name, "amount": cents_to_input(series.amount_cents), "category_id": str(series.category_id),
             "freq": rule.freq, "interval": str(rule.interval), "anchor_date": (anchor or rule.anchor).isoformat(),
-            "until": "" if rule.until is None or anchor else rule.until.isoformat(),
+            "until": "" if rule.until is None or (anchor and rule.until < anchor) else rule.until.isoformat(),
             "count": "" if count is None else str(count)}
 
 

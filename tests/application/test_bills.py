@@ -252,3 +252,12 @@ def test_ending_removes_a_bill_due_today_but_keeps_skipped_ones(conn, ana, today
     bills.skip_occurrence(conn, ana, later.id, later.version, today)
     bills.end_series(conn, ana, series.id, series.version, today)
     assert [(day, o.status) for day, o in view(conn, ana, today).items()] == [(date(2026, 9, 27), "skipped")]
+
+
+def test_a_split_keeps_the_end_date(conn, ana, today):
+    """Review finding 2: a bill that ends in March must still end in March after "this and future"."""
+    add(conn, ana, today, until=date(2027, 3, 5))
+    october = occurrence_on(conn, ana, today, date(2026, 10, 5))
+    new = bills.split_series(conn, ana, october.id, october.version,
+                             bills.SeriesInput("Gym", 4500, 6, Rule("monthly", 1, date(2026, 10, 5))), today)
+    assert new.rule.until == date(2027, 3, 5)

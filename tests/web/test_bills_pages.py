@@ -132,3 +132,12 @@ def test_bill_forms_need_a_csrf_token(client):
                            follow_redirects=False)
     assert response.status_code == 403
     assert csrf_from(client.get("/bills"))
+
+
+def test_the_split_form_keeps_the_end_date(client):
+    sign_up(client)
+    set_up(client, opening_balance="500")
+    add_bill(client, until="2027-03-25")
+    october = actions(client)[-1][0]
+    page = client.get(f"/bills/occurrences/{october}").text
+    assert 'name="until" type="date" value="2027-03-25"' in page

@@ -207,8 +207,12 @@ def leave_blockers(conn: sqlite3.Connection, *, household_id: int, user_id: int)
         reasons.append(f"You still owe {format_money(-net)}. Settle up first.")
     if repository.has_pending_settlement(conn, household_id=household_id, user_id=user_id):
         reasons.append("A settlement involving you is still pending.")
-    for name in repository.active_bill_names(conn, household_id=household_id, user_id=user_id):
+    active = repository.active_bill_names(conn, household_id=household_id, user_id=user_id)
+    for name in active:
         reasons.append(f"You share the household bill “{name}”. The owner must end it first.")
+    for name in repository.unpaid_bill_names(conn, household_id=household_id, user_id=user_id):
+        if name not in active:  # review finding 4: an ended bill can still be due
+            reasons.append(f"You share an unpaid “{name}” bill. Pay or skip it first.")
     return reasons
 
 

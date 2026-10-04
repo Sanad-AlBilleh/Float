@@ -147,3 +147,22 @@ def test_a_zero_percent_participant_is_explained_not_a_crash(conn, flat):
     with pytest.raises(ValidationError) as error:
         add(conn, flat, flat.ana, flat.ben, method="percentage", values=[10000, 0])
     assert "split" in error.value.errors and "above zero" in error.value.errors["split"]
+
+
+def test_nobody_leaves_while_sharing_an_unpaid_bill(conn, clock):
+    """Review finding 4: an overdue bill of an ended series must be paid or skipped before a sharer leaves."""
+    from app.application import households
+    from tests.households.conftest import flat as make_flat
+
+    household, ana, ben, carla = make_flat.__wrapped__(conn, clock)
+    everyone = tuple(SplitEntry(a.user_id) for a in (ana, ben, carla))
+    series = shared_money.add_household_bill(conn, ana, household.id, shared_money.HouseholdBillInput(
+        "Internet", 3600, UTILITIES, Rule("monthly", 1, date(2026, 9, 30)), "equal", everyone), clock)
+    clock.advance(days=1)  # 1 October: the 30 September bill is overdue
+    shared_money.end_household_bill(conn, ana, series.id, series.version, clock)
+    with pytest.raises(ConflictError, match="Internet"):
+        households.leave(conn, ben, household.id, clock)
+    overdue = next(o for o in shared_money.household_bills(conn, ben, household.id, clock).occurrences
+                   if o.status == "overdue")
+    shared_money.skip_household_occurrence(conn, ben, overdue.id, overdue.version, clock, skipped=True)
+    households.leave(conn, ben, household.id, clock)

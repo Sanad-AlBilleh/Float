@@ -178,3 +178,19 @@ def test_former_members_do_not_see_current_balances_or_bills(client, make_client
     assert "Water" not in ben.get(page + "?tab=bills").text
     assert "€20.00" not in ben.get(page + "?tab=members").text
     assert "Carla pays Ana €20.00" in client.get(page).text
+
+
+def test_settlement_notices_read_the_right_way_round(client, make_client):
+    """Review findings 7 and 8."""
+    page, ben, carla, ids = flat(client, make_client)
+    add_expense(client, page, ids)  # Ben and Carla each owe Ana €10
+    received = post_form(client, page + "?tab=settlements", page + "/settlements/new",
+                         {"direction": "received", "counterparty": str(ids[2]), "amount": "50", "paid_on": "2026-09-30"})
+    assert "you will owe them the rest" in client.get(received.headers["location"]).text
+    paid = post_form(ben, page + "?tab=settlements", page + "/settlements/new",
+                     {"direction": "paid", "counterparty": str(ids[0]), "amount": "50", "paid_on": "2026-09-30"})
+    assert "they will owe you the rest" in ben.get(paid.headers["location"]).text
+    tab = ben.get(page + "?tab=settlements").text
+    cancel = re.search(r'action="(/households/\d+/settlements/\d+/cancel)".*?name="version" value="(\d+)"', tab, re.S)
+    done = post_form(ben, page + "?tab=settlements", cancel.group(1), {"version": cancel.group(2)})
+    assert "Cancelled." in ben.get(done.headers["location"]).text

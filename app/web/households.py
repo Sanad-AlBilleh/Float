@@ -24,7 +24,9 @@ NOTICES = {"joined": "Welcome! You joined the household.", "created": "Household
            "saved": "Saved.", "left": "You left the household.", "removed": "Member removed.",
            "revoked": "Invitation revoked.", "archived": "Household archived. It is now read-only history.",
            "recorded": "Transfer recorded. It counts once the other person confirms it.",
-           "over": "Transfer recorded. Note: it is more than the settle-up plan suggests, so they will owe you the rest.",
+           "over_paid": "Transfer recorded. Note: it is more than the settle-up plan suggests, so they will owe you the rest.",
+           "over_received": "Transfer recorded. Note: it is more than the settle-up plan suggests, so you will owe them "
+                            "the rest.",
            "confirmed": "Confirmed. Both ledgers now show the transfer.", "rejected": "Rejected.",
            "cancelled": "Cancelled.", "paid": "Paid. Your share and everyone else's are now in the balances.",
            "undone": "Payment undone.", "skipped": "Skipped.", "unskipped": "Unskipped.",
@@ -332,7 +334,8 @@ def record_settlement(household_id: int, request: Request, session: Session = De
         return household_page(request, conn, session, household_id, tab="settlements",
                               errors=in_form_order(errors, ["direction", "counterparty", "amount", "paid_on"]),
                               values=values, status_code=400)
-    return redirect(f"/households/{household_id}?tab=settlements&done={'over' if over else 'recorded'}")
+    outcome = ("over_received" if direction == "received" else "over_paid") if over else "recorded"
+    return redirect(f"/households/{household_id}?tab=settlements&done={outcome}")
 
 
 def _settlement_action(action: str):
@@ -350,7 +353,8 @@ def _settlement_action(action: str):
             shared_money.reject_settlement(conn, actor, settlement_id, expected, reason.strip(), clock)
         else:
             shared_money.cancel_settlement(conn, actor, settlement_id, expected, clock)
-        return redirect(f"/households/{household_id}?tab=settlements&done={action}ed".replace("eed", "ed"))
+        done = {"confirm": "confirmed", "reject": "rejected", "cancel": "cancelled"}[action]
+        return redirect(f"/households/{household_id}?tab=settlements&done={done}")
     return handler
 
 

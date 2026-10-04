@@ -9,7 +9,7 @@ from app.application import shared_money
 from app.application.activity import household_activity
 from app.households.api import SPLIT_METHODS, SplitEntry
 from app.identity.api import Session
-from app.ledger.api import list_categories
+from app.ledger.api import category_names, list_categories
 from app.shared.dates import parse_iso_date
 from app.shared.errors import ConflictError, NotFoundError, ValidationError
 from app.shared.money import cents_to_input, parse_money
@@ -83,7 +83,7 @@ def household_page(request: Request, conn: sqlite3.Connection, session: Session,
                   {"page": view, "tab": tab, "bills": bills, "activity": feed, "new_code": new_code, "notice": notice,
                    "errors": errors or {}, "values": values or {},
                    "page_today": request.app.state.clock.today().isoformat(),
-                   "categories": {c.id: c.name for c in list_categories(conn)}}, status_code=status_code)
+                   "categories": category_names(conn)}, status_code=status_code)
 
 
 @router.get("/{household_id}")
@@ -219,7 +219,7 @@ def _expense_form(request: Request, conn: sqlite3.Connection, session: Session, 
     view = use_cases.page(conn, actor_for(request, session), household_id, request.app.state.clock)
     return render(request, "households/expense_form.html",
                   {"page": view, "action": action, "values": values, "errors": errors or {}, "editing": editing,
-                   "conflict": conflict, "categories": list_categories(conn)}, status_code=status_code)
+                   "conflict": conflict, "categories": list_categories(conn, session.user.id)}, status_code=status_code)
 
 
 @router.get("/{household_id}/expenses/new")
@@ -383,7 +383,7 @@ def new_bill(household_id: int, request: Request, session: Session = Depends(req
 
 def _bill_form(request: Request, conn: sqlite3.Connection, view, values: dict, errors=None, status_code: int = 200):
     return render(request, "households/bill_form.html",
-                  {"page": view, "values": values, "errors": errors or {}, "categories": list_categories(conn)},
+                  {"page": view, "values": values, "errors": errors or {}, "categories": list_categories(conn, request.state.session.user.id)},
                   status_code=status_code)
 
 

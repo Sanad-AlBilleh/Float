@@ -28,8 +28,8 @@ def _audit(conn, actor: Actor, household_id: int, entity_type: str, entity_id: i
                  request_id=actor.request_id)
 
 
-def _category_ids(conn: sqlite3.Connection) -> set[int]:
-    return {category.id for category in ledger.list_categories(conn)}
+def _category_ids(conn: sqlite3.Connection, user_id: int | None = None) -> set[int]:
+    return {category.id for category in ledger.list_categories(conn, user_id)}
 
 
 def _renamed(error: ValidationError, field: str) -> ValidationError:
@@ -44,7 +44,7 @@ def expense_problems(conn: sqlite3.Connection, actor: Actor, household_id: int, 
     """Both domains' rules for a draft, as field messages (empty when valid)."""
     errors: dict[str, str] = {}
     try:
-        households.check_draft(conn, household_id=household_id, draft=draft, category_ids=_category_ids(conn))
+        households.check_draft(conn, household_id=household_id, draft=draft, category_ids=_category_ids(conn, actor.user_id))
     except ValidationError as error:
         errors.update(error.errors)
     settings = ledger.get_settings(conn, actor.user_id)
@@ -88,7 +88,7 @@ def record_expense(conn: sqlite3.Connection, actor: Actor, household_id: int, dr
             today=clock.today(), now=clock.now_utc(),
         )
         expense = households.create_expense(conn, household_id=household_id, payer_id=actor.user_id, draft=draft,
-                                            category_ids=_category_ids(conn), payer_transaction_id=transaction_id,
+                                            category_ids=_category_ids(conn, actor.user_id), payer_transaction_id=transaction_id,
                                             now=clock.now_utc())
         _audit(conn, actor, household_id, "shared_expense", expense.id, "create", clock, after=asdict(expense))
     return expense
@@ -105,7 +105,7 @@ def edit_expense(conn: sqlite3.Connection, actor: Actor, expense_id: int, versio
         if errors:
             raise ValidationError(errors)
         after = households.update_expense(conn, expense_id=expense_id, user_id=actor.user_id, version=version,
-                                          draft=draft, category_ids=_category_ids(conn), now=clock.now_utc())
+                                          draft=draft, category_ids=_category_ids(conn, actor.user_id), now=clock.now_utc())
         try:
             ledger.update_linked(conn, user_id=actor.user_id, transaction_id=after.payer_transaction_id,
                                  origin="shared", amount_cents=after.amount_cents, occurred_on=after.spent_on,
@@ -299,7 +299,7 @@ def household_bill_problems(conn: sqlite3.Connection, actor: Actor, household_id
                             clock: Clock) -> dict[str, str]:
     return households.bill_problems(conn, household_id=household_id, name=data.name, amount_cents=data.amount_cents,
                                     category_id=data.category_id, rule=data.rule, split_method=data.split_method,
-                                    entries=data.entries, category_ids=_category_ids(conn), today=clock.today())
+                                    entries=data.entries, category_ids=_category_ids(conn, actor.user_id), today=clock.today())
 
 
 def add_household_bill(conn: sqlite3.Connection, actor: Actor, household_id: int, data: HouseholdBillInput,
@@ -309,7 +309,7 @@ def add_household_bill(conn: sqlite3.Connection, actor: Actor, household_id: int
         series = households.create_bill_series(
             conn, household_id=household_id, name=data.name, amount_cents=data.amount_cents,
             category_id=data.category_id, rule=data.rule, split_method=data.split_method, entries=data.entries,
-            category_ids=_category_ids(conn), today=clock.today(), now=clock.now_utc())
+            category_ids=_category_ids(conn, actor.user_id), today=clock.today(), now=clock.now_utc())
         horizon = _viewer_cycle(conn, actor.user_id, clock).horizon_end
         households.ensure_materialized(conn, household_id=household_id, horizon_end=horizon)
         _audit(conn, actor, household_id, "household_bill", series.id, "create", clock,
@@ -361,7 +361,7 @@ def pay_household_occurrence(conn: sqlite3.Connection, actor: Actor, occurrence_
             occurred_on=paid_on, category_id=draft.category_id, income_source=None, note=draft.description,
             today=clock.today(), now=clock.now_utc())
         expense = households.create_expense(conn, household_id=occurrence.household_id, payer_id=actor.user_id,
-                                            draft=draft, category_ids=_category_ids(conn),
+                                            draft=draft, category_ids=_category_ids(conn, actor.user_id),
                                             payer_transaction_id=transaction_id, now=clock.now_utc())
         households.link_bill_payment(conn, occurrence_id=occurrence_id, version=version, expense_id=expense.id)
         _audit(conn, actor, occurrence.household_id, "household_bill_occurrence", occurrence_id, "pay", clock,

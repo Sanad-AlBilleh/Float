@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% import "macros/forms.html" as forms %}
+{% import "macros/icons.html" as icons %}
+{% block title %}Categories{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>Categories</h1>
+      <p class="muted">Float sorts expenses into these. When you add an expense, describe it and Float picks the
+        category for you; your own categories are matched by name first.</p>
+    </div>
+  </div>
+  {% if saved %}<p class="notice" role="status">Category added.</p>{% endif %}
+  <div class="dash">
+    <section class="card" aria-label="Your categories">
+      <ul class="rows">
+        {% for category in categories %}
+          {% set style = category_style(category.id) %}
+          <li class="row">
+            <span class="row-icon tone-{{ style.tone if not category.custom else 'indigo' }}">{{ icons.icon(style.icon if not category.custom else "sparkle") }}</span>
+            <span class="row-main"><span class="row-title">{{ category.name }}</span>
+              <span class="row-meta">{{ "Yours" if category.custom else "Built in" }}</span></span>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+    <section class="card" aria-labelledby="new-category">
+      <h2 id="new-category">Add a category</h2>
+      {{ forms.error_summary(errors) }}
+      <form method="post" action="/categories/new" class="stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {{ forms.field("name", "Name", errors, values.name, hint="For example Gym, Pets, or Gifts. Only you see it.") }}
+        <button type="submit" class="button">{{ icons.icon("plus") }}<span>Add category</span></button>
+      </form>
+    </section>
+  </div>
+{% endblock %}

@@ -50,7 +50,7 @@ def test_another_users_transaction_is_not_found(client, anas_transaction, ben):
 
 
 @pytest.mark.parametrize("path", ["/", "/transactions", "/transactions/new", "/transactions/1/edit", "/setup",
-                                  "/bills", "/bills/new", "/bills/occurrences/1", "/goals", "/goals/1/edit", "/forecast", "/budgets", "/households", "/households/1", "/alerts", "/activity",
+                                  "/bills", "/bills/new", "/bills/occurrences/1", "/goals", "/goals/1/edit", "/forecast", "/budgets", "/categories", "/households", "/households/1", "/alerts", "/activity",
                                   "/settings", "/account"])
 def test_anonymous_visitors_are_sent_to_login(make_client, path):
     anonymous = make_client()

@@ -24,8 +24,22 @@ def get_settings(conn: sqlite3.Connection, user_id: int) -> sqlite3.Row | None:
     ).fetchone()
 
 
-def list_categories(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-    return conn.execute("SELECT id, slug, name FROM categories ORDER BY id").fetchall()
+def list_categories(conn: sqlite3.Connection, user_id: int | None = None) -> list[sqlite3.Row]:
+    """The fixed categories, plus ``user_id``'s own when given."""
+    return conn.execute(
+        "SELECT id, slug, name, owner_user_id FROM categories WHERE owner_user_id IS NULL OR owner_user_id = ?"
+        " ORDER BY owner_user_id IS NOT NULL, id",
+        (user_id,),
+    ).fetchall()
+
+
+def all_category_names(conn: sqlite3.Connection) -> dict[int, str]:
+    return {row[0]: row[1] for row in conn.execute("SELECT id, name FROM categories")}
+
+
+def insert_category(conn: sqlite3.Connection, *, user_id: int, name: str) -> int:
+    return conn.execute("INSERT INTO categories (slug, name, owner_user_id) VALUES (?, ?, ?)",
+                        (f"u{user_id}:{name.lower()}", name, user_id)).lastrowid
 
 
 def insert_transaction(conn: sqlite3.Connection, *, user_id: int, kind: str, amount_cents: int, occurred_on: date,

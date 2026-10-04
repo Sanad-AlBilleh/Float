@@ -73,3 +73,36 @@ def validate_settings(*, tracking_start: date, opening_balance_cents: int, today
         errors["opening_balance"] = "Amounts are limited to €1,000,000.00."
     if errors:
         raise ValidationError(errors)
+
+
+# Words that point to each fixed category, for automatic categorization from what the user typed.
+CATEGORY_KEYWORDS = {
+    "groceries": ("grocer", "supermarket", "mercadona", "lidl", "aldi", "carrefour", "dia ", "market", "shop",
+                  "food", "fruit", "vegetable", "milk", "bread", "eggs"),
+    "eating_out": ("restaurant", "pizza", "burger", "sushi", "ramen", "kebab", "cafe", "coffee", "lunch", "dinner",
+                   "breakfast", "bar ", "drinks", "takeaway", "delivery", "glovo", "uber eats", "mcdonald", "taco"),
+    "transport": ("metro", "bus", "train", "taxi", "uber", "cabify", "fuel", "petrol", "parking", "bike", "transport"),
+    "housing": ("rent", "deposit", "landlord", "furniture", "ikea", "housing"),
+    "utilities": ("electric", "water", "gas", "internet", "wifi", "phone", "mobile", "utility", "utilities", "power"),
+    "subscriptions": ("netflix", "spotify", "subscription", "prime", "disney", "hbo", "icloud", "gym", "membership",
+                      "youtube", "chatgpt"),
+    "study": ("book", "course", "tuition", "university", "uni ", "library", "stationery", "laptop", "printing",
+              "exam", "study"),
+    "leisure": ("cinema", "movie", "concert", "game", "party", "club", "museum", "festival", "theatre", "bowling",
+                "sport"),
+    "health": ("pharmacy", "doctor", "dentist", "medicine", "hospital", "health", "clinic", "glasses", "therapy"),
+    "travel": ("flight", "hotel", "airbnb", "hostel", "trip", "travel", "holiday", "ryanair", "vueling", "booking"),
+}
+
+
+def suggest_category(text: str, categories) -> int:
+    """The category that best matches ``text``: the user's own category names first, then keywords, else Other."""
+    lowered = f" {(text or '').lower()} "
+    for category in categories:
+        if getattr(category, "custom", False) and category.name.lower() in lowered:
+            return category.id
+    by_slug = {category.slug: category.id for category in categories}
+    for slug, words in CATEGORY_KEYWORDS.items():
+        if slug in by_slug and any(word in lowered for word in words):
+            return by_slug[slug]
+    return by_slug.get("other", next(iter(by_slug.values())))

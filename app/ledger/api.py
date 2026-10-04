@@ -1,11 +1,20 @@
 """The Ledger's public interface. Code outside the ledger package imports only this module."""
 
-from app.ledger.rules import KINDS, MANUAL_INCOME_SOURCES, TransactionDraft, validate_draft, validate_settings
+from app.ledger.rules import (
+    KINDS,
+    MANUAL_INCOME_SOURCES,
+    TransactionDraft,
+    suggest_category,
+    validate_draft,
+    validate_settings,
+)
 from app.ledger.service import (
     Category,
     ExpenseRow,
     LedgerSettings,
     Transaction,
+    category_names,
+    create_category,
     create_linked,
     create_manual,
     delete_linked,
@@ -30,6 +39,8 @@ __all__ = [
     "LedgerSettings",
     "Transaction",
     "TransactionDraft",
+    "category_names",
+    "create_category",
     "create_linked",
     "create_manual",
     "delete_linked",
@@ -42,6 +53,7 @@ __all__ = [
     "list_categories",
     "list_transactions",
     "save_settings",
+    "suggest_category",
     "update_linked",
     "update_manual",
     "validate_draft",

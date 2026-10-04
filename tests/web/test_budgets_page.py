@@ -1,5 +1,7 @@
 """Budgets and unusual-expense flags in the browser (FR-16, FR-31)."""
 
+import re
+
 from tests.web.helpers import add_transaction, post_form, set_up, sign_up
 
 
@@ -44,3 +46,21 @@ def test_goal_plans_are_shown_on_the_goals_page(client):
                                                  "priority": "2", "auto_reserve": "on"})
     page = client.get("/goals").text
     assert "Behind" in page and "€100.00 planned this cycle" in page and "€100.00 still to protect" in page
+
+
+def test_users_add_categories_and_use_them(client, make_client):
+    sign_up(client)
+    set_up(client, opening_balance="500")
+    assert post_form(client, "/categories", "/categories/new", {"name": "Gym"}).status_code == 303
+    page = client.get("/categories").text
+    assert "Gym" in page and "Yours" in page
+    duplicate = post_form(client, "/categories", "/categories/new", {"name": "groceries"})
+    assert duplicate.status_code == 400 and "already have" in duplicate.text
+    gym_id = re.search(r'<option value="(\d+)"[^>]*>Gym</option>', client.get("/transactions/new").text).group(1)
+    assert add_transaction(client, amount="30", category_id=gym_id, note="Monthly gym").status_code == 303
+    assert "Gym" in client.get("/budgets").text
+    other = make_client()
+    sign_up(other, "eve", "Eve")
+    set_up(other)
+    assert ">Gym</span>" not in other.get("/categories").text
+    assert add_transaction(other, amount="5", category_id=gym_id).status_code == 400  # not Eve's category

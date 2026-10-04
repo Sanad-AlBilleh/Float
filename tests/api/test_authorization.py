@@ -24,3 +24,14 @@ def test_other_peoples_records_are_not_found(client, make_client):
     ]:
         response = eve.send(method, path, {"version": 1}) if method != "GET" else eve.get(path)
         assert response.status_code == 404, (method, path, response.status_code)
+
+
+def test_former_members_cannot_read_current_balances(client, make_client):
+    ana = signed_up(client)
+    ben = signed_up(make_client(), "ben")
+    household = ana.post("/households", {"name": "Flat"}).json()
+    code = ana.post(f"/households/{household['id']}/invitations").json()["code"]
+    ben.post("/households/join", {"code": code})
+    assert ben.post(f"/households/{household['id']}/leave").status_code == 204
+    assert ben.get(f"/households/{household['id']}/balances").status_code == 404
+    assert all(m["net_cents"] is None for m in ben.get(f"/households/{household['id']}").json()["members"])

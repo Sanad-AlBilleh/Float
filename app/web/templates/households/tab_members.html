@@ -8,7 +8,7 @@
         <tr>
           <td>{{ member.display_name }}</td>
           <td>{% if member.status != "active" %}Former member{% elif member.role == "owner" %}Owner{% else %}Member{% endif %}</td>
-          <td class="num">{{ member.net_cents|money }}</td>
+          <td class="num">{% if member.net_cents is none %}<span class="muted">—</span>{% else %}{{ member.net_cents|money }}{% endif %}</td>
           <td>
             {% if page.is_owner and member.status == "active" and member.role != "owner" %}
               <form method="post" action="/households/{{ household.id }}/members/{{ member.user_id }}/remove" class="inline-form">

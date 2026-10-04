@@ -1,4 +1,8 @@
 <h2>Balances</h2>
+{% if not page.current %}
+  <p>Balances and the settle-up plan are shown to only current members. You can still read the expenses,
+    settlements, and activity from when you were a member.</p>
+{% else %}
 {% if page.me.status == "active" %}
   {% set mine = page.my_net_cents %}
   <p class="lead">{% if mine > 0 %}The others owe you <strong>{{ mine|money }}</strong>.
@@ -31,4 +35,5 @@
     <a href="/households/{{ household.id }}?tab=settlements">Settlements</a> tab.</p>
 {% else %}
   <p>Everyone is settled up.</p>
+{% endif %}
 {% endif %}

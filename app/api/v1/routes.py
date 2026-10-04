@@ -523,6 +523,7 @@ def delete_expense(household_id: int, expense_id: int, request: Request,
 @router.get("/households/{household_id}/balances")
 def balances(household_id: int, request: Request, session: Session = Depends(require_ready_session),
              conn: sqlite3.Connection = Depends(get_conn)):
+    households.member(conn, actor_for(request, session), household_id)  # current members only
     page = households.page(conn, actor_for(request, session), household_id, _clock(request))
     nets = {m.user_id: m.net_cents for m in page.members}
     return ok({"nets": [{"user_id": m.user_id, "display_name": m.display_name, "net_cents": m.net_cents}

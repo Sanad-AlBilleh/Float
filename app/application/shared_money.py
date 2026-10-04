@@ -251,8 +251,12 @@ def _viewer_cycle(conn: sqlite3.Connection, user_id: int, clock: Clock) -> Cycle
 
 
 def household_bills(conn: sqlite3.Connection, actor: Actor, household_id: int, clock: Clock) -> HouseholdBillsView:
-    """The household's bills as the viewer sees them: status from their own cycle, and their share."""
-    require_viewer(conn, actor.user_id, household_id)
+    """The household's bills as the viewer sees them: status from their own cycle, and their share.
+
+    Former members see none: current bills are for current members only (review finding 6).
+    """
+    if require_viewer(conn, actor.user_id, household_id).status != "active":
+        return HouseholdBillsView([], [])
     cycle = _viewer_cycle(conn, actor.user_id, clock)
     if not households.get_household(conn, household_id=household_id).archived:
         with transaction(conn):

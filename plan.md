@@ -336,13 +336,17 @@ Every day: one branch, commits as each piece works, push, PR, merge. Merge commi
 ### Day 0: Tuesday 17 November (tonight, smallest)
 Branch `docs/a2-plan`.
 - [x] `Plan the Assignment 2 split, deployment and daily schedule`: this file and an AI_USAGE row.
+- [x] PR + merge (PR #14).
+
+Branch `feature/sql-server-foundation` (the first code, kept small so it is finished tonight):
+- [x] `Add the local SQL Server with one database and login per service`: `db/init.sql` (idempotent), the `db` and `db-init` services in `docker-compose.yml`, `.env.example`. Checked: running it twice changes nothing, each login reads and writes its own database, and each is refused by the other database.
 - [x] PR + merge.
 
 ### Day 1: Wednesday 18 November: split, SQL Server, compose
 Branch `feature/split-services`.
 1. `Move the code into services/personal and services/households`: move packages (§4, §5), copy `shared/`, per-service `requirements.txt` and `pyproject.toml`, delete `app.py`/root manifest, per-service architecture test. Pure unit tests pass in both.
 2. `Port the schema to SQL Server with per-service migrations`: `001_init.sql` ×2 (§7.1), new DB layer with `pymssql` + retry, runner with `schema_migrations`, port every query (placeholders, OUTPUT, OFFSET/FETCH, NOT EXISTS).
-3. `Add Dockerfiles, db/init.sql and docker-compose`: §9. `docker compose up --build` from a clean clone works.
+3. `Add Dockerfiles and the two services to docker-compose`: §9 (`db`, `db-init` and `init.sql` already exist from Day 0). `docker compose up --build` from a clean clone works.
 4. `Record ADR-6 (the split) and AI log rows`.
 Evening: **Azure setup steps 1–8** (§11), the commands written into the README the same day (commit 5: `Document the initial Azure setup`).
 
@@ -384,15 +388,15 @@ Branch `fix/review` (+ `docs/report`).
 
 | Day | Content | Merges | Total |
 |---|---|---|---|
-| Tue 17 | 1 | 1 | 2 |
+| Tue 17 | 3 | 2 | 5 |
 | Wed 18 | 5 | 1 | 6 |
 | Thu 19 | 5 | 1 | 6 |
 | Fri 20 | 7 | 1–2 | 9 |
 | Sat 21 | 4 | 1–2 | 6 |
 | Sun 22 | 3–5 | 1–2 | 5 |
-| **Total** | | | **~34** |
+| **Total** | | | **~37** |
 
-Largest day (Fri, 9) ≈ 26%, under the 40% limit. 6 distinct days, ≥ 12 commits. **No day can be skipped.**
+Largest day (Fri, 9) ≈ 24%, under the 40% limit. 6 distinct days, ≥ 12 commits. **No day can be skipped.**
 
 ---
 

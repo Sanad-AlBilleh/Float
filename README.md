@@ -63,6 +63,18 @@ Open http://localhost:8000, create an account and follow the setup. On Windows, 
 
 There is no setup wizard in the terminal and no manual migration step. On first start Float creates the database and applies the migrations by itself, and it is ready in well under a second.
 
+## Local SQL Server (Assignment 2, in progress)
+
+Assignment 2 moves Float to two services, each with its own SQL Server database (see `plan.md`). The database part already runs:
+
+```bash
+cp .env.example .env   # then replace the three passwords
+docker compose up -d db
+docker compose run --rm db-init
+```
+
+`db-init` runs `db/init.sql`, which creates the `personal` and `households` databases and the logins `personal_svc` and `households_svc`. Each login can read, write and change the schema of its own database only. The script can run again safely. On Apple Silicon, turn on Rosetta in Docker Desktop, because SQL Server has no arm64 image.
+
 ## Configuration
 
 Everything is set with environment variables. All of them are optional.

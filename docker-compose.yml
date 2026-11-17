@@ -1,0 +1,44 @@
+# Float, Assignment 2: the whole system with one command, `docker compose up --build`.
+# Built up day by day (plan.md §13). Today: the SQL Server and the one-off script that creates
+# one database and one login per service. The two service containers and the UI come next.
+# Every password comes from .env (copy .env.example), never from this file.
+name: float
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64  # no arm64 image; on Apple Silicon turn on Rosetta in Docker Desktop
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?set MSSQL_SA_PASSWORD in .env}
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql  # data survives `down` and rebuilds; only `down -v` deletes it
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' -b -o /dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  db-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?set MSSQL_SA_PASSWORD in .env}
+      PERSONAL_DB_PASSWORD: ${PERSONAL_DB_PASSWORD:?set PERSONAL_DB_PASSWORD in .env}
+      HOUSEHOLDS_DB_PASSWORD: ${HOUSEHOLDS_DB_PASSWORD:?set HOUSEHOLDS_DB_PASSWORD in .env}
+    volumes:
+      - ./db/init.sql:/init/init.sql:ro
+    # sqlcmd reads environment variables as scripting variables, so $(PERSONAL_DB_PASSWORD) in
+    # init.sql is filled in without the password ever appearing on the command line.
+    entrypoint: ["/bin/sh", "-c", "/opt/mssql-tools18/bin/sqlcmd -C -S db -U sa -P \"$$MSSQL_SA_PASSWORD\" -b -i /init/init.sql"]
+    restart: "no"
+
+volumes:
+  mssql-data:

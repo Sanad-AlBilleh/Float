@@ -12,3 +12,7 @@ data/
 .env
 .DS_Store
 demo-data/
+
+# Assignment 2: per-service tool output
+services/*/.coverage
+services/*/coverage.xml

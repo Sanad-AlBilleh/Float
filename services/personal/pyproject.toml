@@ -1,0 +1,33 @@
+# Tool settings for the personal service. Dependencies are in requirements.txt (pinned).
+[project]
+name = "float-personal"
+version = "2.0.0"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 130
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+# B008: FastAPI's `Depends(...)` in argument defaults is the framework's documented style.
+ignore = ["B008", "UP047"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests keep the A1 style: long assertion lines, zip() over literal pairs, imported fixtures.
+"tests/**" = ["E501", "B905", "B017", "F811"]  # F811: importing a shared pytest fixture
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["app"]
+# Core logic is measured (domain packages, application layer, db). API wiring and the app factory are
+# covered by the API tests too, but the 70% gate (Assignment 2 §5) is about the logic (ADR-9).
+omit = ["app/main.py"]
+
+[tool.coverage.report]
+show_missing = false
+skip_covered = true

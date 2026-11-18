@@ -1,7 +1,7 @@
 # Float, Assignment 2: the whole system with one command, `docker compose up --build`.
-# Built up day by day (plan.md §13). Today: the SQL Server and the one-off script that creates
-# one database and one login per service. The two service containers and the UI come next.
-# Every password comes from .env (copy .env.example), never from this file.
+# One SQL Server holding one database per service, a one-off script that creates those databases and
+# their logins, and the two service containers. The static UI (nginx) is added with the UI itself.
+# Every password and secret comes from .env (copy .env.example), never from this file.
 name: float
 
 services:
@@ -39,6 +39,54 @@ services:
     # init.sql is filled in without the password ever appearing on the command line.
     entrypoint: ["/bin/sh", "-c", "/opt/mssql-tools18/bin/sqlcmd -C -S db -U sa -P \"$$MSSQL_SA_PASSWORD\" -b -i /init/init.sql"]
     restart: "no"
+
+  personal:
+    build:
+      context: ./services/personal
+      args:
+        GIT_SHA: ${GIT_SHA:-local}
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: mssql://personal_svc:${PERSONAL_DB_PASSWORD}@db:1433/personal
+      TOKEN_SECRET: ${TOKEN_SECRET:?set TOKEN_SECRET in .env}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY in .env}
+      HOUSEHOLDS_URL: http://households:8000  # the other service, found by its compose name
+      HOUSEHOLDS_TIMEOUT_S: "2"
+      CORS_ORIGINS: http://localhost:8080
+    ports:
+      - "8001:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  households:
+    build:
+      context: ./services/households
+      args:
+        GIT_SHA: ${GIT_SHA:-local}
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: mssql://households_svc:${HOUSEHOLDS_DB_PASSWORD}@db:1433/households
+      TOKEN_SECRET: ${TOKEN_SECRET:?set TOKEN_SECRET in .env}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY in .env}
+      PERSONAL_URL: http://personal:8000
+      PERSONAL_TIMEOUT_S: "2"
+      CORS_ORIGINS: http://localhost:8080
+    ports:
+      - "8002:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
 volumes:
   mssql-data:

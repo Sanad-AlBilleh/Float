@@ -31,9 +31,20 @@ Everything is entered by hand. Float never connects to a bank, and the only curr
 - A JSON API at `/api/v1` with docs at `/api/docs`.
 - Works on desktop and phone (bottom tab bar on small screens).
 
+## Assignment 2: two services (in progress)
+
+Float is being split into two services, each with its own SQL Server database, a static web UI, and a pipeline that deploys to Azure. The full plan, day by day, is in `plan.md`; the decisions are ADR 6 to 10 in `ADR.md`.
+
+- **personal** (`services/personal`): accounts and sign-in, the ledger, bills, goals, budgets, safe-to-spend, the forecast and alerts.
+- **households** (`services/households`): households, members, invitations, shared expenses, balances, settlements and household bills.
+
+They talk over HTTP. When a flatmate records a shared expense, the households service asks the personal service to add the payer's ledger row (`POST /internal/transactions`). When the dashboard needs your household terms, the personal service asks the households service (`GET /internal/users/{id}/position`). Every call has a 2-second timeout. If one service is down, the other keeps serving its own data and answers the cross-service actions with a clear "unavailable, nothing was saved" (503) instead of an error page.
+
+The server-rendered pages of Assignment 1 are gone: both services now serve JSON only, and the browser UI is being rebuilt as static files in `ui/`.
+
 ## How to run it
 
-You need Python 3.12 or newer. On macOS the built-in `/usr/bin/python3` is too old, so use Homebrew or python.org.
+You need Docker Desktop. On Apple Silicon, turn on "Use Rosetta for x86/amd64 emulation" in Docker Desktop's settings, because SQL Server has no arm64 image.
 
 ```bash
 git clone https://github.com/Sanad-AlBilleh/Float.git
@@ -44,119 +55,109 @@ cd Float
 ```
 
 ```bash
-python3 -m venv .venv
+cp .env.example .env
+```
+
+Replace every value in `.env` with your own (passwords: at least 8 characters with upper case, lower case and digits, and no `@ : / ? #`). Then:
+
+```bash
+docker compose up --build
+```
+
+The first start downloads SQL Server and takes a minute or two. Compose then:
+
+1. starts SQL Server (`db`) and waits until it answers;
+2. runs `db/init.sql` once (`db-init`), which creates the `personal` and `households` databases and one login per service, each allowed into its own database only;
+3. starts both services. Each applies its own migrations on startup and logs `migration applied: 001_init.sql` (or `migrations: nothing to apply` on later starts).
+
+Check them: http://localhost:8001/health and http://localhost:8002/health answer `{"status": "ok", "db": "ok", "version": "local"}`. The API documentation is at http://localhost:8001/api/docs and http://localhost:8002/api/docs.
+
+Your data stays in the `mssql-data` volume between runs. `docker compose down -v` deletes it.
+
+### Running one service on its own
+
+Start only the database with `docker compose up -d db db-init`, then, in `services/personal` (or `services/households`):
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
 ```
 
 ```bash
-source .venv/bin/activate
+pip install -r requirements-dev.txt
 ```
 
 ```bash
-pip install -r requirements.txt
+DATABASE_URL="mssql://personal_svc:<PERSONAL_DB_PASSWORD>@localhost:1433/personal" TOKEN_SECRET=dev INTERNAL_API_KEY=dev uvicorn app.main:app --port 8001
 ```
 
-```bash
-python app.py
-```
-
-Open http://localhost:8000, create an account and follow the setup. On Windows, activate the venv with `.venv\Scripts\activate` instead.
-
-There is no setup wizard in the terminal and no manual migration step. On first start Float creates the database and applies the migrations by itself, and it is ready in well under a second.
-
-## Local SQL Server (Assignment 2, in progress)
-
-Assignment 2 moves Float to two services, each with its own SQL Server database (see `plan.md`). The database part already runs:
-
-```bash
-cp .env.example .env   # then replace the three passwords
-docker compose up -d db
-docker compose run --rm db-init
-```
-
-`db-init` runs `db/init.sql`, which creates the `personal` and `households` databases and the logins `personal_svc` and `households_svc`. Each login can read, write and change the schema of its own database only. The script can run again safely. On Apple Silicon, turn on Rosetta in Docker Desktop, because SQL Server has no arm64 image.
+Without the other service running, the cross-service parts answer "unavailable" and everything else works.
 
 ## Configuration
 
-Everything is set with environment variables. All of them are optional.
+Each service reads only environment variables (Assignment 2 §7.7). Secrets have no default and the service refuses to start without them.
 
-- `PORT`: the port to listen on (default `8000`). Float always binds to `0.0.0.0`.
-- `DATA_DIR`: the folder for the database (default `./data`).
-- `APP_TIMEZONE`: the time zone used for "today" (default `Europe/Madrid`).
-- `COOKIE_SECURE`: set to `true` when served over HTTPS (default `false`).
-- `SESSION_IDLE_HOURS` and `SESSION_MAX_DAYS`: session lifetimes (default 48 hours and 14 days).
-
-A `.env` file in the project folder is read if it exists, but it is never required.
-
-Example: `PORT=9000 DATA_DIR=/tmp/float python app.py`
-
-## Where the data is
-
-All data lives in one SQLite file: **`DATA_DIR/float.sqlite3`**, so `data/float.sqlite3` by default. The `data/` folder is in `.gitignore`, so every clone starts with an empty database. To back it up, copy that file while the app is stopped.
-
-## Log in as the demo user (Borja)
-
-To see every feature with a month of data already filled in, create the demo account **before the first start**, then start Float as normal:
-
-```bash
-python scripts/seed_demo.py data Borjita_Best_Prof "Borja Planelles" Password-is-Password
-```
-
-```bash
-python app.py
-```
-
-Open http://localhost:8000 and log in with username **Borjita_Best_Prof** and password **Password-is-Password**.
-
-The script fills `data/float.sqlite3` with a month of income, expenses, bills, goals, budgets, custom categories, alerts and a shared flat ("Piso Ruzafa"). Two flatmates joined it with invitation codes, and you can log in as them too: `lucia_demo` and `marco_demo`, with the same password. If you already started Float once, delete the `data` folder first, because the script only fills an empty database. These are made-up demo accounts with no real data.
+| Variable | Service | Default | Meaning |
+|---|---|---|---|
+| `DATABASE_URL` | both | secret | `mssql://user:password@host:1433/database`, plus `?encrypt=require` on Azure |
+| `TOKEN_SECRET` | both | secret | personal signs sign-in tokens with it; households checks them |
+| `INTERNAL_API_KEY` | both | secret | sent on `/internal` calls between the services |
+| `PORT` | both | `8000` | port inside the container |
+| `CORS_ORIGINS` | both | `http://localhost:8080` | the UI's origin, the only one allowed to call the API from a browser |
+| `HOUSEHOLDS_URL` / `PERSONAL_URL` | personal / households | `http://households:8000` / `http://personal:8000` | where the other service is |
+| `HOUSEHOLDS_TIMEOUT_S` / `PERSONAL_TIMEOUT_S` | personal / households | `2` | timeout for every call to the other service |
+| `GIT_SHA` | both | `dev` | reported by `/health`; set at build time |
+| `APP_TIMEZONE` | both | `Europe/Madrid` | the time zone for "today" |
+| `DB_CONNECT_RETRIES` | both | `8` | connection retries at startup while a paused Azure database resumes |
+| `SESSION_IDLE_HOURS`, `SESSION_MAX_DAYS` | personal | `48`, `14` | session lifetimes |
 
 ## Tests and coverage
 
+Tests run against a real SQL Server database, never against Azure. Start the local one first (`docker compose up -d db db-init`); the tests create `personal_test` and `households_test` on it, using the SA password from `.env` (or set `TEST_DATABASE_URL`). In each service folder:
+
 ```bash
-pytest
+pip install -r requirements-dev.txt
 ```
 
 ```bash
-pytest --cov=app.identity --cov=app.ledger --cov=app.planning --cov=app.households --cov=app.insights --cov=app.application --cov=app.shared --cov-report=term-missing
+ruff check app tests
 ```
 
-The second command measures coverage of the business logic only (the five domains, the application layer and the shared rules). The web templates and routes are left out on purpose.
+```bash
+pytest --cov --cov-report=term
+```
 
-Result on 4 October 2026 (macOS, Python 3.14): **604 tests passed, 97% coverage of the business modules** (2,925 statements, 83 missed). Coverage of the whole app, including the web layer, is 95%.
-
-The tests include unit tests for every worked example in the SRS, Hypothesis property tests (splits always add up, household balances always sum to zero), tests against a real SQLite file, an architecture test that stops one domain importing another, and an authorization test for every page.
-
-`python scripts/perf_smoke.py` checks speed with 16,000 transactions: the dashboard answered in 48 ms (p95) against a 500 ms limit.
+Each service tests its own code, with the other service replaced by an in-memory stand-in (`tests/fakes.py`): a scripted households service in the personal tests, and a small fake ledger in the households tests. The real calls between them are tested together in the cross-service integration test (coming with the CI workflow).
 
 ## Project structure
 
 ```
-app.py                 starts the server
-app/config.py          reads the environment variables
-app/db/                SQLite connection, transactions and migrations (0001 to 0012)
-app/identity/          accounts, sessions, login throttling
-app/ledger/            transactions, categories, balance
-app/planning/          bills, goals, budgets
-app/households/        members, invitations, shared expenses, settlements, household bills
-app/insights/          safe-to-spend, forecast, unusual expenses, alerts
-app/application/       use cases that join the domains in one transaction
-app/shared/            money, dates and recurrence rules (no database)
-app/web/               pages, templates and CSS
-app/api/v1/            JSON API
-scripts/               demo data and the speed check
-tests/                 the test suite
+docker-compose.yml          the whole system: SQL Server, db-init and the two services
+db/init.sql                 creates one database and one login per service (local only)
+services/personal/          Identity, Ledger, Planning and Insights
+  app/api/                  routes, /internal, /health, auth, errors, request logs
+  app/clients/households.py the HTTP client for the households service
+  app/db/                   SQL Server connection with retries, transactions, migration runner
+  migrations/               001_init.sql ...
+  Dockerfile, requirements.txt, requirements-dev.txt, pyproject.toml
+services/households/        Households, shared expenses, settlements, household bills
+  app/clients/personal.py   the HTTP client for the personal service
+  (same layout as personal)
+plan.md                     the Assignment 2 plan and daily schedule
 ```
 
-Each domain only exposes its `api.py`. Domains never import each other; the application layer joins them (see ADR 2).
+Inside each service, the domain packages still only expose their `api.py` and never import each other, and an architecture test now also checks that no service contains the other's code or queries the other's tables.
 
 ## Not built
 
 - CSV import and the end-of-cycle review (stretch features I never planned to finish).
 - "This and future" edits for household bills. You can edit or skip one occurrence, or end the bill and create a new one.
 - Background jobs, emails and push notifications. Alerts show up when you open the app (see ADR 5).
+- The A1 demo-data script and speed check worked on the SQLite monolith only and were removed in Assignment 2 (they are in the Git history).
 
 ## Documents
 
-- `ADR.md`: my five architecture decisions.
+- `ADR.md`: my architecture decisions (1 to 5 from Assignment 1, 6 to 10 from Assignment 2).
+- `plan.md`: the Assignment 2 plan.
 - `AI_USAGE.md`: how I used AI tools, prompt by prompt.
 - `docs/report.md`: the project report with the architecture and database diagrams.
 - `PRD.md` and `SRS.md`: the product and software requirements.

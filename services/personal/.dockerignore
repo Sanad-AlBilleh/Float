@@ -1,0 +1,7 @@
+# Only requirements.txt, app/ and migrations/ are copied into the image; everything else stays out.
+*
+!requirements.txt
+!app/
+!migrations/
+**/__pycache__
+**/*.pyc

@@ -1,6 +1,7 @@
 # Float, Assignment 2: the whole system with one command, `docker compose up --build`.
 # One SQL Server holding one database per service, a one-off script that creates those databases and
-# their logins, and the two service containers. The static UI (nginx) is added with the UI itself.
+# their logins, the two service containers, and a stock nginx serving the static UI (not a service
+# container: no Dockerfile, the ui/ folder is mounted read-only).
 # Every password and secret comes from .env (copy .env.example), never from this file.
 name: float
 
@@ -87,6 +88,13 @@ services:
       timeout: 5s
       retries: 6
       start_period: 20s
+
+  ui:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./ui:/usr/share/nginx/html:ro
+    ports:
+      - "8080:80"  # http://localhost:8080, the origin both services allow (CORS_ORIGINS)
 
 volumes:
   mssql-data:

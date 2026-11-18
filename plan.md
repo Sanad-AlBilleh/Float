@@ -354,11 +354,15 @@ Done, and more than planned, because households could not run on its own without
 - [ ] Azure setup steps 1 to 8 (§11): needs `az login` by me, moved to Day 2.
 - Removed: the A1 `scripts/seed_demo.py` and `scripts/perf_smoke.py` (SQLite only). A demo seed over HTTP may come back on Day 4 if there is time.
 
-### Day 2: Thursday 19 November: Azure setup, static UI part 1, ADR-7
-Branch `feature/ui-and-azure`. The seam work planned for today is already done (see Day 1).
-1. **Azure setup steps 1 to 8** (§11), every command written into the README the same day (`Document the initial Azure setup`).
-2. `Build the static UI: login, setup, dashboard, transactions`: `ui/`, `config.js`, `api.js` with bearer tokens and cold-start handling, nginx in compose.
-3. `Record ADR-7 (data and migrations), mark ADR-3 superseded, AI log rows`.
+### Day 2: Thursday 19 November: static UI part 1, ADR-7, Azure setup
+The seam work planned for today was already done (see Day 1).
+
+Branch `feature/ui-and-azure`:
+- [x] `Build the static UI: login, setup, dashboard and transactions`: `ui/` (A1 stylesheet and icons reused), `config.js`, `js/api.js` (bearer token, 20 s timeout, cold-start retries with a banner, designed 503s shown as messages), `GET /api/v1/categories` added to personal for the forms, nginx in compose. Checked in the browser: register, setup, dashboard (€500 over 12 days = €41.66 a day), adding an expense (category guessed from the note), phone width with no sideways scroll, the dashboard with households stopped ("household balances are unavailable"), and with personal stopped (the "starting up" banner, then the page loads by itself once personal is back).
+- [x] `Record ADR-7 (data and migrations), mark ADR-3 superseded, AI log rows`.
+
+Branch `docs/azure-setup` (after `az login`):
+- [ ] **Azure setup steps 1 to 8** (§11), every command written into the README the same day (`Document the initial Azure setup`).
 
 ### Day 3: Friday 20 November: rest of UI, docs as data, CI, first deploy
 Branch `feature/ui-ci`.

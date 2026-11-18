@@ -1,0 +1,6 @@
+# Test and lint tools, on top of the runtime dependencies. Not installed in the Docker image.
+-r requirements.txt
+pytest==9.1.1
+pytest-cov==7.1.0
+hypothesis==6.168.3
+ruff==0.17.5

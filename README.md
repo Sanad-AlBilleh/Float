@@ -40,7 +40,7 @@ Float is being split into two services, each with its own SQL Server database, a
 
 They talk over HTTP. When a flatmate records a shared expense, the households service asks the personal service to add the payer's ledger row (`POST /internal/transactions`). When the dashboard needs your household terms, the personal service asks the households service (`GET /internal/users/{id}/position`). Every call has a 2-second timeout. If one service is down, the other keeps serving its own data and answers the cross-service actions with a clear "unavailable, nothing was saved" (503) instead of an error page.
 
-The server-rendered pages of Assignment 1 are gone: both services now serve JSON only, and the browser UI is being rebuilt as static files in `ui/`.
+The server-rendered pages of Assignment 1 are gone: both services now serve JSON only, and the browser UI is static files in `ui/` (HTML, CSS and plain JavaScript, no build step). So far it has the login, setup, dashboard and transactions pages; bills, goals, budgets and households follow.
 
 ## How to run it
 
@@ -68,11 +68,18 @@ The first start downloads SQL Server and takes a minute or two. Compose then:
 
 1. starts SQL Server (`db`) and waits until it answers;
 2. runs `db/init.sql` once (`db-init`), which creates the `personal` and `households` databases and one login per service, each allowed into its own database only;
-3. starts both services. Each applies its own migrations on startup and logs `migration applied: 001_init.sql` (or `migrations: nothing to apply` on later starts).
+3. starts both services. Each applies its own migrations on startup and logs `migration applied: 001_init.sql` (or `migrations: nothing to apply` on later starts);
+4. serves `ui/` with a stock `nginx` image on port 8080 (no Dockerfile: the folder is mounted read-only).
 
-Check them: http://localhost:8001/health and http://localhost:8002/health answer `{"status": "ok", "db": "ok", "version": "local"}`. The API documentation is at http://localhost:8001/api/docs and http://localhost:8002/api/docs.
+Open the app at **http://localhost:8080**, create an account and follow the setup.
+
+Check the services: http://localhost:8001/health and http://localhost:8002/health answer `{"status": "ok", "db": "ok", "version": "local"}`. The API documentation is at http://localhost:8001/api/docs and http://localhost:8002/api/docs.
 
 Your data stays in the `mssql-data` volume between runs. `docker compose down -v` deletes it.
+
+### How the UI talks to the services
+
+`ui/config.js` holds the two services' addresses (on Azure the pipeline writes it). After login the personal service returns a signed token, which the UI keeps in the browser and sends as `Authorization: Bearer ...`. Every call has a 20-second timeout. If a service does not answer or says it is starting (a cold start on Azure, where the database may be resuming from a pause), the page shows "Float is starting up... Retrying" and tries again for about a minute, then offers a Retry button. If one service is down, the other's pages still work: for example, with the households service stopped the dashboard still loads and says household balances are unavailable.
 
 ### Running one service on its own
 
@@ -142,6 +149,7 @@ services/personal/          Identity, Ledger, Planning and Insights
 services/households/        Households, shared expenses, settlements, household bills
   app/clients/personal.py   the HTTP client for the personal service
   (same layout as personal)
+ui/                         the static UI: pages, css/, js/api.js (calls, retries), config.js (service addresses)
 plan.md                     the Assignment 2 plan and daily schedule
 ```
 

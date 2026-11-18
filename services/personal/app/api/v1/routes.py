@@ -43,6 +43,7 @@ from app.application import (
     alerts,
     bills,
     budgets,
+    categories,
     goals,
     setup,
     transactions,
@@ -156,6 +157,15 @@ def update_settings(request: Request, session: Session = Depends(require_ready_s
     data = parse(PlannedAllowanceIn, payload)
     setup.update_planned_allowance(conn, actor_for(request, session), data.planned_allowance_cents, _clock(request))
     return settings(session, conn)
+
+
+# Categories --------------------------------------------------------------------------------------------
+
+@router.get("/categories")
+def list_categories(request: Request, session: Session = Depends(require_session),
+                    conn: Connection = Depends(get_conn)):
+    """The fixed categories, then the user's own: what the UI offers when recording an expense."""
+    return ok(categories.list_categories(conn, actor_for(request, session)))
 
 
 # Transactions ------------------------------------------------------------------------------------------

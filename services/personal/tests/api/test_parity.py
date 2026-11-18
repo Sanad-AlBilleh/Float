@@ -121,3 +121,9 @@ def test_goals_budgets_and_alerts(client):
     assert budgets[1]["state"] == "over"
     assert any(a["type"] == "BUDGET_OVER" for a in ana.get("/alerts").json())
     assert ana.get("/activity").json()
+
+
+def test_categories_are_listed_for_the_forms(client):
+    api = signed_up(client)
+    rows = api.get("/categories").json()
+    assert [(c["id"], c["name"]) for c in rows[:2]] == [(1, "Groceries"), (2, "Eating out")] and len(rows) == 11

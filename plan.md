@@ -342,26 +342,28 @@ Branch `feature/sql-server-foundation` (the first code, kept small so it is fini
 - [x] `Add the local SQL Server with one database and login per service`: `db/init.sql` (idempotent), the `db` and `db-init` services in `docker-compose.yml`, `.env.example`. Checked: running it twice changes nothing, each login reads and writes its own database, and each is refused by the other database.
 - [x] PR + merge.
 
-### Day 1: Wednesday 18 November: split, SQL Server, compose
-Branch `feature/split-services`.
-1. `Move the code into services/personal and services/households`: move packages (§4, §5), copy `shared/`, per-service `requirements.txt` and `pyproject.toml`, delete `app.py`/root manifest, per-service architecture test. Pure unit tests pass in both.
-2. `Port the schema to SQL Server with per-service migrations`: `001_init.sql` ×2 (§7.1), new DB layer with `pymssql` + retry, runner with `schema_migrations`, port every query (placeholders, OUTPUT, OFFSET/FETCH, NOT EXISTS).
-3. `Add Dockerfiles and the two services to docker-compose`: §9 (`db`, `db-init` and `init.sql` already exist from Day 0). `docker compose up --build` from a clean clone works.
-4. `Record ADR-6 (the split) and AI log rows`.
-Evening: **Azure setup steps 1–8** (§11), the commands written into the README the same day (commit 5: `Document the initial Azure setup`).
+### Day 1: Wednesday 18 November: split, SQL Server, compose (built on the 18th, committed just after midnight)
+Branch `feature/split-services`. **What happened:** the work below was built on Wednesday 18 November, but the commits were made at 00:0x on **Thursday 19 November**, so Wednesday has no commit. Nothing was backdated. See "Change log" at the end for what this does to the 6-day rule.
 
-### Day 2: Thursday 19 November: cross-seam, health, auth, UI part 1
-Branch `feature/seam-and-health`.
-1. `Replace cookie sessions with signed bearer tokens`: tokens, both services, CORS, remove `app/web` + templates + CSRF.
-2. `Call across the seam with timeouts, idempotency and fallbacks`: `/internal/*` endpoints, clients, D4–D6, member-name cache logic.
-3. `Add /health and per-request logs to both services`.
-4. `Build the static UI: login, setup, dashboard, transactions`: `ui/`, `api.js` with cold-start handling, nginx in compose.
-5. `Record ADR-7 (data and migrations), mark ADR-1/3 superseded, AI log rows`.
+Done, and more than planned, because households could not run on its own without some Day 2 pieces:
+- [x] `Split Float into a personal service and a households service`: code moved with `git mv` (§4, §5), `shared/` copied, per-service `requirements.txt`, `requirements-dev.txt` and `pyproject.toml`, `app.py`, the root manifest, `app/web` (61 page routes), the 37 templates, cookies and CSRF removed. Signed bearer tokens (pulled forward from Day 2: households must check sign-in without calling personal). The HTTP clients and `/internal` endpoints with timeouts, idempotency keys and compensation (pulled forward from Day 2: a shared expense must write the payer's ledger row). `/health` and one JSON log line per request (pulled forward from Day 2). CORS in the services.
+- [x] `Port the schema and every query to SQL Server`: `001_init.sql` per service (§7.1), `app/db` with `pymssql`, retries for a resuming Azure database, `schema_migrations` runner, every SQLite-only query ported.
+- [x] `Run the tests against SQL Server with the other service stubbed`: both suites green against the local SQL Server (`personal_test`, `households_test`); scripted stand-ins in `tests/fakes.py`. Coverage: personal 94%, households 85%.
+- [x] `Add Dockerfiles and the two services to docker-compose`: §9. Checked by hand with the stack up: a shared expense lands in the payer's ledger; with `personal` stopped, households still lists its data and a new expense gets 503 "nothing was saved" in 0.16 s.
+- [x] `Record ADR-6 (the split), README and AI log rows`.
+- [ ] Azure setup steps 1 to 8 (§11): needs `az login` by me, moved to Day 2.
+- Removed: the A1 `scripts/seed_demo.py` and `scripts/perf_smoke.py` (SQLite only). A demo seed over HTTP may come back on Day 4 if there is time.
+
+### Day 2: Thursday 19 November: Azure setup, static UI part 1, ADR-7
+Branch `feature/ui-and-azure`. The seam work planned for today is already done (see Day 1).
+1. **Azure setup steps 1 to 8** (§11), every command written into the README the same day (`Document the initial Azure setup`).
+2. `Build the static UI: login, setup, dashboard, transactions`: `ui/`, `config.js`, `api.js` with bearer tokens and cold-start handling, nginx in compose.
+3. `Record ADR-7 (data and migrations), mark ADR-3 superseded, AI log rows`.
 
 ### Day 3: Friday 20 November: rest of UI, docs as data, CI, first deploy
 Branch `feature/ui-ci`.
 1. `Finish the static UI: bills, goals, budgets, households`.
-2. `Port the API tests to SQL Server and add client, health and migration tests` (coverage ≥ 70% each).
+2. `Add client tests` (timeouts, 5xx, mapping of 404/409/422) to keep coverage ≥ 70% each.
 3. `Add the cross-seam integration test against compose`.
 4. `Export OpenAPI documents and write system.yaml`.
 5. `Add the CI workflow` (validate, lint, test + coverage, integration, image builds). Green on the PR.
@@ -388,15 +390,15 @@ Branch `fix/review` (+ `docs/report`).
 
 | Day | Content | Merges | Total |
 |---|---|---|---|
-| Tue 17 | 3 | 2 | 5 |
-| Wed 18 | 5 | 1 | 6 |
-| Thu 19 | 5 | 1 | 6 |
+| Tue 17 | 3 | 2 | 5 (done) |
+| Wed 18 | 0 | 0 | 0 (the work was committed after midnight) |
+| Thu 19 | 5 + 3 | 1 + 1 | 10 (Day 1's commits at 00:0x, then Day 2) |
 | Fri 20 | 7 | 1–2 | 9 |
 | Sat 21 | 4 | 1–2 | 6 |
 | Sun 22 | 3–5 | 1–2 | 5 |
 | **Total** | | | **~37** |
 
-Largest day (Fri, 9) ≈ 24%, under the 40% limit. 6 distinct days, ≥ 12 commits. **No day can be skipped.**
+Largest day (Thu 19, about 10 of 37) ≈ 27%, under the 40% limit. **Only 5 distinct days are now possible up to Sunday 22 November (17, 19, 20, 21, 22)**; see the change log.
 
 ---
 
@@ -411,3 +413,10 @@ Largest day (Fri, 9) ≈ 24%, under the 40% limit. 6 distinct days, ≥ 12 commi
 | Migration evidence needs data on Azure **before** `002` | First deploy must be on Friday at the latest. `002` is held back until Saturday. |
 | `system.schema.json` comes from Blackboard | Download it by Friday. CI validation depends on it. |
 | Comprehension check | Each evening, re-read the day's Dockerfile/workflow/SQL lines and write the AI log "in my own words" column myself. |
+
+---
+
+## Change log
+
+- **19 November, 00:00.** Day 1 was built on Wednesday 18 November but committed just after midnight, so Wednesday has no commit and the history has commits on 17 and 19 November so far. I did not backdate anything. The assignment needs commits on at least 6 distinct days; with Sunday 22 November as the last day, only 5 are left (17, 19, 20, 21, 22). Options: confirm whether the deadline allows a commit on Monday 23 November, or ask the professor how to handle it. Decision pending.
+

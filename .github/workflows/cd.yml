@@ -1,0 +1,129 @@
+# CD (Assignment 2 §5, §7): every merge to main. CI runs first on the same commit; only if it passes are the
+# images pushed to GHCR tagged with the commit SHA, deployed to Azure Container Apps, the UI uploaded to the
+# storage static website with the services' URLs, and /health checked on both services.
+# The pipeline signs in to Azure as the managed identity sgealbilleh-ieu2024-github through OIDC: no
+# Azure password exists anywhere. Database passwords and the shared secrets are GitHub secrets, passed to
+# Container Apps as secrets (secretref), never as plain environment variables.
+name: CD
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: ci
+    # Skipped until the one-time Azure setup (infra/azure-setup.sh) has set these repository variables.
+    if: ${{ vars.RESOURCE_GROUP != '' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write  # push images to GHCR
+      id-token: write  # OIDC token for azure/login
+    env:
+      PREFIX: ${{ vars.PREFIX }}
+      RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+      UI_STORAGE: ${{ vars.UI_STORAGE }}
+      SQL_SERVER: ${{ vars.SQL_SERVER }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image names (GHCR needs lowercase)
+        run: echo "REGISTRY=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push personal
+        uses: docker/build-push-action@v6
+        with:
+          context: services/personal
+          push: true
+          provenance: false  # a plain image manifest, which Container Apps can pull
+          build-args: GIT_SHA=${{ github.sha }}
+          tags: ${{ env.REGISTRY }}/float-personal:${{ github.sha }}
+
+      - name: Build and push households
+        uses: docker/build-push-action@v6
+        with:
+          context: services/households
+          push: true
+          provenance: false
+          build-args: GIT_SHA=${{ github.sha }}
+          tags: ${{ env.REGISTRY }}/float-households:${{ github.sha }}
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Addresses (UI origin, service URLs)
+        run: |
+          UI_ORIGIN="$(az storage account show -n "$UI_STORAGE" -g "$RESOURCE_GROUP" --query primaryEndpoints.web -o tsv)"
+          echo "UI_ORIGIN=${UI_ORIGIN%/}" >> "$GITHUB_ENV"
+          for svc in personal households; do
+            fqdn="$(az containerapp show -n "${PREFIX}-${svc}" -g "$RESOURCE_GROUP" --query properties.configuration.ingress.fqdn -o tsv)"
+            echo "${svc^^}_URL=https://${fqdn}" >> "$GITHUB_ENV"
+          done
+
+      - name: Deploy both Container Apps (0 to 1 replicas, secrets by reference)
+        env:
+          PERSONAL_DB_PASSWORD: ${{ secrets.PERSONAL_DB_PASSWORD }}
+          HOUSEHOLDS_DB_PASSWORD: ${{ secrets.HOUSEHOLDS_DB_PASSWORD }}
+          TOKEN_SECRET: ${{ secrets.TOKEN_SECRET }}
+          INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
+        run: |
+          deploy() {  # service, its password, the env var naming the other service, that service's URL
+            local svc="$1" password="$2" other_env="$3" other_url="$4"
+            local encoded db_url
+            encoded="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$password")"
+            db_url="mssql://${svc}_svc:${encoded}@${SQL_SERVER}.database.windows.net:1433/${PREFIX}-${svc}-db?encrypt=require"
+            echo "::add-mask::${db_url}"
+            az containerapp secret set -n "${PREFIX}-${svc}" -g "$RESOURCE_GROUP" --secrets \
+              "database-url=${db_url}" "token-secret=${TOKEN_SECRET}" "internal-api-key=${INTERNAL_API_KEY}" -o none
+            az containerapp update -n "${PREFIX}-${svc}" -g "$RESOURCE_GROUP" \
+              --image "${REGISTRY}/float-${svc}:${GITHUB_SHA}" --min-replicas 0 --max-replicas 1 \
+              --set-env-vars "DATABASE_URL=secretref:database-url" "TOKEN_SECRET=secretref:token-secret" \
+                "INTERNAL_API_KEY=secretref:internal-api-key" "${other_env}=${other_url}" \
+                "CORS_ORIGINS=${UI_ORIGIN}" "GIT_SHA=${GITHUB_SHA}" -o none
+          }
+          deploy personal "$PERSONAL_DB_PASSWORD" HOUSEHOLDS_URL "$HOUSEHOLDS_URL"
+          deploy households "$HOUSEHOLDS_DB_PASSWORD" PERSONAL_URL "$PERSONAL_URL"
+
+      - name: Upload the UI with the services' URLs
+        run: |
+          printf 'window.FLOAT_CONFIG = {\n  personalUrl: "%s",\n  householdsUrl: "%s",\n};\n' \
+            "$PERSONAL_URL" "$HOUSEHOLDS_URL" > ui/config.js
+          sed -i "s/?v=dev/?v=${GITHUB_SHA::12}/g" ui/*.html  # new asset URLs on every deploy
+          KEY="$(az storage account keys list -n "$UI_STORAGE" -g "$RESOURCE_GROUP" --query '[0].value' -o tsv)"
+          echo "::add-mask::${KEY}"
+          az storage blob upload-batch --account-name "$UI_STORAGE" --account-key "$KEY" -d '$web' -s ui \
+            --overwrite --content-cache-control "no-cache" -o none
+
+      - name: Health check (allows for a cold start and a resuming database)
+        run: |
+          for url in "$PERSONAL_URL" "$HOUSEHOLDS_URL"; do
+            ok=""
+            for i in $(seq 1 20); do  # up to about 5 minutes per service
+              body="$(curl -sS --max-time 40 "${url}/health" || true)"
+              if echo "$body" | grep -q '"status":"ok"' && echo "$body" | grep -q "${GITHUB_SHA}"; then ok=1; break; fi
+              echo "waiting for ${url} (${i}): ${body}"; sleep 15
+            done
+            [ -n "$ok" ] || { echo "::error::${url}/health did not return 200 with version ${GITHUB_SHA}"; exit 1; }
+            echo "${url}: ${body}"
+          done
+          echo "Live: ${UI_ORIGIN}"

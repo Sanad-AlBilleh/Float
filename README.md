@@ -99,6 +99,10 @@ DATABASE_URL="mssql://personal_svc:<PERSONAL_DB_PASSWORD>@localhost:1433/persona
 
 Without the other service running, the cross-service parts answer "unavailable" and everything else works.
 
+## Initial Azure setup (one time)
+
+Every Azure resource is created once by `infra/azure-setup.sh` (run in **bash** after `az login`), following the course's setup guide; after that only the CD pipeline changes anything. It creates, all in `rg-sgealbilleh-ieu2024`: the static website storage account `sgealbillehieu2024ui`, the SQL server `sgealbilleh-ieu2024-sql` with the serverless free-offer databases `sgealbilleh-ieu2024-personal-db` and `sgealbilleh-ieu2024-households-db`, the Container Apps environment `sgealbilleh-ieu2024-env` with `sgealbilleh-ieu2024-personal` and `sgealbilleh-ieu2024-households` (0 to 1 replicas), and the pipeline identity `sgealbilleh-ieu2024-github` (Contributor on the resource group, OIDC for `main` only). Passwords come from environment variables and GitHub secrets, never from a file. **Status: written on 19 November, not run yet.**
+
 ## Configuration
 
 Each service reads only environment variables (Assignment 2 §7.7). Secrets have no default and the service refuses to start without them.

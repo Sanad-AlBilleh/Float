@@ -5,6 +5,7 @@ It never calls the other service: health is about this service's own state only.
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from app.db.connection import connect
 from app.db.unit_of_work import transaction
@@ -12,8 +13,15 @@ from app.db.unit_of_work import transaction
 router = APIRouter(tags=["health"])
 
 
-@router.get("/health", responses={200: {"description": "Database readable and writable"},
-                                  503: {"description": "Database not reachable or not writable"}})
+class Health(BaseModel):
+    status: str  # "ok" or "error"
+    db: str  # "ok", or the kind of error
+    version: str  # the git SHA the image was built from
+
+
+@router.get("/health", response_model=Health,
+            responses={200: {"description": "Database readable and writable"},
+                       503: {"model": Health, "description": "Database not reachable or not writable"}})
 def health(request: Request) -> JSONResponse:
     settings = request.app.state.settings
     try:

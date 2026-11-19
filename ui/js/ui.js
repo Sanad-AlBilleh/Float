@@ -20,10 +20,14 @@ const UI = (() => {
     cart: '<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h3l2.6 12.2a1 1 0 0 0 1 .8h9.5a1 1 0 0 0 1-.8L21 7H6"/>',
   };
 
-  // The pages that exist so far; the rest of the A1 pages arrive with the next part of the UI.
+  // The kept A1 pages (plan.md §6: activity, forecast, categories and account pages were trimmed).
   const NAV = [
     { href: "dashboard.html", label: "Dashboard", icon: "home" },
     { href: "transactions.html", label: "Transactions", icon: "list" },
+    { href: "bills.html", label: "Bills", icon: "receipt" },
+    { href: "goals.html", label: "Goals", icon: "target" },
+    { href: "budgets.html", label: "Budgets", icon: "pie" },
+    { href: "households.html", label: "Households", icon: "users" },
   ];
 
   function icon(name) {
@@ -136,7 +140,8 @@ const UI = (() => {
       h("div", { class: "shell" },
         h("aside", { class: "sidebar" },
           h("a", { class: "brand", href: "dashboard.html" }, h("span", { class: "brand-mark" }, icon("wallet")), h("span", {}, "Float")),
-          h("nav", { "aria-label": "Main", class: "side-nav" }, h("p", { class: "nav-label" }, "Money"), NAV.map(link)),
+          h("nav", { "aria-label": "Main", class: "side-nav" }, h("p", { class: "nav-label" }, "Money"), NAV.slice(0, 5).map(link),
+            h("p", { class: "nav-label" }, "Together"), NAV.slice(5).map(link)),
           h("div", { class: "sidebar-user" },
             h("span", { class: "user-chip" }, h("span", { class: "avatar" }, initials),
               h("span", { class: "user-text" }, h("strong", {}, user.display_name), h("small", {}, `@${user.username}`))),
@@ -149,11 +154,68 @@ const UI = (() => {
               h("a", { class: "button button-small topbar-add", href: "transactions.html#new" }, icon("plus"), h("span", {}, "Add expense")))),
           main,
           h("footer", { class: "site-footer" }, h("p", {}, "Estimates depend on complete, accurate records. Float never connects to a bank."))),
-        h("nav", { class: "tabbar", "aria-label": "Quick" }, NAV.map(link),
+        h("nav", { class: "tabbar", "aria-label": "Quick" }, [NAV[0], NAV[1], NAV[2], NAV[5]].map(link),
           h("button", { type: "button", class: "nav-link link-button", onclick: () => Api.logout() }, icon("logout"), h("span", {}, "Log out")))));
     document.title = `${active} · Float`;
     return main;
   }
 
-  return { h, icon, money, parseMoney, today, banner, clearBanner, showProblem, field, shell };
+  // Replace an element's content; null/false children are skipped (replaceChildren would print "null").
+  function set(el, ...children) {
+    el.replaceChildren(...children.flat().filter((child) => child !== null && child !== undefined && child !== false));
+    return el;
+  }
+
+  // ``id`` defaults to the field name; pages with several forms pass a unique one.
+  function select(name, options, value, id = name) {
+    return h("select", { id, name }, options.map(([v, label]) => h("option", { value: String(v), selected: String(v) === String(value) || null }, label)));
+  }
+
+  function input(name, attrs = {}) {
+    return h("input", { id: name, name, ...attrs });
+  }
+
+  // Run an action from a button; show the API's message in an alert if it is refused.
+  async function act(action, after) {
+    try {
+      await action();
+      if (after) await after();
+    } catch (error) {
+      if (error.status !== 503 || error.problem?.title !== "Starting up") alert(error.message);
+    }
+  }
+
+  // A form whose submit handler gets the FormData; API problems are shown on the form.
+  function form(children, onsubmit, attrs = {}) {
+    const el = h("form", { class: "stack card", novalidate: true, ...attrs }, children);
+    el.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = el.querySelector("button[type=submit]");
+      if (button) button.disabled = true;
+      try {
+        el.querySelector(".error-summary")?.remove();
+        await onsubmit(new FormData(el), el);
+      } catch (error) {
+        showProblem(el, error.problem || { title: "Check your input", detail: error.message });
+      } finally {
+        if (button) button.disabled = false;
+      }
+    });
+    return el;
+  }
+
+  // Money typed in a form field, or a field error the form shows.
+  function cents(data, name, { optional = false } = {}) {
+    const text = String(data.get(name) || "").trim();
+    if (optional && !text) return null;
+    const value = parseMoney(text);
+    if (value === null) {
+      const error = new Error("Enter an amount like 12.50.");
+      error.problem = { title: "Check your input", errors: { [name]: "Enter an amount like 12.50." } };
+      throw error;
+    }
+    return value;
+  }
+
+  return { h, icon, money, parseMoney, today, banner, clearBanner, showProblem, field, shell, select, input, act, form, cents, set };
 })();

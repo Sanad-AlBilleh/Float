@@ -12,6 +12,7 @@
 
 const Api = (() => {
   const TOKEN_KEY = "float.token";
+  const USER_KEY = "float.user"; // the last /me answer, so household pages work while personal is down
   const TIMEOUT_MS = 20000;
   const RETRY_WAITS_MS = [3000, 8000, 15000, 25000]; // about a minute in total, enough for the database to resume
   const DESIGNED = new Set(["Households unavailable", "Ledger unavailable"]);
@@ -31,8 +32,15 @@ const Api = (() => {
   function setToken(value) {
     try {
       if (value) localStorage.setItem(TOKEN_KEY, value);
-      else localStorage.removeItem(TOKEN_KEY);
+      else {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+      }
     } catch { /* private mode: the user signs in again next time */ }
+  }
+
+  function cachedUser() {
+    try { return JSON.parse(localStorage.getItem(USER_KEY) || "null"); } catch { return null; }
   }
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -50,7 +58,8 @@ const Api = (() => {
     return { title: `HTTP ${response.status}`, detail: text.slice(0, 200) };
   }
 
-  async function call(service, method, path, body, { auth = true, headers = {} } = {}) {
+  // retry: false is for optional calls (a page still works without them): no waiting, no banner.
+  async function call(service, method, path, body, { auth = true, headers = {}, retry = true } = {}) {
     const request = { method, headers: { ...headers } };
     if (body !== undefined) {
       request.headers["Content-Type"] = "application/json";
@@ -72,6 +81,7 @@ const Api = (() => {
       const startingUp = response === null || (response.status === 503 && !DESIGNED.has(data?.title))
         || response.status === 502 || response.status === 504;
       if (startingUp) {
+        if (!retry) throw new ApiError(503, data && data.title ? data : { title: "Unavailable", detail: "The service did not answer." });
         if (attempt < RETRY_WAITS_MS.length) {
           UI.banner("Float is starting up (the database may be waking from a pause). Retrying…");
           await sleep(RETRY_WAITS_MS[attempt]);
@@ -95,13 +105,19 @@ const Api = (() => {
     }
   }
 
-  // The signed-in user, or a redirect to the login page.
-  async function me() {
+  // The signed-in user, or a redirect to the login page. Pages served by the households service pass
+  // { cached: true }: they use the last known user, because the households service checks the token
+  // itself and should keep working while the personal service is down (Assignment 2 §3).
+  async function me({ cached = false } = {}) {
     if (!token()) {
       location.replace("index.html");
       return new Promise(() => {});
     }
-    return call("personal", "GET", "/me");
+    const known = cachedUser();
+    if (cached && known) return known;
+    const user = await call("personal", "GET", "/me");
+    try { localStorage.setItem(USER_KEY, JSON.stringify({ id: user.id, username: user.username, display_name: user.display_name })); } catch { /* optional */ }
+    return user;
   }
 
   async function logout() {

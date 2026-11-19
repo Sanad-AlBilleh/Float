@@ -361,19 +361,21 @@ Branch `feature/ui-and-azure`:
 - [x] `Build the static UI: login, setup, dashboard and transactions`: `ui/` (A1 stylesheet and icons reused), `config.js`, `js/api.js` (bearer token, 20 s timeout, cold-start retries with a banner, designed 503s shown as messages), `GET /api/v1/categories` added to personal for the forms, nginx in compose. Checked in the browser: register, setup, dashboard (€500 over 12 days = €41.66 a day), adding an expense (category guessed from the note), phone width with no sideways scroll, the dashboard with households stopped ("household balances are unavailable"), and with personal stopped (the "starting up" banner, then the page loads by itself once personal is back).
 - [x] `Record ADR-7 (data and migrations), mark ADR-3 superseded, AI log rows`.
 
-Branch `docs/azure-setup` (after `az login`):
-- [ ] **Azure setup steps 1 to 8** (§11), every command written into the README the same day (`Document the initial Azure setup`).
+Branch `docs/azure-setup`:
+- [x] `Add the one-time Azure setup script and document it` (`infra/azure-setup.sh`, README section), merged at 23:46.
+- [ ] **Running it is blocked**: after `az login`, "Azure for Students" shows **Disabled** ("Your free credit has expired"). The only enabled subscription is "IE Workspaces", which the assignment does not allow. Nothing was created. Needs the professor's answer (see change log).
 
-### Day 3: Friday 20 November: rest of UI, docs as data, CI, first deploy
-Branch `feature/ui-ci`.
-1. `Finish the static UI: bills, goals, budgets, households`.
-2. `Add client tests` (timeouts, 5xx, mapping of 404/409/422) to keep coverage ≥ 70% each.
-3. `Add the cross-seam integration test against compose`.
-4. `Export OpenAPI documents and write system.yaml`.
-5. `Add the CI workflow` (validate, lint, test + coverage, integration, image builds). Green on the PR.
-6. `Add the CD workflow`. **Merge → first deploy** (expected to fail on private GHCR, then fix: evidence). Live with `001` only.
-7. `Record ADR-9 (pipeline and testing), AI log rows`.
-Evening: create real data on Azure through the UI (data that must survive the migration). Screenshot it.
+### Day 3: Friday 20 November: rest of UI, docs as data, CI and CD
+Branch `feature/ui-ci-cd` (built from 23:30 on the 19th, committed on the 20th):
+- [x] `Finish the static UI: bills, goals, budgets, households`. Checked in the browser with two users: add and pay a bill, a goal with €50 protected, a budget "over", create a household, invite, the flatmate joins, a shared expense (the payer's ledger row appears in personal; the flatmate's dashboard shows €15 owed and an alert "Ui Tester recorded Pizza night"), a settlement confirmed (both ledgers written, everyone settled), and with personal stopped: the household page still loads (names "Member #id") and a new expense shows "Ledger unavailable".
+- [x] Review fixes found while testing: "null" printed where a section was empty, duplicate form ids on the household page, a zero balance shown as "is owed €0.00", household pages that could not open while personal was down (they now use the last known user and the fixed categories), stale scripts after a change (no-cache locally, `?v=<sha>` and `Cache-Control: no-cache` on Azure), and alert re-evaluation blocking the event loop (now on the thread pool).
+- [x] `Add client tests` (timeouts, refused connections, 5xx and 401 as unavailable, 404/409/422 as domain errors, the idempotency and internal keys).
+- [x] `Export OpenAPI documents and write system.yaml`: `services/*/openapi.json` generated from the code (with a `/health` response model), `system.yaml`, and `scripts/check_system.py` (env vars and cross-seam endpoints match). `system.schema.json` is still needed from Blackboard; CI warns until it is added.
+- [x] `Add the cross-seam integration test against compose` (`tests/integration/test_seam.py`, 4 tests).
+- [x] `Add the CI and CD workflows`. The deploy job is skipped until the Azure setup has set the repository variables.
+- [x] `Record ADR-9 (pipeline and testing)`, README, AI log rows.
+- [ ] First deploy and real data on Azure: blocked by the disabled subscription.
+- Still to do (Day 4): response schemas for the public `/api/v1` routes in the OpenAPI documents (now only `/health` and `/internal` have them).
 
 ### Day 4: Saturday 21 November: migration on Azure, polish, fully deployed
 Branch `feature/migrations-on-azure`.
@@ -423,4 +425,5 @@ Largest day (Thu 19, about 10 of 37) ≈ 27%, under the 40% limit. **Only 5 dist
 ## Change log
 
 - **19 November, 00:00.** Day 1 was built on Wednesday 18 November but committed just after midnight, so Wednesday has no commit and the history has commits on 17 and 19 November so far. I did not backdate anything. The assignment needs commits on at least 6 distinct days; with Sunday 22 November as the last day, only 5 are left (17, 19, 20, 21, 22). Options: confirm whether the deadline allows a commit on Monday 23 November, or ask the professor how to handle it. Decision pending.
+- **20 November.** The Azure for Students subscription is disabled because its free credit expired. I did not use "IE Workspaces" or press "Upgrade" (that turns it into a paid subscription with a card). Everything that does not need Azure was built and tested locally; the CD deploy job waits for the repository variables that the setup script sets.
 

@@ -68,12 +68,12 @@ The first start downloads SQL Server and takes a minute or two. Compose then:
 
 1. starts SQL Server (`db`) and waits until it answers;
 2. runs `db/init.sql` once (`db-init`), which creates the `personal` and `households` databases and one login per service, each allowed into its own database only;
-3. starts both services. Each applies its own migrations on startup and logs `migration applied: 001_init.sql` (or `migrations: nothing to apply` on later starts);
+3. starts both services. Each applies its own migrations on startup and logs `migration applied: 001_init.sql` (households also `002_member_name.sql`, or `migrations: nothing to apply` on later starts);
 4. serves `ui/` with a stock `nginx` image on port 8080 (no Dockerfile: the folder is mounted read-only).
 
 Open the app at **http://localhost:8080**, create an account and follow the setup.
 
-Check the services: http://localhost:8001/health and http://localhost:8002/health answer `{"status": "ok", "db": "ok", "version": "local"}`. The API documentation is at http://localhost:8001/api/docs and http://localhost:8002/api/docs.
+Check the services: http://localhost:8001/health and http://localhost:8002/health answer `{"status":"ok","db":"ok","version":"local"}`. The API documentation is at http://localhost:8001/api/docs and http://localhost:8002/api/docs.
 
 Your data stays in the `mssql-data` volume between runs. `docker compose down -v` deletes it.
 
@@ -149,7 +149,7 @@ docker compose up -d --build
 pytest tests/integration
 ```
 
-`python scripts/check_system.py` checks that `system.yaml` lists exactly the environment variables each service reads and that every endpoint one service calls exists in the other's `openapi.json`. Each service's `openapi.json` is generated from the code with `python scripts/export_openapi.py`.
+`python scripts/check_system.py` checks that `system.yaml` lists exactly the environment variables each service reads and that every endpoint one service calls exists in the other's `openapi.json`. Each service's `openapi.json` is generated from the code with `python scripts/export_openapi.py`. The documents describe every response; the tests check each JSON response they receive against its schema (`tests/response_schemas.py`).
 
 ## CI/CD
 

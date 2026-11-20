@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import errors, health, internal, middleware
+from app.api.v1 import responses
 from app.api.v1 import routes as api_v1
 from app.clients.households import HouseholdsClient
 from app.config import Settings, load_settings
@@ -58,6 +59,8 @@ def create_app(settings: Settings | None = None, clock: Clock | None = None,
     app.include_router(health.router)
     app.include_router(api_v1.router)
     app.include_router(internal.router)
+    generate = app.openapi
+    app.openapi = lambda: responses.add_to(generate())  # the response record types (responses.py)
     return app
 
 

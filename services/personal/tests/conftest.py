@@ -11,7 +11,7 @@ from app.config import Settings
 from app.db.connection import connect
 from app.main import create_app
 from app.shared.clock import FixedClock
-from tests import dbtest
+from tests import dbtest, response_schemas
 
 MADRID = ZoneInfo("Europe/Madrid")
 TOKEN_SECRET = "test-token-secret"
@@ -71,6 +71,7 @@ def app(settings, clock, conn, households):
 @pytest.fixture
 def client(app):
     with TestClient(app) as test_client:
+        response_schemas.install(test_client)
         yield test_client
 
 
@@ -82,6 +83,7 @@ def make_client(app):
     def factory() -> TestClient:
         browser = TestClient(app)
         browser.__enter__()
+        response_schemas.install(browser)
         opened.append(browser)
         return browser
 

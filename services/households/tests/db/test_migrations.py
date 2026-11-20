@@ -57,3 +57,22 @@ def test_unexpected_file_names_are_rejected(conn, scratch):
     (scratch / "1_init.sql").write_text("SELECT 1;")
     with pytest.raises(ValueError, match="1_init.sql"):
         apply_migrations(conn, scratch)
+
+
+def test_002_keeps_existing_memberships_and_gives_each_a_name(conn):
+    """The data-changing migration, run against a table that already holds rows (Assignment 2 §4.3):
+    undo 002, add rows the way 001 stored them, apply 002 again, and every row is still there."""
+    conn.run_batch("ALTER TABLE memberships DROP COLUMN member_name")
+    conn.execute("DELETE FROM schema_migrations WHERE version = '002_member_name'")
+    conn.execute("INSERT INTO households (name, owner_user_id, created_at) VALUES ('Flat', 7, 'x')")
+    household = conn.execute("SELECT MAX(id) FROM households").fetchone()[0]
+    for user_id, role in ((7, "owner"), (8, "member")):
+        conn.execute("INSERT INTO memberships (household_id, user_id, role, status, joined_at) VALUES (?, ?, ?, 'active', 'x')",
+                     (household, user_id, role))
+    before = conn.execute("SELECT id, user_id, role, status FROM memberships ORDER BY id").fetchall()
+
+    assert apply_migrations(conn) == ["002_member_name"]
+
+    after = conn.execute("SELECT id, user_id, role, status, member_name FROM memberships ORDER BY id").fetchall()
+    assert [tuple(row)[:4] for row in after] == [tuple(row) for row in before]
+    assert [row["member_name"] for row in after] == ["Member #7", "Member #8"]

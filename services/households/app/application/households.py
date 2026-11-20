@@ -30,13 +30,18 @@ def _audit(conn, actor: Actor, household_id: int, entity_type: str, entity_id: i
                  request_id=actor.request_id)
 
 
-def display_names(personal: PersonalClient, user_ids) -> dict[int, str]:
-    """Names from the personal service; "Member #id" when it does not answer, so pages still load (§3)."""
+def display_names(conn: Connection, personal: PersonalClient, user_ids) -> dict[int, str]:
+    """Names from the personal service, saved on the memberships (migration 002). When personal does not
+    answer, the saved names are used, then "Member #id", so pages still load (ADR-6)."""
     ids = set(user_ids)
+    if not ids:
+        return {}
     try:
         names = personal.names(ids)
     except PersonalUnavailable:
-        names = {}
+        names = households.saved_member_names(conn, ids)
+    else:
+        households.save_member_names(conn, names)
     return {user_id: names.get(user_id, f"Member #{user_id}") for user_id in ids}
 
 
@@ -48,7 +53,7 @@ def member_views(conn: Connection, personal: PersonalClient, household_id: int, 
                  with_balances: bool = True) -> list[MemberView]:
     nets = households.balances(conn, household_id=household_id)
     people = households.members(conn, household_id=household_id)
-    names = display_names(personal, [m.user_id for m in people])
+    names = display_names(conn, personal, [m.user_id for m in people])
     return [MemberView(m.user_id, names[m.user_id], m.role, m.status, nets.get(m.user_id, 0) if with_balances else None)
             for m in people]
 

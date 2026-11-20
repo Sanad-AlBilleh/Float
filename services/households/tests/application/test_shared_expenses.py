@@ -154,6 +154,25 @@ def test_a_failed_household_write_undoes_the_ledger_row(conn, personal, clock, f
     assert shared_rows(conn, personal, ana) == [] and personal.creates == 1
 
 
+def test_a_failed_commit_also_undoes_the_ledger_row(conn, personal, clock, flat, monkeypatch):
+    """The COMMIT itself can fail (a deadlock, a dropped connection); the ledger row is undone then too."""
+    from contextlib import contextmanager
+
+    household, ana, ben, carla = flat
+
+    @contextmanager
+    def commit_fails(connection):
+        connection.execute("BEGIN TRANSACTION")
+        yield connection
+        connection.execute("ROLLBACK TRANSACTION")
+        raise RuntimeError("connection lost during COMMIT")
+    monkeypatch.setattr(shared_money, "transaction", commit_fails)
+    with pytest.raises(RuntimeError, match="during COMMIT"):
+        shared_money.record_expense(conn, personal, ana, household.id, draft(ana, ben), clock)
+    assert shared_rows(conn, personal, ana) == [] and personal.creates == 1
+    assert conn.execute("SELECT COUNT(*) FROM shared_expenses").fetchone()[0] == 0
+
+
 def test_an_edit_the_ledger_refuses_changes_nothing_here(conn, personal, clock, flat):
     """The ledger is called last, so its refusal rolls this service's change back."""
     household, ana, ben, carla = flat

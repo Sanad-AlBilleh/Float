@@ -11,7 +11,7 @@ from app.config import Settings
 from app.db.connection import connect
 from app.main import create_app
 from app.shared.clock import FixedClock
-from tests import dbtest
+from tests import dbtest, response_schemas
 from tests.fakes import FakePersonal
 
 MADRID = ZoneInfo("Europe/Madrid")
@@ -59,4 +59,5 @@ def app(settings, clock, conn, personal):
 @pytest.fixture
 def client(app):
     with TestClient(app) as test_client:
+        response_schemas.install(test_client)
         yield test_client

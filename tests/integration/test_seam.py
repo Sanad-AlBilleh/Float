@@ -98,11 +98,14 @@ def test_a_confirmed_settlement_writes_both_ledgers(flat):
 
 def test_with_personal_stopped_households_serves_and_refuses_money_clearly(flat):
     household_id, ana, ben = flat
+    names = {m["display_name"] for m in ana.call("GET", HOUSEHOLDS, f"/households/{household_id}").json()["members"]}
     compose("stop", "personal")
     try:
         page = ana.call("GET", HOUSEHOLDS, f"/households/{household_id}")
         assert page.status_code == 200  # tokens are checked locally
-        assert {m["display_name"] for m in page.json()["members"]} == {f"Member #{ana.id}", f"Member #{ben.id}"}
+        # Migration 002: the names saved on the last successful read are shown, not "Member #id".
+        assert {m["display_name"] for m in page.json()["members"]} == names and not any(
+            name.startswith("Member #") for name in names)
         started = time.monotonic()
         refused = ana.call("POST", HOUSEHOLDS, f"/households/{household_id}/expenses", expense(ana, ben, 500))
         assert time.monotonic() - started < 5  # the 2 s timeout, not a hung request

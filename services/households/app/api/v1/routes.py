@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse, Response
 from app.api.deps import Session, actor_for, get_conn, require_user
 from app.api.v1 import idempotency
 from app.api.v1.problems import to_json
+from app.api.v1.responses import extend, named, obj, returns
 from app.api.v1.schemas import (
     CodeIn,
     ExpenseEdit,
@@ -28,13 +29,36 @@ from app.api.v1.schemas import (
     parse,
 )
 from app.application import activity, households, shared_money
+from app.application.activity import ActivityItem
 from app.application.context import Actor
+from app.application.households import MemberView
+from app.application.shared_money import HouseholdBillsView
 from app.db.connection import Connection
-from app.households.api import SplitEntry, simplify
+from app.households.api import (
+    Household,
+    HouseholdBillSeries,
+    HouseholdOccurrence,
+    Invitation,
+    Member,
+    Settlement,
+    SharedExpense,
+    SplitEntry,
+    Transfer,
+    simplify,
+)
 from app.shared.recurrence import Rule
 
 router = APIRouter(prefix="/api/v1", tags=["v1"])
 Payload = Body(default=None)
+
+# Response schemas (see responses.py). Records the routes build as dicts are described here.
+HOUSEHOLDS = {"type": "array", "items": named("MyHousehold", extend(Household, active_member=bool))}
+HOUSEHOLD_PAGE = named("HouseholdPage", obj(household=Household, me=Member, members=list[MemberView],
+                                            invitations=list[Invitation]))
+INVITE = named("InvitationCode", obj(code=str, expires_in_hours=int))
+BALANCES = named("Balances", obj(nets={"type": "array", "items": named("Net", obj(
+    user_id=int, display_name=str, net_cents=int | None))}, plan=list[Transfer]))
+RECORDED = named("RecordedSettlement", obj(settlement=Settlement, more_than_suggested=bool))
 
 
 def ok(value: Any, status: int = 200) -> JSONResponse:
@@ -65,34 +89,34 @@ def _household(conn, request: Request, actor: Actor, household_id: int, clock) -
                     "invitations": page.invitations})
 
 
-@router.get("/households")
+@router.get("/households", **returns(HOUSEHOLDS))
 def list_households(request: Request, session: Session = Depends(require_user),
                     conn: Connection = Depends(get_conn)):
     return ok([{**to_json(household), "active_member": active}
                for household, active in households.my_households(conn, actor_for(request, session))])
 
 
-@router.post("/households", openapi_extra=body_doc(NameIn))
+@router.post("/households", **returns(Household, 201), openapi_extra=body_doc(NameIn))
 def create_household(request: Request, session: Session = Depends(require_user),
                      conn: Connection = Depends(get_conn), payload: Any = Payload):
     return ok(households.create_household(conn, actor_for(request, session), parse(NameIn, payload).name.strip(),
                                           _clock(request)), 201)
 
 
-@router.post("/households/join", openapi_extra=body_doc(CodeIn))
+@router.post("/households/join", **returns(Household), openapi_extra=body_doc(CodeIn))
 def join_household(request: Request, session: Session = Depends(require_user),
                    conn: Connection = Depends(get_conn), payload: Any = Payload):
     return ok(households.join_household(conn, _personal(request), actor_for(request, session), parse(CodeIn, payload).code,
                                         _clock(request)))
 
 
-@router.get("/households/{household_id}")
+@router.get("/households/{household_id}", **returns(HOUSEHOLD_PAGE))
 def get_household(household_id: int, request: Request, session: Session = Depends(require_user),
                   conn: Connection = Depends(get_conn)):
     return JSONResponse(_household(conn, request, actor_for(request, session), household_id, _clock(request)))
 
 
-@router.patch("/households/{household_id}", openapi_extra=body_doc(RenameIn))
+@router.patch("/households/{household_id}", **returns(HOUSEHOLD_PAGE), openapi_extra=body_doc(RenameIn))
 def rename_household(household_id: int, request: Request, session: Session = Depends(require_user),
                      conn: Connection = Depends(get_conn), payload: Any = Payload):
     actor = actor_for(request, session)
@@ -102,7 +126,7 @@ def rename_household(household_id: int, request: Request, session: Session = Dep
     return JSONResponse(_household(conn, request, actor, household_id, _clock(request)))
 
 
-@router.post("/households/{household_id}/invitations")
+@router.post("/households/{household_id}/invitations", **returns(INVITE, 201))
 def invite(household_id: int, request: Request, session: Session = Depends(require_user),
            conn: Connection = Depends(get_conn)):
     return ok({"code": households.invite(conn, actor_for(request, session), household_id, _clock(request)),
@@ -130,7 +154,7 @@ def remove_member(household_id: int, user_id: int, request: Request, session: Se
     return Response(status_code=204)
 
 
-@router.post("/households/{household_id}/transfer", openapi_extra=body_doc(TransferIn))
+@router.post("/households/{household_id}/transfer", **returns(HOUSEHOLD_PAGE), openapi_extra=body_doc(TransferIn))
 def transfer(household_id: int, request: Request, session: Session = Depends(require_user),
              conn: Connection = Depends(get_conn), payload: Any = Payload):
     actor = actor_for(request, session)
@@ -140,7 +164,7 @@ def transfer(household_id: int, request: Request, session: Session = Depends(req
     return JSONResponse(_household(conn, request, actor, household_id, _clock(request)))
 
 
-@router.post("/households/{household_id}/archive", openapi_extra=body_doc(Versioned))
+@router.post("/households/{household_id}/archive", **returns(HOUSEHOLD_PAGE), openapi_extra=body_doc(Versioned))
 def archive_household(household_id: int, request: Request, session: Session = Depends(require_user),
                       conn: Connection = Depends(get_conn), payload: Any = Payload):
     actor = actor_for(request, session)
@@ -156,13 +180,13 @@ def _expense_draft(data: ExpenseIn) -> shared_money.ExpenseDraft:
                                      data.one_off, data.split_method, _entries(data.participants))
 
 
-@router.get("/households/{household_id}/expenses")
+@router.get("/households/{household_id}/expenses", **returns(list[SharedExpense]))
 def list_expenses(household_id: int, request: Request, session: Session = Depends(require_user),
                   conn: Connection = Depends(get_conn)):
     return ok(households.page(conn, _personal(request), actor_for(request, session), household_id, _clock(request)).expenses)
 
 
-@router.post("/households/{household_id}/expenses", openapi_extra=body_doc(ExpenseIn))
+@router.post("/households/{household_id}/expenses", **returns(SharedExpense, 201), openapi_extra=body_doc(ExpenseIn))
 def create_expense(household_id: int, request: Request, session: Session = Depends(require_user),
                    conn: Connection = Depends(get_conn), payload: Any = Payload):
     actor, clock = actor_for(request, session), _clock(request)
@@ -175,7 +199,7 @@ def create_expense(household_id: int, request: Request, session: Session = Depen
     return idempotency.run(conn, request, user_id=actor.user_id, payload=payload, clock=clock, produce=produce)
 
 
-@router.patch("/households/{household_id}/expenses/{expense_id}", openapi_extra=body_doc(ExpenseEdit))
+@router.patch("/households/{household_id}/expenses/{expense_id}", **returns(SharedExpense), openapi_extra=body_doc(ExpenseEdit))
 def edit_expense(household_id: int, expense_id: int, request: Request,
                  session: Session = Depends(require_user), conn: Connection = Depends(get_conn),
                  payload: Any = Payload):
@@ -197,7 +221,7 @@ def delete_expense(household_id: int, expense_id: int, request: Request,
     return Response(status_code=204)
 
 
-@router.get("/households/{household_id}/balances")
+@router.get("/households/{household_id}/balances", **returns(BALANCES))
 def balances(household_id: int, request: Request, session: Session = Depends(require_user),
              conn: Connection = Depends(get_conn)):
     households.member(conn, actor_for(request, session), household_id)  # current members only
@@ -207,13 +231,13 @@ def balances(household_id: int, request: Request, session: Session = Depends(req
                         for m in page.members], "plan": simplify(nets)})
 
 
-@router.get("/households/{household_id}/settlements")
+@router.get("/households/{household_id}/settlements", **returns(list[Settlement]))
 def list_settlements(household_id: int, request: Request, session: Session = Depends(require_user),
                      conn: Connection = Depends(get_conn)):
     return ok(households.page(conn, _personal(request), actor_for(request, session), household_id, _clock(request)).settlements)
 
 
-@router.post("/households/{household_id}/settlements", openapi_extra=body_doc(SettlementIn))
+@router.post("/households/{household_id}/settlements", **returns(RECORDED, 201), openapi_extra=body_doc(SettlementIn))
 def record_settlement(household_id: int, request: Request, session: Session = Depends(require_user),
                       conn: Connection = Depends(get_conn), payload: Any = Payload):
     actor, clock = actor_for(request, session), _clock(request)
@@ -247,17 +271,17 @@ def _settlement_action(name: str):
 
 for _name in ("confirm", "reject", "cancel"):
     router.add_api_route(f"/settlements/{{settlement_id}}/{_name}", _settlement_action(_name), methods=["POST"],
-                         openapi_extra=body_doc(ReasonIn))
+                         openapi_extra=body_doc(ReasonIn), **returns(Settlement))
 
 
-@router.get("/households/{household_id}/bills")
+@router.get("/households/{household_id}/bills", **returns(HouseholdBillsView))
 def list_household_bills(household_id: int, request: Request, session: Session = Depends(require_user),
                          conn: Connection = Depends(get_conn)):
     return ok(shared_money.household_bills(conn, _personal(request), actor_for(request, session), household_id,
                                               _clock(request)))
 
 
-@router.post("/households/{household_id}/bills", openapi_extra=body_doc(HouseholdBillIn))
+@router.post("/households/{household_id}/bills", **returns(HouseholdBillSeries, 201), openapi_extra=body_doc(HouseholdBillIn))
 def create_household_bill(household_id: int, request: Request, session: Session = Depends(require_user),
                           conn: Connection = Depends(get_conn), payload: Any = Payload):
     actor = actor_for(request, session)
@@ -269,7 +293,7 @@ def create_household_bill(household_id: int, request: Request, session: Session 
     return ok(series, 201)
 
 
-@router.patch("/household-occurrences/{occurrence_id}", openapi_extra=body_doc(OccurrenceEdit))
+@router.patch("/household-occurrences/{occurrence_id}", **returns(HouseholdOccurrence), openapi_extra=body_doc(OccurrenceEdit))
 def edit_household_occurrence(occurrence_id: int, request: Request, session: Session = Depends(require_user),
                               conn: Connection = Depends(get_conn), payload: Any = Payload):
     actor = actor_for(request, session)
@@ -306,10 +330,11 @@ def _household_occurrence_action(name: str):
 
 for _name in ("pay", "undo", "skip", "unskip"):
     router.add_api_route(f"/household-occurrences/{{occurrence_id}}/{_name}", _household_occurrence_action(_name),
-                         methods=["POST"], openapi_extra=body_doc(PaymentIn if _name == "pay" else Versioned))
+                         methods=["POST"], openapi_extra=body_doc(PaymentIn if _name == "pay" else Versioned),
+                         **(returns(SharedExpense, 201) if _name == "pay" else returns(HouseholdOccurrence)))
 
 
-@router.get("/households/{household_id}/activity")
+@router.get("/households/{household_id}/activity", **returns(list[ActivityItem]))
 def household_activity(household_id: int, request: Request, session: Session = Depends(require_user),
                        conn: Connection = Depends(get_conn)):
     return ok(activity.household_activity(conn, _personal(request), actor_for(request, session), household_id))

@@ -1,6 +1,25 @@
 {
   "components": {
     "schemas": {
+      "ActivityItem": {
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "when": {
+            "format": "date-time",
+            "title": "When",
+            "type": "string"
+          }
+        },
+        "required": [
+          "when",
+          "text"
+        ],
+        "title": "ActivityItem",
+        "type": "object"
+      },
       "AwaitingSettlement": {
         "properties": {
           "amount_cents": {
@@ -32,6 +51,27 @@
           "verb"
         ],
         "title": "AwaitingSettlement",
+        "type": "object"
+      },
+      "Balances": {
+        "properties": {
+          "nets": {
+            "items": {
+              "$ref": "#/components/schemas/Net"
+            },
+            "type": "array"
+          },
+          "plan": {
+            "items": {
+              "$ref": "#/components/schemas/Transfer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "nets",
+          "plan"
+        ],
         "type": "object"
       },
       "Commitment": {
@@ -151,6 +191,531 @@
         "title": "Health",
         "type": "object"
       },
+      "Household": {
+        "properties": {
+          "archived": {
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_user_id": {
+            "title": "Owner User Id",
+            "type": "integer"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "owner_user_id",
+          "archived",
+          "version"
+        ],
+        "title": "Household",
+        "type": "object"
+      },
+      "HouseholdBillRow": {
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "amount_display": {
+            "description": "`amount_cents` formatted as euros",
+            "type": "string"
+          },
+          "category_id": {
+            "title": "Category Id",
+            "type": "integer"
+          },
+          "due_date": {
+            "format": "date",
+            "title": "Due Date",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "my_share_cents": {
+            "title": "My Share Cents",
+            "type": "integer"
+          },
+          "my_share_display": {
+            "description": "`my_share_cents` formatted as euros",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "participant": {
+            "title": "Participant",
+            "type": "boolean"
+          },
+          "payer_user_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payer User Id"
+          },
+          "scheduled_date": {
+            "format": "date",
+            "title": "Scheduled Date",
+            "type": "string"
+          },
+          "series_id": {
+            "title": "Series Id",
+            "type": "integer"
+          },
+          "shared_expense_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shared Expense Id"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "series_id",
+          "name",
+          "category_id",
+          "scheduled_date",
+          "due_date",
+          "amount_cents",
+          "skipped",
+          "shared_expense_id",
+          "version",
+          "status",
+          "my_share_cents",
+          "participant",
+          "payer_user_id"
+        ],
+        "title": "HouseholdBillRow",
+        "type": "object"
+      },
+      "HouseholdBillSeries": {
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "amount_display": {
+            "description": "`amount_cents` formatted as euros",
+            "type": "string"
+          },
+          "category_id": {
+            "title": "Category Id",
+            "type": "integer"
+          },
+          "ended": {
+            "title": "Ended",
+            "type": "boolean"
+          },
+          "household_id": {
+            "title": "Household Id",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "materialized_through": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Materialized Through"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "rule": {
+            "$ref": "#/components/schemas/Rule"
+          },
+          "split_method": {
+            "title": "Split Method",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "weights": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Weights",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "household_id",
+          "name",
+          "amount_cents",
+          "category_id",
+          "rule",
+          "split_method",
+          "weights",
+          "materialized_through",
+          "ended",
+          "version"
+        ],
+        "title": "HouseholdBillSeries",
+        "type": "object"
+      },
+      "HouseholdBillsView": {
+        "properties": {
+          "cycle_estimated": {
+            "default": false,
+            "title": "Cycle Estimated",
+            "type": "boolean"
+          },
+          "occurrences": {
+            "items": {
+              "$ref": "#/components/schemas/HouseholdBillRow"
+            },
+            "title": "Occurrences",
+            "type": "array"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/HouseholdBillSeries"
+            },
+            "title": "Series",
+            "type": "array"
+          }
+        },
+        "required": [
+          "series",
+          "occurrences"
+        ],
+        "title": "HouseholdBillsView",
+        "type": "object"
+      },
+      "HouseholdOccurrence": {
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "amount_display": {
+            "description": "`amount_cents` formatted as euros",
+            "type": "string"
+          },
+          "category_id": {
+            "title": "Category Id",
+            "type": "integer"
+          },
+          "due_date": {
+            "format": "date",
+            "title": "Due Date",
+            "type": "string"
+          },
+          "household_id": {
+            "title": "Household Id",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "scheduled_date": {
+            "format": "date",
+            "title": "Scheduled Date",
+            "type": "string"
+          },
+          "series_id": {
+            "title": "Series Id",
+            "type": "integer"
+          },
+          "shared_expense_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shared Expense Id"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "boolean"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "series_id",
+          "household_id",
+          "name",
+          "category_id",
+          "scheduled_date",
+          "due_date",
+          "amount_cents",
+          "skipped",
+          "shared_expense_id",
+          "version"
+        ],
+        "title": "HouseholdOccurrence",
+        "type": "object"
+      },
+      "HouseholdPage": {
+        "properties": {
+          "household": {
+            "$ref": "#/components/schemas/Household"
+          },
+          "invitations": {
+            "items": {
+              "$ref": "#/components/schemas/Invitation"
+            },
+            "type": "array"
+          },
+          "me": {
+            "$ref": "#/components/schemas/Member"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/MemberView"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "household",
+          "invitations",
+          "me",
+          "members"
+        ],
+        "type": "object"
+      },
+      "Invitation": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "integer"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "created_by",
+          "created_at",
+          "expires_at"
+        ],
+        "title": "Invitation",
+        "type": "object"
+      },
+      "InvitationCode": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "expires_in_hours": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "expires_in_hours"
+        ],
+        "type": "object"
+      },
+      "Member": {
+        "properties": {
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "joined_at": {
+            "format": "date-time",
+            "title": "Joined At",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "user_id",
+          "role",
+          "status",
+          "joined_at",
+          "ended_at"
+        ],
+        "title": "Member",
+        "type": "object"
+      },
+      "MemberView": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "net_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Cents"
+          },
+          "net_display": {
+            "description": "`net_cents` formatted as euros",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "user_id",
+          "display_name",
+          "role",
+          "status",
+          "net_cents"
+        ],
+        "title": "MemberView",
+        "type": "object"
+      },
+      "MyHousehold": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Household"
+          },
+          {
+            "properties": {
+              "active_member": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "active_member"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "Net": {
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "net_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "net_display": {
+            "description": "`net_cents` formatted as euros",
+            "type": "string"
+          },
+          "user_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "display_name",
+          "net_cents",
+          "user_id"
+        ],
+        "type": "object"
+      },
       "OpenBill": {
         "properties": {
           "due_date": {
@@ -229,6 +794,158 @@
         "title": "Position",
         "type": "object"
       },
+      "RecordedSettlement": {
+        "properties": {
+          "more_than_suggested": {
+            "type": "boolean"
+          },
+          "settlement": {
+            "$ref": "#/components/schemas/Settlement"
+          }
+        },
+        "required": [
+          "more_than_suggested",
+          "settlement"
+        ],
+        "type": "object"
+      },
+      "Rule": {
+        "description": "``freq`` every ``interval`` periods from ``anchor``, ending by ``until`` or ``count``.",
+        "properties": {
+          "anchor": {
+            "format": "date",
+            "title": "Anchor",
+            "type": "string"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Count"
+          },
+          "freq": {
+            "title": "Freq",
+            "type": "string"
+          },
+          "interval": {
+            "title": "Interval",
+            "type": "integer"
+          },
+          "until": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Until"
+          }
+        },
+        "required": [
+          "freq",
+          "interval",
+          "anchor"
+        ],
+        "title": "Rule",
+        "type": "object"
+      },
+      "Settlement": {
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "amount_display": {
+            "description": "`amount_cents` formatted as euros",
+            "type": "string"
+          },
+          "household_id": {
+            "title": "Household Id",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "initiated_by": {
+            "title": "Initiated By",
+            "type": "integer"
+          },
+          "paid_on": {
+            "format": "date",
+            "title": "Paid On",
+            "type": "string"
+          },
+          "payee_transaction_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payee Transaction Id"
+          },
+          "payee_user_id": {
+            "title": "Payee User Id",
+            "type": "integer"
+          },
+          "payer_transaction_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payer Transaction Id"
+          },
+          "payer_user_id": {
+            "title": "Payer User Id",
+            "type": "integer"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "household_id",
+          "payer_user_id",
+          "payee_user_id",
+          "initiated_by",
+          "amount_cents",
+          "paid_on",
+          "status",
+          "reason",
+          "payer_transaction_id",
+          "payee_transaction_id",
+          "version"
+        ],
+        "title": "Settlement",
+        "type": "object"
+      },
       "Share": {
         "properties": {
           "amount_cents": {
@@ -261,6 +978,124 @@
           "one_off"
         ],
         "title": "Share",
+        "type": "object"
+      },
+      "SharedExpense": {
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "amount_display": {
+            "description": "`amount_cents` formatted as euros",
+            "type": "string"
+          },
+          "category_id": {
+            "title": "Category Id",
+            "type": "integer"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "household_id": {
+            "title": "Household Id",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "one_off": {
+            "title": "One Off",
+            "type": "boolean"
+          },
+          "payer_transaction_id": {
+            "title": "Payer Transaction Id",
+            "type": "integer"
+          },
+          "payer_user_id": {
+            "title": "Payer User Id",
+            "type": "integer"
+          },
+          "shares": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Shares",
+            "type": "object"
+          },
+          "spent_on": {
+            "format": "date",
+            "title": "Spent On",
+            "type": "string"
+          },
+          "split_method": {
+            "title": "Split Method",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "weights": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Weights",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "household_id",
+          "payer_user_id",
+          "amount_cents",
+          "category_id",
+          "description",
+          "spent_on",
+          "split_method",
+          "one_off",
+          "payer_transaction_id",
+          "version",
+          "shares",
+          "weights"
+        ],
+        "title": "SharedExpense",
+        "type": "object"
+      },
+      "Transfer": {
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "amount_display": {
+            "description": "`amount_cents` formatted as euros",
+            "type": "string"
+          },
+          "from_user": {
+            "title": "From User",
+            "type": "integer"
+          },
+          "to_user": {
+            "title": "To User",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "from_user",
+          "to_user",
+          "amount_cents"
+        ],
+        "title": "Transfer",
         "type": "object"
       },
       "ValidationError": {
@@ -364,10 +1199,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdOccurrence"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -435,13 +1272,15 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SharedExpense"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -500,10 +1339,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdOccurrence"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -562,10 +1403,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdOccurrence"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -624,10 +1467,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdOccurrence"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -653,10 +1498,15 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MyHousehold"
+                  },
+                  "type": "array"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           }
         },
         "summary": "List Households",
@@ -687,13 +1537,15 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Household"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -739,10 +1591,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Household"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -779,10 +1633,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdPage"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -844,10 +1700,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdPage"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -884,10 +1742,15 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ActivityItem"
+                  },
+                  "type": "array"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -946,10 +1809,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdPage"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -986,10 +1851,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Balances"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1026,10 +1893,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdBillsView"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1192,13 +2061,15 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdBillSeries"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1235,10 +2106,15 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SharedExpense"
+                  },
+                  "type": "array"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1364,13 +2240,15 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SharedExpense"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1581,10 +2459,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SharedExpense"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1618,13 +2498,15 @@
           }
         ],
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationCode"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1784,10 +2666,15 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Settlement"
+                  },
+                  "type": "array"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1861,13 +2748,15 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RecordedSettlement"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1933,10 +2822,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdPage"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -2000,10 +2891,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Settlement"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -2067,10 +2960,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Settlement"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -2134,10 +3029,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Settlement"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {

@@ -15,7 +15,7 @@
     [view, alerts] = await Promise.all([Api.personal("GET", "/dashboard"),
       Api.personal("GET", "/alerts").catch(() => [])]);
   } catch (error) {
-    main.replaceChildren(h("div", { class: "warning", role: "alert" }, h("p", {}, error.message)));
+    UI.set(main, h("div", { class: "warning", role: "alert" }, h("p", {}, error.message)));
     return;
   }
   const t = view.terms;
@@ -63,18 +63,18 @@
   preview.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (parseMoney(cost.value) === null) {
-      result.replaceChildren(h("p", { class: "field-error" }, "Enter an amount like 35 or 12.50."));
+      UI.set(result, h("p", { class: "field-error" }, "Enter an amount like 35 or 12.50."));
       return;
     }
     const p = await Api.personal("GET", `/dashboard/preview?cost=${encodeURIComponent(cost.value)}`);
     result.className = "notice preview-result";
-    result.replaceChildren(h("p", {}, p.after_shortfall_cents
+    UI.set(result, h("p", {}, p.after_shortfall_cents
       ? `You would be ${money(p.after_shortfall_cents)} short.`
       : `Afterwards you could spend ${money(p.after_daily_cents)} a day.`));
   });
 
   const unread = alerts.filter((a) => !a.read);
-  main.replaceChildren(
+  UI.set(main, 
     h("div", { class: "page-head" }, h("div", {}, h("h1", {}, `Today, ${view.today}`),
       h("p", { class: "muted" }, "Your money at a glance, until your next allowance."))),
     ...warnings,

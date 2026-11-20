@@ -40,7 +40,7 @@ Float is being split into two services, each with its own SQL Server database, a
 
 They talk over HTTP. When a flatmate records a shared expense, the households service asks the personal service to add the payer's ledger row (`POST /internal/transactions`). When the dashboard needs your household terms, the personal service asks the households service (`GET /internal/users/{id}/position`). Every call has a 2-second timeout. If one service is down, the other keeps serving its own data and answers the cross-service actions with a clear "unavailable, nothing was saved" (503) instead of an error page.
 
-The server-rendered pages of Assignment 1 are gone: both services now serve JSON only, and the browser UI is static files in `ui/` (HTML, CSS and plain JavaScript, no build step). So far it has the login, setup, dashboard and transactions pages; bills, goals, budgets and households follow.
+The server-rendered pages of Assignment 1 are gone: both services now serve JSON only, and the browser UI is static files in `ui/` (HTML, CSS and plain JavaScript, no build step). It has the login, setup, dashboard, transactions, bills, goals, budgets, households and household pages. The A1 activity, forecast, categories and account pages were not rebuilt (their API routes still exist).
 
 ## How to run it
 
@@ -137,7 +137,24 @@ ruff check app tests
 pytest --cov --cov-report=term
 ```
 
-Each service tests its own code, with the other service replaced by an in-memory stand-in (`tests/fakes.py`): a scripted households service in the personal tests, and a small fake ledger in the households tests. The real calls between them are tested together in the cross-service integration test (coming with the CI workflow).
+Each service tests its own code, with the other service replaced by an in-memory stand-in (`tests/fakes.py`): a scripted households service in the personal tests, and a small fake ledger in the households tests.
+
+The real calls between them are tested together against the running compose stack (it stops each service in turn, so it needs Docker):
+
+```bash
+docker compose up -d --build
+```
+
+```bash
+pytest tests/integration
+```
+
+`python scripts/check_system.py` checks that `system.yaml` lists exactly the environment variables each service reads and that every endpoint one service calls exists in the other's `openapi.json`. Each service's `openapi.json` is generated from the code with `python scripts/export_openapi.py`.
+
+## CI/CD
+
+- **CI** (`.github/workflows/ci.yml`) runs on every branch push and pull request: the system description and OpenAPI checks, ruff, each service's tests with coverage (it fails under 70%), the cross-service integration test on the compose stack, and a build of each image. Tests use a throwaway SQL Server container with a password made up for that run; CI never touches Azure SQL.
+- **CD** (`.github/workflows/cd.yml`) runs on every merge to `main`. It runs CI first on the same commit; only then does it push both images to GHCR tagged with the commit SHA, sign in to Azure through OIDC (no password), deploy both Container Apps with their secrets by reference, upload `ui/` to the storage account's `$web` container with `config.js` pointing at the services, and wait until both `/health` answers report that commit. Until the one-time Azure setup has run, the deploy job is skipped.
 
 ## Project structure
 

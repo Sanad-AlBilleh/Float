@@ -82,10 +82,10 @@
   async function load() {
     const items = await Api.personal("GET", "/transactions?limit=100");
     if (!items.length) {
-      list.replaceChildren(h("p", {}, "No transactions yet. Add your first expense or income above."));
+      UI.set(list, h("p", {}, "No transactions yet. Add your first expense or income above."));
       return;
     }
-    list.replaceChildren(h("ul", { class: "rows" }, items.map((item) => {
+    UI.set(list, h("ul", { class: "rows" }, items.map((item) => {
       const managed = item.origin !== "manual";
       return h("li", { class: "row" },
         h("span", { class: `row-icon ${item.kind === "income" ? "tone-green" : item.origin === "settlement" ? "tone-slate" : "tone-violet"}` },
@@ -131,9 +131,9 @@
   });
 
   categories = await Api.personal("GET", "/categories");
-  category.replaceChildren(h("option", { value: "" }, "Guess from the note"),
+  UI.set(category, h("option", { value: "" }, "Guess from the note"),
     categories.map((c) => h("option", { value: String(c.id) }, c.name)));
-  main.replaceChildren(h("div", { class: "page-head" }, h("h1", {}, "Transactions")), form, list);
+  UI.set(main, h("div", { class: "page-head" }, h("h1", {}, "Transactions")), form, list);
   if (location.hash === "#income") kind.value = "income";
   toggle();
   await load();

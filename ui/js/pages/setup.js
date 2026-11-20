@@ -50,6 +50,6 @@
     }
   });
 
-  main.replaceChildren(h("h1", {}, `Welcome, ${me.display_name}`),
+  UI.set(main, h("h1", {}, `Welcome, ${me.display_name}`),
     h("p", { class: "lead" }, "Three numbers and Float can tell you how much is safe to spend each day."), el);
 })();

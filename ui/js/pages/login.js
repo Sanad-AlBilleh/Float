@@ -42,7 +42,7 @@
 
   function render(mode) {
     const register = mode === "register";
-    main.replaceChildren(
+    UI.set(main, 
       h("h1", {}, register ? "Create your account" : "Log in"),
       form(mode),
       h("p", {}, register ? "Already have an account? " : "New here? ",

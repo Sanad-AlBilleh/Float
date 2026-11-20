@@ -1,6 +1,8 @@
 """Request IDs, one JSON log line per request on stdout, security headers, and the last-resort 500.
 
-After a successful write by a signed-in user, the user's alerts are re-evaluated (FR-32), as in A1.
+After a successful write by a signed-in user, the user's alerts are re-evaluated (FR-32), as in A1. That
+work is blocking (database, and up to three calls to the households service with their timeouts), so it
+runs on the thread pool: the event loop keeps serving other requests while it waits.
 """
 
 import json
@@ -9,6 +11,7 @@ import time
 import uuid
 
 from fastapi import FastAPI, Request
+from starlette.concurrency import run_in_threadpool
 from starlette.responses import Response
 
 from app.api.v1.problems import problem
@@ -50,7 +53,7 @@ def install(app: FastAPI) -> None:
                                request_id=request.state.request_id)
         if (request.method in UNSAFE_METHODS and request.url.path.startswith("/api/")
                 and 200 <= response.status_code < 300 and getattr(request.state, "user_id", None)):
-            _refresh_alerts(request)
+            await run_in_threadpool(_refresh_alerts, request)
         for name, value in SECURITY_HEADERS.items():
             response.headers[name] = value
         response.headers["X-Request-ID"] = request.state.request_id

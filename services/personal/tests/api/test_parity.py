@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+from tests import response_schemas
 from tests.api.helpers import PASSWORD, Api, signed_up
 from tests.scenarios.flat_3b import build_flat_3b, fixture_a_clock
 
@@ -15,6 +16,7 @@ def fixture_a(conn, settings):
     flat = build_flat_3b(conn, clock)
     app = create_app(settings, clock, households=flat.households, run_migrations=False)
     with TestClient(app) as browser:
+        response_schemas.install(browser)
         api = Api(browser)
         assert api.post("/auth/login", {"username": "ana", "password": PASSWORD}).status_code == 200
         yield api, flat

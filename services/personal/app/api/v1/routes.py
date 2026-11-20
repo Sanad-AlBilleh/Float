@@ -17,6 +17,7 @@ from app.api.deps import (
 )
 from app.api.v1 import idempotency
 from app.api.v1.problems import to_json
+from app.api.v1.responses import extend, named, obj, returns
 from app.api.v1.schemas import (
     Credentials,
     GoalEdit,
@@ -48,18 +49,35 @@ from app.application import (
     setup,
     transactions,
 )
+from app.application.activity import ActivityItem
+from app.application.bills import BillRow
 from app.application.context import Actor
 from app.application.dashboard import dashboard, forecast
 from app.db.connection import Connection
 from app.identity.api import Session
-from app.insights.api import preview
-from app.ledger.api import TransactionDraft
+from app.insights.api import Alert, Forecast, Preview, SafeToSpendInputs, preview
+from app.ledger.api import Category, LedgerSettings, Transaction, TransactionDraft
+from app.planning.api import BillSeries, Goal, GoalPlan, Occurrence, PlanningSettings
 from app.shared.errors import ValidationError
 from app.shared.money import parse_money
 from app.shared.recurrence import Rule
 
 router = APIRouter(prefix="/api/v1", tags=["v1"])
 Payload = Body(default=None)
+
+# Response schemas (see responses.py). Records the routes build as dicts are described here.
+SIGNED_IN = named("SignedIn", obj(user=named("User", obj(id=int, username=str, display_name=str)), token=str))
+ME = named("Me", obj(id=int, username=str, display_name=str, setup_complete=bool))
+SETTINGS = named("Settings", obj(ledger=LedgerSettings, planning=PlanningSettings))
+PAYMENT = named("Payment", obj(transaction_id=int, occurrence=Occurrence))
+GOALS = {"type": "array", "items": named("GoalWithPlan", extend(Goal, plan=GoalPlan))}
+BUDGET_ROW = named("BudgetRow", obj(category_id=int, category=str, consumption_cents=int, limit_cents=int | None,
+                                    template_cents=int | None, override_cents=int | None, state=str | None))
+DASHBOARD = named("Dashboard", obj(
+    today=date, next_allowance=date, days_remaining=int, terms=SafeToSpendInputs, discretionary_cents=int,
+    daily_cents=int, shortfall_cents=int, household_receivables_cents=int, planned_allowance_cents=int,
+    allowance_reminder=bool, in_household=bool, households_available=bool))
+FORECAST = named("ForecastWindow", extend(Forecast, window_days=int))
 
 
 def ok(value: Any, status: int = 200) -> JSONResponse:
@@ -90,7 +108,7 @@ def _rule(data: SeriesIn) -> Rule:
 
 # Auth --------------------------------------------------------------------------------------------------
 
-@router.post("/auth/register", openapi_extra=body_doc(Registration))
+@router.post("/auth/register", **returns(SIGNED_IN, 201), openapi_extra=body_doc(Registration))
 def register(request: Request, conn: Connection = Depends(get_conn), payload: Any = Payload):
     data = parse(Registration, payload)
     session, token = accounts.register_account(conn, username=data.username, display_name=data.display_name,
@@ -100,7 +118,7 @@ def register(request: Request, conn: Connection = Depends(get_conn), payload: An
     return _signed_in(session, token, 201)
 
 
-@router.post("/auth/login", openapi_extra=body_doc(Credentials))
+@router.post("/auth/login", **returns(SIGNED_IN), openapi_extra=body_doc(Credentials))
 def login(request: Request, conn: Connection = Depends(get_conn), payload: Any = Payload):
     data = parse(Credentials, payload)
     session, token = accounts.log_in(conn, username=data.username, password=data.password,
@@ -117,7 +135,7 @@ def logout(request: Request, conn: Connection = Depends(get_conn),
     return Response(status_code=204)
 
 
-@router.get("/me")
+@router.get("/me", **returns(ME))
 def me(session: Session = Depends(require_session), conn: Connection = Depends(get_conn)):
     return ok({"id": session.user.id, "username": session.user.username, "display_name": session.user.display_name,
                "setup_complete": setup.is_setup_complete(conn, session.user.id)})
@@ -134,7 +152,7 @@ def change_password(request: Request, session: Session = Depends(require_session
 
 # Setup and settings ------------------------------------------------------------------------------------
 
-@router.post("/setup", openapi_extra=body_doc(SetupIn))
+@router.post("/setup", **returns(SETTINGS), openapi_extra=body_doc(SetupIn))
 def complete_setup(request: Request, session: Session = Depends(require_session),
                    conn: Connection = Depends(get_conn), payload: Any = Payload):
     data = parse(SetupIn, payload)
@@ -145,13 +163,13 @@ def complete_setup(request: Request, session: Session = Depends(require_session)
     return settings(session, conn)
 
 
-@router.get("/settings")
+@router.get("/settings", **returns(SETTINGS))
 def settings(session: Session = Depends(require_ready_session), conn: Connection = Depends(get_conn)):
     ledger_settings, planning_settings = setup.current_settings(conn, session.user.id)
     return ok({"ledger": ledger_settings, "planning": planning_settings})
 
 
-@router.patch("/settings", openapi_extra=body_doc(PlannedAllowanceIn))
+@router.patch("/settings", **returns(SETTINGS), openapi_extra=body_doc(PlannedAllowanceIn))
 def update_settings(request: Request, session: Session = Depends(require_ready_session),
                     conn: Connection = Depends(get_conn), payload: Any = Payload):
     data = parse(PlannedAllowanceIn, payload)
@@ -161,7 +179,7 @@ def update_settings(request: Request, session: Session = Depends(require_ready_s
 
 # Categories --------------------------------------------------------------------------------------------
 
-@router.get("/categories")
+@router.get("/categories", **returns(list[Category]))
 def list_categories(request: Request, session: Session = Depends(require_session),
                     conn: Connection = Depends(get_conn)):
     """The fixed categories, then the user's own: what the UI offers when recording an expense."""
@@ -181,13 +199,13 @@ def _draft(conn: Connection, actor: Actor, data: TransactionIn) -> TransactionDr
                             data.one_off, data.note.strip())
 
 
-@router.get("/transactions")
+@router.get("/transactions", **returns(list[Transaction]))
 def list_transactions(request: Request, session: Session = Depends(require_ready_session),
                       conn: Connection = Depends(get_conn), limit: int = 50):
     return ok(transactions.list_transactions(conn, actor_for(request, session), limit=max(1, min(limit, 200))))
 
 
-@router.post("/transactions", openapi_extra=body_doc(TransactionIn))
+@router.post("/transactions", **returns(Transaction, 201), openapi_extra=body_doc(TransactionIn))
 def create_transaction(request: Request, session: Session = Depends(require_ready_session),
                        conn: Connection = Depends(get_conn), payload: Any = Payload):
     actor = actor_for(request, session)
@@ -199,13 +217,13 @@ def create_transaction(request: Request, session: Session = Depends(require_read
                            produce=produce)
 
 
-@router.get("/transactions/{transaction_id}")
+@router.get("/transactions/{transaction_id}", **returns(Transaction))
 def get_transaction(transaction_id: int, request: Request, session: Session = Depends(require_ready_session),
                     conn: Connection = Depends(get_conn)):
     return ok(transactions.get_transaction(conn, actor_for(request, session), transaction_id))
 
 
-@router.patch("/transactions/{transaction_id}", openapi_extra=body_doc(TransactionEdit))
+@router.patch("/transactions/{transaction_id}", **returns(Transaction), openapi_extra=body_doc(TransactionEdit))
 def edit_transaction(transaction_id: int, request: Request, session: Session = Depends(require_ready_session),
                      conn: Connection = Depends(get_conn), payload: Any = Payload):
     actor = actor_for(request, session)
@@ -226,13 +244,13 @@ def delete_transaction(transaction_id: int, request: Request, session: Session =
 
 # Bills --------------------------------------------------------------------------------------------------
 
-@router.get("/bills")
+@router.get("/bills", **returns(list[BillSeries]))
 def list_bills(request: Request, session: Session = Depends(require_ready_session),
                conn: Connection = Depends(get_conn)):
     return ok(bills.overview(conn, actor_for(request, session), _clock(request)).series)
 
 
-@router.post("/bills", openapi_extra=body_doc(SeriesIn))
+@router.post("/bills", **returns(BillSeries, 201), openapi_extra=body_doc(SeriesIn))
 def create_bill(request: Request, session: Session = Depends(require_ready_session),
                 conn: Connection = Depends(get_conn), payload: Any = Payload):
     data = parse(SeriesIn, payload)
@@ -242,7 +260,7 @@ def create_bill(request: Request, session: Session = Depends(require_ready_sessi
     return ok(series, 201)
 
 
-@router.post("/bills/{series_id}/end", openapi_extra=body_doc(Versioned))
+@router.post("/bills/{series_id}/end", **returns(BillSeries), openapi_extra=body_doc(Versioned))
 def end_bill(series_id: int, request: Request, session: Session = Depends(require_ready_session),
              conn: Connection = Depends(get_conn), payload: Any = Payload):
     actor = actor_for(request, session)
@@ -251,7 +269,7 @@ def end_bill(series_id: int, request: Request, session: Session = Depends(requir
     return ok(bills.get_series(conn, actor, series_id))
 
 
-@router.get("/occurrences")
+@router.get("/occurrences", **returns(list[BillRow]))
 def list_occurrences(request: Request, session: Session = Depends(require_ready_session),
                      conn: Connection = Depends(get_conn), start: date | None = None,
                      end: date | None = None):
@@ -259,7 +277,7 @@ def list_occurrences(request: Request, session: Session = Depends(require_ready_
     return ok(view.in_range(start, end))
 
 
-@router.patch("/occurrences/{occurrence_id}", openapi_extra=body_doc(OccurrenceEdit))
+@router.patch("/occurrences/{occurrence_id}", **returns(Occurrence), openapi_extra=body_doc(OccurrenceEdit))
 def edit_occurrence(occurrence_id: int, request: Request, session: Session = Depends(require_ready_session),
                     conn: Connection = Depends(get_conn), payload: Any = Payload):
     actor = actor_for(request, session)
@@ -269,7 +287,7 @@ def edit_occurrence(occurrence_id: int, request: Request, session: Session = Dep
     return ok(bills.get_occurrence(conn, actor, occurrence_id))
 
 
-@router.post("/occurrences/{occurrence_id}/pay", openapi_extra=body_doc(PaymentIn))
+@router.post("/occurrences/{occurrence_id}/pay", **returns(PAYMENT, 201), openapi_extra=body_doc(PaymentIn))
 def pay_occurrence(occurrence_id: int, request: Request, session: Session = Depends(require_ready_session),
                    conn: Connection = Depends(get_conn), payload: Any = Payload):
     actor, clock = actor_for(request, session), _clock(request)
@@ -298,10 +316,10 @@ def _occurrence_action(name: str, action):
 for _name, _action in (("undo", bills.undo_payment), ("skip", bills.skip_occurrence),
                        ("unskip", bills.unskip_occurrence)):
     router.add_api_route(f"/occurrences/{{occurrence_id}}/{_name}", _occurrence_action(_name, _action),
-                         methods=["POST"], openapi_extra=body_doc(Versioned))
+                         methods=["POST"], openapi_extra=body_doc(Versioned), **returns(Occurrence))
 
 
-@router.post("/occurrences/{occurrence_id}/split", openapi_extra=body_doc(SplitIn))
+@router.post("/occurrences/{occurrence_id}/split", **returns(BillSeries, 201), openapi_extra=body_doc(SplitIn))
 def split_occurrence(occurrence_id: int, request: Request, session: Session = Depends(require_ready_session),
                      conn: Connection = Depends(get_conn), payload: Any = Payload):
     actor = actor_for(request, session)
@@ -319,21 +337,21 @@ def _goal_input(data: GoalIn) -> goals.GoalInput:
     return goals.GoalInput(data.name.strip(), data.target_cents, data.target_date, data.priority, data.auto_reserve)
 
 
-@router.get("/goals")
+@router.get("/goals", **returns(GOALS))
 def list_goals(request: Request, session: Session = Depends(require_ready_session),
                conn: Connection = Depends(get_conn)):
     return ok([{**to_json(goal), "plan": to_json(plan)}
                for goal, plan in goals.goal_plans(conn, actor_for(request, session), _clock(request))])
 
 
-@router.post("/goals", openapi_extra=body_doc(GoalIn))
+@router.post("/goals", **returns(Goal, 201), openapi_extra=body_doc(GoalIn))
 def create_goal(request: Request, session: Session = Depends(require_ready_session),
                 conn: Connection = Depends(get_conn), payload: Any = Payload):
     return ok(goals.add_goal(conn, actor_for(request, session), _goal_input(parse(GoalIn, payload)), _clock(request)),
               201)
 
 
-@router.patch("/goals/{goal_id}", openapi_extra=body_doc(GoalEdit))
+@router.patch("/goals/{goal_id}", **returns(Goal), openapi_extra=body_doc(GoalEdit))
 def edit_goal(goal_id: int, request: Request, session: Session = Depends(require_ready_session),
               conn: Connection = Depends(get_conn), payload: Any = Payload):
     actor = actor_for(request, session)
@@ -342,7 +360,7 @@ def edit_goal(goal_id: int, request: Request, session: Session = Depends(require
     return ok(goals.edit_goal(conn, actor, goal_id, data.version, _goal_input(data), _clock(request)))
 
 
-@router.post("/goals/{goal_id}/movements", openapi_extra=body_doc(MovementIn))
+@router.post("/goals/{goal_id}/movements", **returns(Goal, 201), openapi_extra=body_doc(MovementIn))
 def move_goal_money(goal_id: int, request: Request, session: Session = Depends(require_ready_session),
                     conn: Connection = Depends(get_conn), payload: Any = Payload):
     actor = actor_for(request, session)
@@ -366,13 +384,13 @@ def _budget_rows(conn, actor, clock, households):
              "override_cents": row.limits.override_cents, "state": row.state} for row in rows]
 
 
-@router.get("/budgets")
+@router.get("/budgets", **returns({"type": "array", "items": BUDGET_ROW}))
 def list_budgets(request: Request, session: Session = Depends(require_ready_session),
                  conn: Connection = Depends(get_conn)):
     return ok(_budget_rows(conn, actor_for(request, session), _clock(request), _households(request)))
 
 
-@router.put("/budgets/{category_id}", openapi_extra=body_doc(LimitIn))
+@router.put("/budgets/{category_id}", **returns(BUDGET_ROW), openapi_extra=body_doc(LimitIn))
 def set_budget(category_id: int, request: Request, session: Session = Depends(require_ready_session),
                conn: Connection = Depends(get_conn), payload: Any = Payload):
     actor = actor_for(request, session)
@@ -396,27 +414,27 @@ def _dashboard_json(view) -> dict:
                     "households_available": view.households_available})
 
 
-@router.get("/dashboard")
+@router.get("/dashboard", **returns(DASHBOARD))
 def get_dashboard(request: Request, session: Session = Depends(require_ready_session),
                   conn: Connection = Depends(get_conn)):
     return JSONResponse(_dashboard_json(dashboard(conn, session.user.id, _clock(request), _households(request))))
 
 
-@router.get("/dashboard/preview")
+@router.get("/dashboard/preview", **returns(Preview))
 def get_preview(request: Request, cost: str = "", session: Session = Depends(require_ready_session),
                 conn: Connection = Depends(get_conn)):
     view = dashboard(conn, session.user.id, _clock(request), _households(request))
     return ok(preview(view.safe, parse_money(cost, field="cost")))
 
 
-@router.get("/forecast")
+@router.get("/forecast", **returns(FORECAST))
 def get_forecast(request: Request, session: Session = Depends(require_ready_session),
                  conn: Connection = Depends(get_conn)):
     result = forecast(conn, session.user.id, _clock(request), _households(request))
     return ok({**to_json(result.forecast), "window_days": result.window_days})
 
 
-@router.get("/alerts")
+@router.get("/alerts", **returns(list[Alert]))
 def list_alerts(request: Request, session: Session = Depends(require_ready_session),
                 conn: Connection = Depends(get_conn)):
     alerts.evaluate(conn, session.user.id, _clock(request), _households(request))
@@ -437,7 +455,7 @@ def dismiss_alert(alert_id: int, request: Request, session: Session = Depends(re
     return Response(status_code=204)
 
 
-@router.get("/activity")
+@router.get("/activity", **returns(list[ActivityItem]))
 def personal_activity(request: Request, session: Session = Depends(require_ready_session),
                       conn: Connection = Depends(get_conn)):
     return ok(activity.personal_activity(conn, actor_for(request, session)))

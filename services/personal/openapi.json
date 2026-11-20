@@ -1,6 +1,310 @@
 {
   "components": {
     "schemas": {
+      "ActivityItem": {
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "when": {
+            "format": "date-time",
+            "title": "When",
+            "type": "string"
+          }
+        },
+        "required": [
+          "when",
+          "text"
+        ],
+        "title": "ActivityItem",
+        "type": "object"
+      },
+      "Alert": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "read": {
+            "title": "Read",
+            "type": "boolean"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "subject_url": {
+            "title": "Subject Url",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "severity",
+          "message",
+          "subject_url",
+          "read"
+        ],
+        "title": "Alert",
+        "type": "object"
+      },
+      "BillRow": {
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "amount_display": {
+            "description": "`amount_cents` formatted as euros",
+            "type": "string"
+          },
+          "category_id": {
+            "title": "Category Id",
+            "type": "integer"
+          },
+          "due_date": {
+            "format": "date",
+            "title": "Due Date",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "paid_transaction_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid Transaction Id"
+          },
+          "scheduled_date": {
+            "format": "date",
+            "title": "Scheduled Date",
+            "type": "string"
+          },
+          "series_id": {
+            "title": "Series Id",
+            "type": "integer"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "series_id",
+          "name",
+          "category_id",
+          "scheduled_date",
+          "due_date",
+          "amount_cents",
+          "skipped",
+          "paid_transaction_id",
+          "version",
+          "status"
+        ],
+        "title": "BillRow",
+        "type": "object"
+      },
+      "BillSeries": {
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "amount_display": {
+            "description": "`amount_cents` formatted as euros",
+            "type": "string"
+          },
+          "category_id": {
+            "title": "Category Id",
+            "type": "integer"
+          },
+          "ended": {
+            "title": "Ended",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "materialized_through": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Materialized Through"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "rule": {
+            "$ref": "#/components/schemas/Rule"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "integer"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "name",
+          "amount_cents",
+          "category_id",
+          "rule",
+          "materialized_through",
+          "ended",
+          "version"
+        ],
+        "title": "BillSeries",
+        "type": "object"
+      },
+      "BudgetRow": {
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "category_id": {
+            "type": "integer"
+          },
+          "consumption_cents": {
+            "type": "integer"
+          },
+          "consumption_display": {
+            "description": "`consumption_cents` formatted as euros",
+            "type": "string"
+          },
+          "limit_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limit_display": {
+            "description": "`limit_cents` formatted as euros",
+            "type": "string"
+          },
+          "override_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "override_display": {
+            "description": "`override_cents` formatted as euros",
+            "type": "string"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "template_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "template_display": {
+            "description": "`template_cents` formatted as euros",
+            "type": "string"
+          }
+        },
+        "required": [
+          "category",
+          "category_id",
+          "consumption_cents",
+          "limit_cents",
+          "override_cents",
+          "state",
+          "template_cents"
+        ],
+        "type": "object"
+      },
+      "Category": {
+        "properties": {
+          "custom": {
+            "default": false,
+            "title": "Custom",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name"
+        ],
+        "title": "Category",
+        "type": "object"
+      },
       "Created": {
         "properties": {
           "id": {
@@ -13,6 +317,377 @@
         ],
         "title": "Created",
         "type": "object"
+      },
+      "Dashboard": {
+        "properties": {
+          "allowance_reminder": {
+            "type": "boolean"
+          },
+          "daily_cents": {
+            "type": "integer"
+          },
+          "daily_display": {
+            "description": "`daily_cents` formatted as euros",
+            "type": "string"
+          },
+          "days_remaining": {
+            "type": "integer"
+          },
+          "discretionary_cents": {
+            "type": "integer"
+          },
+          "discretionary_display": {
+            "description": "`discretionary_cents` formatted as euros",
+            "type": "string"
+          },
+          "household_receivables_cents": {
+            "type": "integer"
+          },
+          "household_receivables_display": {
+            "description": "`household_receivables_cents` formatted as euros",
+            "type": "string"
+          },
+          "households_available": {
+            "type": "boolean"
+          },
+          "in_household": {
+            "type": "boolean"
+          },
+          "next_allowance": {
+            "format": "date",
+            "type": "string"
+          },
+          "planned_allowance_cents": {
+            "type": "integer"
+          },
+          "planned_allowance_display": {
+            "description": "`planned_allowance_cents` formatted as euros",
+            "type": "string"
+          },
+          "shortfall_cents": {
+            "type": "integer"
+          },
+          "shortfall_display": {
+            "description": "`shortfall_cents` formatted as euros",
+            "type": "string"
+          },
+          "terms": {
+            "$ref": "#/components/schemas/SafeToSpendInputs"
+          },
+          "today": {
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "allowance_reminder",
+          "daily_cents",
+          "days_remaining",
+          "discretionary_cents",
+          "household_receivables_cents",
+          "households_available",
+          "in_household",
+          "next_allowance",
+          "planned_allowance_cents",
+          "shortfall_cents",
+          "terms",
+          "today"
+        ],
+        "type": "object"
+      },
+      "DayProjection": {
+        "properties": {
+          "conservative_cents": {
+            "title": "Conservative Cents",
+            "type": "integer"
+          },
+          "conservative_display": {
+            "description": "`conservative_cents` formatted as euros",
+            "type": "string"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "expected_cents": {
+            "title": "Expected Cents",
+            "type": "integer"
+          },
+          "expected_display": {
+            "description": "`expected_cents` formatted as euros",
+            "type": "string"
+          }
+        },
+        "required": [
+          "day",
+          "conservative_cents",
+          "expected_cents"
+        ],
+        "title": "DayProjection",
+        "type": "object"
+      },
+      "Forecast": {
+        "properties": {
+          "carry_over_cents": {
+            "title": "Carry Over Cents",
+            "type": "integer"
+          },
+          "carry_over_display": {
+            "description": "`carry_over_cents` formatted as euros",
+            "type": "string"
+          },
+          "conservative_goes_negative": {
+            "title": "Conservative Goes Negative",
+            "type": "boolean"
+          },
+          "dips_into_savings": {
+            "title": "Dips Into Savings",
+            "type": "boolean"
+          },
+          "effective_pace_cents": {
+            "title": "Effective Pace Cents",
+            "type": "integer"
+          },
+          "effective_pace_display": {
+            "description": "`effective_pace_cents` formatted as euros",
+            "type": "string"
+          },
+          "lowest_expected": {
+            "$ref": "#/components/schemas/DayProjection"
+          },
+          "next_daily_cents": {
+            "title": "Next Daily Cents",
+            "type": "integer"
+          },
+          "next_daily_display": {
+            "description": "`next_daily_cents` formatted as euros",
+            "type": "string"
+          },
+          "next_free_cents": {
+            "title": "Next Free Cents",
+            "type": "integer"
+          },
+          "next_free_display": {
+            "description": "`next_free_cents` formatted as euros",
+            "type": "string"
+          },
+          "next_shortfall_cents": {
+            "title": "Next Shortfall Cents",
+            "type": "integer"
+          },
+          "next_shortfall_display": {
+            "description": "`next_shortfall_cents` formatted as euros",
+            "type": "string"
+          },
+          "pace_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pace Cents"
+          },
+          "pace_display": {
+            "description": "`pace_cents` formatted as euros",
+            "type": "string"
+          },
+          "run_out_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Out Date"
+          },
+          "runway_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runway Days"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/DayProjection"
+            },
+            "title": "Timeline",
+            "type": "array"
+          }
+        },
+        "required": [
+          "pace_cents",
+          "effective_pace_cents",
+          "runway_days",
+          "run_out_date",
+          "status",
+          "carry_over_cents",
+          "lowest_expected",
+          "conservative_goes_negative",
+          "dips_into_savings",
+          "next_free_cents",
+          "next_daily_cents",
+          "next_shortfall_cents",
+          "timeline"
+        ],
+        "title": "Forecast",
+        "type": "object"
+      },
+      "ForecastWindow": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Forecast"
+          },
+          {
+            "properties": {
+              "window_days": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "window_days"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "Goal": {
+        "properties": {
+          "auto_reserve": {
+            "title": "Auto Reserve",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "protected_cents": {
+            "title": "Protected Cents",
+            "type": "integer"
+          },
+          "protected_display": {
+            "description": "`protected_cents` formatted as euros",
+            "type": "string"
+          },
+          "target_cents": {
+            "title": "Target Cents",
+            "type": "integer"
+          },
+          "target_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Date"
+          },
+          "target_display": {
+            "description": "`target_cents` formatted as euros",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "integer"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "name",
+          "target_cents",
+          "target_date",
+          "priority",
+          "auto_reserve",
+          "protected_cents",
+          "version"
+        ],
+        "title": "Goal",
+        "type": "object"
+      },
+      "GoalPlan": {
+        "properties": {
+          "cycles_left": {
+            "title": "Cycles Left",
+            "type": "integer"
+          },
+          "pending_reserve_cents": {
+            "title": "Pending Reserve Cents",
+            "type": "integer"
+          },
+          "pending_reserve_display": {
+            "description": "`pending_reserve_cents` formatted as euros",
+            "type": "string"
+          },
+          "planned_cents": {
+            "title": "Planned Cents",
+            "type": "integer"
+          },
+          "planned_display": {
+            "description": "`planned_cents` formatted as euros",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cycles_left",
+          "planned_cents",
+          "pending_reserve_cents",
+          "status"
+        ],
+        "title": "GoalPlan",
+        "type": "object"
+      },
+      "GoalWithPlan": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Goal"
+          },
+          {
+            "properties": {
+              "plan": {
+                "$ref": "#/components/schemas/GoalPlan"
+              }
+            },
+            "required": [
+              "plan"
+            ],
+            "type": "object"
+          }
+        ]
       },
       "HTTPValidationError": {
         "properties": {
@@ -48,6 +723,219 @@
           "version"
         ],
         "title": "Health",
+        "type": "object"
+      },
+      "LedgerSettings": {
+        "properties": {
+          "opening_balance_cents": {
+            "title": "Opening Balance Cents",
+            "type": "integer"
+          },
+          "opening_balance_display": {
+            "description": "`opening_balance_cents` formatted as euros",
+            "type": "string"
+          },
+          "tracking_start": {
+            "format": "date",
+            "title": "Tracking Start",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "user_id",
+          "tracking_start",
+          "opening_balance_cents"
+        ],
+        "title": "LedgerSettings",
+        "type": "object"
+      },
+      "Me": {
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "setup_complete": {
+            "type": "boolean"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "display_name",
+          "id",
+          "setup_complete",
+          "username"
+        ],
+        "type": "object"
+      },
+      "Occurrence": {
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "amount_display": {
+            "description": "`amount_cents` formatted as euros",
+            "type": "string"
+          },
+          "category_id": {
+            "title": "Category Id",
+            "type": "integer"
+          },
+          "due_date": {
+            "format": "date",
+            "title": "Due Date",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "paid_transaction_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid Transaction Id"
+          },
+          "scheduled_date": {
+            "format": "date",
+            "title": "Scheduled Date",
+            "type": "string"
+          },
+          "series_id": {
+            "title": "Series Id",
+            "type": "integer"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "boolean"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "series_id",
+          "name",
+          "category_id",
+          "scheduled_date",
+          "due_date",
+          "amount_cents",
+          "skipped",
+          "paid_transaction_id",
+          "version"
+        ],
+        "title": "Occurrence",
+        "type": "object"
+      },
+      "Payment": {
+        "properties": {
+          "occurrence": {
+            "$ref": "#/components/schemas/Occurrence"
+          },
+          "transaction_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "occurrence",
+          "transaction_id"
+        ],
+        "type": "object"
+      },
+      "PlanningSettings": {
+        "properties": {
+          "allowance_day": {
+            "title": "Allowance Day",
+            "type": "integer"
+          },
+          "opening_includes_allowance": {
+            "default": false,
+            "title": "Opening Includes Allowance",
+            "type": "boolean"
+          },
+          "planned_allowance_cents": {
+            "title": "Planned Allowance Cents",
+            "type": "integer"
+          },
+          "planned_allowance_display": {
+            "description": "`planned_allowance_cents` formatted as euros",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "user_id",
+          "allowance_day",
+          "planned_allowance_cents"
+        ],
+        "title": "PlanningSettings",
+        "type": "object"
+      },
+      "Preview": {
+        "properties": {
+          "after_cents": {
+            "title": "After Cents",
+            "type": "integer"
+          },
+          "after_daily_cents": {
+            "title": "After Daily Cents",
+            "type": "integer"
+          },
+          "after_daily_display": {
+            "description": "`after_daily_cents` formatted as euros",
+            "type": "string"
+          },
+          "after_display": {
+            "description": "`after_cents` formatted as euros",
+            "type": "string"
+          },
+          "after_shortfall_cents": {
+            "title": "After Shortfall Cents",
+            "type": "integer"
+          },
+          "after_shortfall_display": {
+            "description": "`after_shortfall_cents` formatted as euros",
+            "type": "string"
+          },
+          "cost_cents": {
+            "title": "Cost Cents",
+            "type": "integer"
+          },
+          "cost_display": {
+            "description": "`cost_cents` formatted as euros",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cost_cents",
+          "after_cents",
+          "after_daily_cents",
+          "after_shortfall_cents"
+        ],
+        "title": "Preview",
         "type": "object"
       },
       "Profile": {
@@ -97,6 +985,249 @@
           "category_ids"
         ],
         "title": "Profile",
+        "type": "object"
+      },
+      "Rule": {
+        "description": "``freq`` every ``interval`` periods from ``anchor``, ending by ``until`` or ``count``.",
+        "properties": {
+          "anchor": {
+            "format": "date",
+            "title": "Anchor",
+            "type": "string"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Count"
+          },
+          "freq": {
+            "title": "Freq",
+            "type": "string"
+          },
+          "interval": {
+            "title": "Interval",
+            "type": "integer"
+          },
+          "until": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Until"
+          }
+        },
+        "required": [
+          "freq",
+          "interval",
+          "anchor"
+        ],
+        "title": "Rule",
+        "type": "object"
+      },
+      "SafeToSpendInputs": {
+        "properties": {
+          "goal_plan_reserve_cents": {
+            "default": 0,
+            "title": "Goal Plan Reserve Cents",
+            "type": "integer"
+          },
+          "goal_plan_reserve_display": {
+            "description": "`goal_plan_reserve_cents` formatted as euros",
+            "type": "string"
+          },
+          "household_bill_shares_cents": {
+            "default": 0,
+            "title": "Household Bill Shares Cents",
+            "type": "integer"
+          },
+          "household_bill_shares_display": {
+            "description": "`household_bill_shares_cents` formatted as euros",
+            "type": "string"
+          },
+          "household_payables_cents": {
+            "default": 0,
+            "title": "Household Payables Cents",
+            "type": "integer"
+          },
+          "household_payables_display": {
+            "description": "`household_payables_cents` formatted as euros",
+            "type": "string"
+          },
+          "personal_bills_cents": {
+            "default": 0,
+            "title": "Personal Bills Cents",
+            "type": "integer"
+          },
+          "personal_bills_display": {
+            "description": "`personal_bills_cents` formatted as euros",
+            "type": "string"
+          },
+          "protected_savings_cents": {
+            "default": 0,
+            "title": "Protected Savings Cents",
+            "type": "integer"
+          },
+          "protected_savings_display": {
+            "description": "`protected_savings_cents` formatted as euros",
+            "type": "string"
+          },
+          "recorded_balance_cents": {
+            "title": "Recorded Balance Cents",
+            "type": "integer"
+          },
+          "recorded_balance_display": {
+            "description": "`recorded_balance_cents` formatted as euros",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recorded_balance_cents"
+        ],
+        "title": "SafeToSpendInputs",
+        "type": "object"
+      },
+      "Settings": {
+        "properties": {
+          "ledger": {
+            "$ref": "#/components/schemas/LedgerSettings"
+          },
+          "planning": {
+            "$ref": "#/components/schemas/PlanningSettings"
+          }
+        },
+        "required": [
+          "ledger",
+          "planning"
+        ],
+        "type": "object"
+      },
+      "SignedIn": {
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        },
+        "required": [
+          "token",
+          "user"
+        ],
+        "type": "object"
+      },
+      "Transaction": {
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "amount_display": {
+            "description": "`amount_cents` formatted as euros",
+            "type": "string"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "income_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Income Source"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "occurred_on": {
+            "format": "date",
+            "title": "Occurred On",
+            "type": "string"
+          },
+          "one_off": {
+            "title": "One Off",
+            "type": "boolean"
+          },
+          "origin": {
+            "title": "Origin",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "integer"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "kind",
+          "amount_cents",
+          "occurred_on",
+          "category_id",
+          "income_source",
+          "origin",
+          "one_off",
+          "note",
+          "version"
+        ],
+        "title": "Transaction",
+        "type": "object"
+      },
+      "User": {
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "display_name",
+          "id",
+          "username"
+        ],
         "type": "object"
       },
       "UserName": {
@@ -172,10 +1303,15 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ActivityItem"
+                  },
+                  "type": "array"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           }
         },
         "summary": "Personal Activity",
@@ -191,10 +1327,15 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Alert"
+                  },
+                  "type": "array"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           }
         },
         "summary": "List Alerts",
@@ -305,10 +1446,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SignedIn"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -375,13 +1518,15 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SignedIn"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -407,10 +1552,15 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BillSeries"
+                  },
+                  "type": "array"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           }
         },
         "summary": "List Bills",
@@ -503,13 +1653,15 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/BillSeries"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -568,10 +1720,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/BillSeries"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -597,10 +1751,15 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BudgetRow"
+                  },
+                  "type": "array"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           }
         },
         "summary": "List Budgets",
@@ -665,10 +1824,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetRow"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -695,10 +1856,15 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Category"
+                  },
+                  "type": "array"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           }
         },
         "summary": "List Categories",
@@ -714,10 +1880,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Dashboard"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           }
         },
         "summary": "Get Dashboard",
@@ -745,10 +1913,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Preview"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -774,10 +1944,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastWindow"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           }
         },
         "summary": "Get Forecast",
@@ -793,10 +1965,15 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GoalWithPlan"
+                  },
+                  "type": "array"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           }
         },
         "summary": "List Goals",
@@ -858,13 +2035,15 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Goal"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -959,10 +2138,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Goal"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1075,13 +2256,15 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Goal"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1107,10 +2290,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           }
         },
         "summary": "Me",
@@ -1211,10 +2396,15 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BillRow"
+                  },
+                  "type": "array"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1286,10 +2476,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Occurrence"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1357,13 +2549,15 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Payment"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1422,10 +2616,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Occurrence"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1548,13 +2744,15 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/BillSeries"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1613,10 +2811,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Occurrence"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1675,10 +2875,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Occurrence"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1704,10 +2906,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           }
         },
         "summary": "Settings",
@@ -1743,10 +2947,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1826,10 +3032,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1867,10 +3075,15 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Transaction"
+                  },
+                  "type": "array"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -1962,13 +3175,15 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -2060,10 +3275,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {
@@ -2176,10 +3393,12 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Success"
           },
           "422": {
             "content": {

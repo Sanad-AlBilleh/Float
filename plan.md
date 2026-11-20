@@ -197,7 +197,7 @@ ui/
 - **The data-changing migration (§4.3 of the assignment):** `households/migrations/002_member_name.sql`:
   `ALTER TABLE memberships ADD member_name NVARCHAR(80) NULL; GO UPDATE memberships SET member_name = CONCAT('Member #', user_id) WHERE member_name IS NULL;`
   Rows already in the table keep everything and get a backfilled value. The service then refreshes it from `personal` when it can. It is the cache behind D5, so it is not a new feature.
-  A second one in `personal`: `002_transaction_source.sql` adds `source`/`source_ref` with default `'manual'` (backfills existing transactions).
+  ~~A second one in `personal`: `002_transaction_source.sql`~~ dropped on 21 November: `transactions.origin` (manual, bill, shared, settlement, import) already records where a row came from, so the column would duplicate it.
   **Order on Azure:** deploy with only `001` → create data through the UI → deploy the `002` files → screenshot the data before and after plus the startup log line (evidence for the report).
 - Seeding: an idempotent demo seed per service (`INSERT … WHERE NOT EXISTS`), run only when `SEED_DEMO=true` (locally yes, Azure no).
 - No code drops tables or recreates databases. Compose uses a named volume, which is never deleted to redeploy.
@@ -377,13 +377,14 @@ Branch `feature/ui-ci-cd` (built from 23:30 on the 19th, committed on the 20th):
 - [ ] First deploy and real data on Azure: blocked by the disabled subscription.
 - Still to do (Day 4): response schemas for the public `/api/v1` routes in the OpenAPI documents (now only `/health` and `/internal` have them).
 
-### Day 4: Saturday 21 November: migration on Azure, polish, fully deployed
-Branch `feature/migrations-on-azure`.
-1. `Add migrations that change tables holding data` (`002_member_name.sql`, `002_transaction_source.sql`) and their tests. Merge → CD deploys. Capture the startup log line, the CD run link and the data before/after.
-2. `Handle the partial-failure and cold-start paths in the UI`: verify with `docker compose stop personal` / `households` and after Azure idle. Screenshots.
-3. `Record ADR-8 (serverless hosting) and ADR-10 (not built)`.
-4. `Complete the README and system.yaml with the live URL`.
-End of day: everything in §1–§12 is deployed and working at the live URL.
+### Day 4: Saturday 21 November: migration, response schemas, ADR-8 and ADR-10
+Branch `feature/migrations-on-azure` (built from 21:50 on the 20th, committed on the 21st):
+- [x] `Add migration 002_member_name and show saved names while personal is down`: the column, a backfill of every existing membership, names saved on each successful read and used when personal does not answer. Tests: the migration undone and re-applied over existing rows (every row kept, each named), the API showing saved names with personal down, and the integration test on the compose stack. Local evidence: the households database from the browser testing had 7 memberships and only `001_init`; after `docker compose up --build` the log said `migration applied: 002_member_name.sql`, all 7 rows were still there, each with `member_name = 'Member #<id>'`.
+- [x] `002_transaction_source.sql` dropped (see §4): `origin` already does that job.
+- [x] `Describe every /api/v1 response in the OpenAPI documents`: schemas generated from the record types the routes return, with the `*_display` twins `to_json` adds (`app/api/v1/responses.py`). Every JSON response in the tests is validated against them (`tests/response_schemas.py`); a new test per service reaches the routes no other test did, so all 36 + 25 documented responses are checked. This found one wrong field type (a budget's `state` is null when there is no limit).
+- [x] `Record ADR-8 (serverless hosting) and ADR-10 (not built: a gateway)`; ADR-6 and ADR-9 brought up to date.
+- [x] `Fix what the review of all Assignment 2 work found`: a lost reply from personal is retried once with the same Idempotency-Key and the undo also covers a failed COMMIT; non-ASCII tokens get 401, not 500; the login lockout counts the address the Azure ingress appends (the last `X-Forwarded-For` entry); the UI repeats a write only after a 503 or when it has an Idempotency-Key; any refused read from households degrades the dashboard instead of a 500. Tests: personal 415 (96%), households 233 (92%), integration 4 of 4.
+- [ ] **Blocked by the disabled subscription:** the first deploy, `002` run on Azure with data created before it (the evidence §4.3 asks for), the cold-start check after Azure idles, and the live URL in the README and `system.yaml`.
 
 ### Day 5: Sunday 22 November: review, fixes, report, submission
 Branch `fix/review` (+ `docs/report`).
@@ -426,4 +427,4 @@ Largest day (Thu 19, about 10 of 37) ≈ 27%, under the 40% limit. **Only 5 dist
 
 - **19 November, 00:00.** Day 1 was built on Wednesday 18 November but committed just after midnight, so Wednesday has no commit and the history has commits on 17 and 19 November so far. I did not backdate anything. The assignment needs commits on at least 6 distinct days; with Sunday 22 November as the last day, only 5 are left (17, 19, 20, 21, 22). Options: confirm whether the deadline allows a commit on Monday 23 November, or ask the professor how to handle it. Decision pending.
 - **20 November.** The Azure for Students subscription is disabled because its free credit expired. I did not use "IE Workspaces" or press "Upgrade" (that turns it into a paid subscription with a card). Everything that does not need Azure was built and tested locally; the CD deploy job waits for the repository variables that the setup script sets.
-
+- **21 November.** `002_transaction_source.sql` was dropped: `transactions.origin` already says where each row came from. The Azure part of Day 4 (deploying `002` over real data and taking the evidence) is still blocked by the subscription; the same steps were run locally on the compose stack instead, and will be repeated on Azure as soon as it is available.

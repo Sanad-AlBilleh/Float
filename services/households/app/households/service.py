@@ -126,6 +126,14 @@ def active_member_ids(conn: Connection, *, household_id: int) -> list[int]:
     return sorted(m.user_id for m in members(conn, household_id=household_id) if m.status == "active")
 
 
+def save_member_names(conn: Connection, names: dict[int, str]) -> None:
+    repository.save_member_names(conn, names)
+
+
+def saved_member_names(conn: Connection, user_ids) -> dict[int, str]:
+    return repository.saved_member_names(conn, user_ids)
+
+
 def user_households(conn: Connection, *, user_id: int) -> list[tuple[Household, bool]]:
     """Every household the user has belonged to, with whether they are an active member now."""
     return [(get_household(conn, household_id=row["household_id"]), bool(row["active"]))

@@ -76,13 +76,13 @@ def _describe(entity: str, action: str, before: dict, after: dict, names: dict[i
     return f"{entity.replace('_', ' ')}: {action}"
 
 
-def _items(people: PersonalClient, rows: list[Row]) -> list[ActivityItem]:
+def _items(conn: Connection, people: PersonalClient, rows: list[Row]) -> list[ActivityItem]:
     ids = {row["actor_user_id"] for row in rows if row["actor_user_id"]}
     for row in rows:
         for data in (json.loads(row["before_json"] or "{}"), json.loads(row["after_json"] or "{}")):
             ids.update(data[key] for key in ("payer_user_id", "payee_user_id", "owner_user_id")
                        if isinstance(data.get(key), int))
-    names = display_names(people, ids)
+    names = display_names(conn, people, ids)
     items = []
     for row in rows:
         before = json.loads(row["before_json"] or "{}")
@@ -104,4 +104,4 @@ def household_activity(conn: Connection, people: PersonalClient, actor: Actor,
         query += " AND occurred_at BETWEEN ? AND ?"
         args += [to_utc_text(me.joined_at), to_utc_text(me.ended_at)]
     rows = conn.execute(query + " ORDER BY id DESC", tuple(args)).fetchall()
-    return _items(people, rows)
+    return _items(conn, people, rows)

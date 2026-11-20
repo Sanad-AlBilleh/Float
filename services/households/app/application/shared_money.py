@@ -209,7 +209,7 @@ def confirm_settlement(conn: Connection, personal: PersonalClient, actor: Actor,
         _settlement_for(conn, actor, settlement_id)
         settlement = households.pending(conn, settlement_id=settlement_id, version=version, user_id=actor.user_id,
                                         role="counterparty")
-        names = display_names(personal, [settlement.payer_user_id, settlement.payee_user_id])
+        names = display_names(conn, personal, [settlement.payer_user_id, settlement.payee_user_id])
         common = {"origin": "settlement", "amount_cents": settlement.amount_cents, "occurred_on": settlement.paid_on,
                   "category_id": None}
         try:

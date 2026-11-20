@@ -70,6 +70,8 @@ from app.households.service import (
     rename,
     require_open,
     revoke_invitation,
+    save_member_names,
+    saved_member_names,
     transfer_ownership,
     user_households,
 )
@@ -138,6 +140,8 @@ __all__ = [
     "Invitation",
     "Member",
     "active_member_ids",
+    "save_member_names",
+    "saved_member_names",
     "archive",
     "balances",
     "create_household",

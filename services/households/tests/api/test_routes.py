@@ -1,6 +1,7 @@
 """The households API over HTTP: bearer tokens checked locally, and the designed failure when the ledger is
 down (Assignment 2 §3)."""
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -48,6 +49,19 @@ def test_a_shared_expense_records_the_split_and_the_payers_ledger_row(client, pe
     balances = client.get(f"/api/v1/households/{flat}/balances", headers=bearer(2)).json()
     assert {n["user_id"]: (n["display_name"], n["net_cents"]) for n in balances["nets"]} == {
         1: ("Ana", 1500), 2: ("Ben", -1500)}
+
+
+def test_names_seen_once_are_still_shown_while_the_ledger_is_down(client, personal, flat):
+    """Migration 002: a successful read saves each member's name, and a later read while personal is
+    down uses it instead of "Member #id"."""
+    assert {m["display_name"] for m in client.get(f"/api/v1/households/{flat}", headers=bearer(1)).json()["members"]} \
+        == {"Ana", "Ben"}
+    personal.profiles[2] = replace(personal.profiles[2], display_name="BEN")
+    client.get(f"/api/v1/households/{flat}", headers=bearer(1))  # a rename in personal, even of case only, replaces the saved name
+    personal.down = True
+    page = client.get(f"/api/v1/households/{flat}", headers=bearer(1))
+    assert page.status_code == 200
+    assert {m["display_name"] for m in page.json()["members"]} == {"Ana", "BEN"}
 
 
 def test_when_the_ledger_is_down_reads_degrade_and_writes_fail_clearly(client, personal, flat):

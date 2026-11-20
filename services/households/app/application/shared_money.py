@@ -13,6 +13,7 @@ service's transaction, in an order that never leaves money half-recorded (ADR-7)
 """
 
 import logging
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import date
 
@@ -57,6 +58,19 @@ def _undo(personal: PersonalClient, created: list[tuple[int, int, str]]) -> None
             personal.delete_transaction(transaction_id, user_id=user_id, origin=origin)
         except Exception:  # noqa: BLE001 - logged; the original error is the one the user sees
             logger.exception("could not undo ledger transaction %s for user %s", transaction_id, user_id)
+
+
+@contextmanager
+def _compensated(personal: PersonalClient, created: list[tuple[int, int, str]]):
+    """Undo the ledger rows in ``created`` if anything below fails, including this service's COMMIT.
+
+    Use as ``with _compensated(personal, created), transaction(conn):`` so a failed COMMIT is covered too.
+    """
+    try:
+        yield
+    except BaseException:
+        _undo(personal, created)
+        raise
 
 
 # Shared expenses (FR-20–22) --------------------------------------------------------------------------
@@ -107,7 +121,7 @@ def record_expense(conn: Connection, personal: PersonalClient, actor: Actor, hou
     service's write then fails.
     """
     created: list[tuple[int, int, str]] = []
-    with transaction(conn):
+    with _compensated(personal, created), transaction(conn):
         require_member(conn, actor.user_id, household_id)
         profile = personal.profile(actor.user_id)
         errors = expense_problems(conn, personal, actor, household_id, draft, clock, profile)
@@ -121,14 +135,10 @@ def record_expense(conn: Connection, personal: PersonalClient, actor: Actor, hou
         except ValidationError as error:
             raise _renamed(error, "spent_on") from None
         created.append((transaction_id, actor.user_id, "shared"))
-        try:
-            expense = households.create_expense(conn, household_id=household_id, payer_id=actor.user_id, draft=draft,
-                                                category_ids=profile.category_ids, payer_transaction_id=transaction_id,
-                                                now=clock.now_utc())
-            _audit(conn, actor, household_id, "shared_expense", expense.id, "create", clock, after=asdict(expense))
-        except BaseException:
-            _undo(personal, created)
-            raise
+        expense = households.create_expense(conn, household_id=household_id, payer_id=actor.user_id, draft=draft,
+                                            category_ids=profile.category_ids, payer_transaction_id=transaction_id,
+                                            now=clock.now_utc())
+        _audit(conn, actor, household_id, "shared_expense", expense.id, "create", clock, after=asdict(expense))
     return expense
 
 
@@ -205,7 +215,7 @@ def confirm_settlement(conn: Connection, personal: PersonalClient, actor: Actor,
     write fails, the rows already created are deleted again (ADR-7).
     """
     created: list[tuple[int, int, str]] = []
-    with transaction(conn):
+    with _compensated(personal, created), transaction(conn):
         _settlement_for(conn, actor, settlement_id)
         settlement = households.pending(conn, settlement_id=settlement_id, version=version, user_id=actor.user_id,
                                         role="counterparty")
@@ -227,11 +237,7 @@ def confirm_settlement(conn: Connection, personal: PersonalClient, actor: Actor,
             _audit(conn, actor, settlement.household_id, "settlement", settlement_id, "confirm", clock,
                    asdict(settlement), asdict(after))
         except ValidationError as error:
-            _undo(personal, created)
             raise _renamed(error, "paid_on") from None
-        except BaseException:
-            _undo(personal, created)
-            raise
     return after
 
 
@@ -400,7 +406,7 @@ def pay_household_occurrence(conn: Connection, personal: PersonalClient, actor: 
                              version: int, paid_on: date, clock: Clock) -> households.SharedExpense:
     """FR-26: one shared expense split by the template, the payer's ledger expense, and the link, together."""
     created: list[tuple[int, int, str]] = []
-    with transaction(conn):
+    with _compensated(personal, created), transaction(conn):
         occurrence = _participant_occurrence(conn, actor, occurrence_id)
         draft = households.payment_draft(conn, occurrence_id=occurrence_id, version=version, paid_on=paid_on)
         profile = personal.profile(actor.user_id)
@@ -416,16 +422,12 @@ def pay_household_occurrence(conn: Connection, personal: PersonalClient, actor: 
         except ValidationError as error:
             raise _renamed(error, "paid_on") from None
         created.append((transaction_id, actor.user_id, "shared"))
-        try:
-            expense = households.create_expense(conn, household_id=occurrence.household_id, payer_id=actor.user_id,
-                                                draft=draft, category_ids=profile.category_ids,
-                                                payer_transaction_id=transaction_id, now=clock.now_utc())
-            households.link_bill_payment(conn, occurrence_id=occurrence_id, version=version, expense_id=expense.id)
-            _audit(conn, actor, occurrence.household_id, "household_bill_occurrence", occurrence_id, "pay", clock,
-                   before=asdict(occurrence), after=asdict(expense))
-        except BaseException:
-            _undo(personal, created)
-            raise
+        expense = households.create_expense(conn, household_id=occurrence.household_id, payer_id=actor.user_id,
+                                            draft=draft, category_ids=profile.category_ids,
+                                            payer_transaction_id=transaction_id, now=clock.now_utc())
+        households.link_bill_payment(conn, occurrence_id=occurrence_id, version=version, expense_id=expense.id)
+        _audit(conn, actor, occurrence.household_id, "household_bill_occurrence", occurrence_id, "pay", clock,
+               before=asdict(occurrence), after=asdict(expense))
     return expense
 
 

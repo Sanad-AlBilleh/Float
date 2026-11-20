@@ -11,11 +11,14 @@ Every call has a timeout (HOUSEHOLDS_TIMEOUT_S, default 2 s). A timeout, a refus
 answer raises ``HouseholdsUnavailable``; callers decide how to degrade (ADR-6, D5 in plan.md).
 """
 
+import logging
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
 import httpx2 as httpx
+
+logger = logging.getLogger(__name__)
 
 
 class HouseholdsUnavailable(Exception):
@@ -91,9 +94,12 @@ class HouseholdsClient:
             response = self._client.get(path, params=params)
         except httpx.HTTPError as error:  # timeouts and refused connections
             raise HouseholdsUnavailable("Household data is unavailable right now.") from error
-        if response.status_code >= 500:
+        if not response.is_success:
+            # 5xx: households is failing. 401/404/422: these are fixed reads, so it means a configuration
+            # problem (for example a different INTERNAL_API_KEY); the pages still degrade the designed way.
+            if response.status_code < 500:
+                logger.warning("households answered %s for %s", response.status_code, path)
             raise HouseholdsUnavailable("Household data is unavailable right now.")
-        response.raise_for_status()
         return response.json()
 
     def position(self, user_id: int, *, window_end: date, horizon_end: date) -> Position:

@@ -102,6 +102,16 @@ def _signed_in(session: Session, token: str, status: int) -> JSONResponse:
                         "display_name": session.user.display_name}, "token": token}, status)
 
 
+def _client_address(request: Request) -> str:
+    """Who is logging in, for the per-address lockout. On Azure every request arrives from the Container Apps
+    ingress, which appends the caller's address as the last X-Forwarded-For entry; earlier entries come
+    from the caller and could be faked, so only the last one is used."""
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded.strip():
+        return forwarded.rsplit(",", 1)[-1].strip()[:64] or "unknown"
+    return request.client.host if request.client else "unknown"
+
+
 def _rule(data: SeriesIn) -> Rule:
     return Rule(data.freq, data.interval, data.anchor_date, until=data.until, count=data.count)
 
@@ -122,7 +132,7 @@ def register(request: Request, conn: Connection = Depends(get_conn), payload: An
 def login(request: Request, conn: Connection = Depends(get_conn), payload: Any = Payload):
     data = parse(Credentials, payload)
     session, token = accounts.log_in(conn, username=data.username, password=data.password,
-                                     client_address=request.client.host if request.client else "unknown",
+                                     client_address=_client_address(request),
                                      clock=_clock(request), max_age=_max_age(request),
                                      token_secret=request.app.state.settings.token_secret)
     return _signed_in(session, token, 200)

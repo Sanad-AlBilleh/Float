@@ -86,7 +86,13 @@ class PersonalClient:
         body = {"user_id": user_id, "kind": kind, "origin": origin, "amount_cents": amount_cents,
                 "occurred_on": occurred_on.isoformat(), "category_id": category_id,
                 "income_source": income_source, "note": note[:500]}
-        return self._request("POST", "/internal/transactions", json=body, headers={"Idempotency-Key": key}).json()["id"]
+        try:
+            response = self._request("POST", "/internal/transactions", json=body, headers={"Idempotency-Key": key})
+        except PersonalUnavailable:
+            # The row may have been saved and only the reply lost (a timeout). One retry with the same key
+            # returns the saved row instead of a second one, so the caller learns its ID and can undo it.
+            response = self._request("POST", "/internal/transactions", json=body, headers={"Idempotency-Key": key})
+        return response.json()["id"]
 
     def update_transaction(self, transaction_id: int, *, user_id: int, origin: str, amount_cents: int,
                            occurred_on: date, category_id: int | None) -> None:

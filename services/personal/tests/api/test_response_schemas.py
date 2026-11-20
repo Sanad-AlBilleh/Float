@@ -41,3 +41,12 @@ def test_every_documented_response_matches_what_the_route_returns(client):
     ended = ana.post(f"/bills/{split.json()['id']}/end", {"version": split.json()["version"]})
     assert ended.status_code == 200 and ended.json()["ended"] is True
 
+
+def test_the_login_lockout_counts_the_address_the_azure_ingress_appended(client, conn):
+    """Behind Container Apps every request comes from the ingress; it appends the caller's address last."""
+    signed_up(client, setup=False)
+    for spoofed in ("1.1.1.1", "2.2.2.2"):
+        client.post("/api/v1/auth/login", json={"username": "ana", "password": "wrong password"},
+                    headers={"X-Forwarded-For": f"{spoofed}, 203.0.113.9"})
+    rows = conn.execute("SELECT DISTINCT client_address FROM login_attempts WHERE succeeded = 0").fetchall()
+    assert [row[0] for row in rows] == ["203.0.113.9"]

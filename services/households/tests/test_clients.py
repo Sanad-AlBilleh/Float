@@ -82,3 +82,28 @@ def test_update_and_delete_use_the_linked_row_endpoints():
 def test_keys_are_unique_and_short_enough():
     first, second = new_key("expense"), new_key("expense")
     assert first != second and len(first) <= 64
+
+
+def test_a_lost_reply_is_retried_once_with_the_same_key():
+    """The ledger saved the row but the reply timed out: the retry with the same key gets the saved row's ID
+    back (personal replays it), so a later failure here can still undo it (ADR-7)."""
+    keys = []
+
+    def handler(request):
+        keys.append(request.headers["idempotency-key"])
+        if len(keys) == 1:
+            raise httpx.ReadTimeout("reply lost", request=request)
+        return httpx.Response(201, json={"id": 42})
+    assert create(client(handler)) == 42
+    assert keys == ["hh-expense-1", "hh-expense-1"]
+
+
+def test_a_ledger_that_stays_silent_is_given_up_on_after_one_retry():
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        raise httpx.ConnectError("refused", request=request)
+    with pytest.raises(PersonalUnavailable):
+        create(client(handler))
+    assert len(calls) == 2

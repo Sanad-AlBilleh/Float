@@ -39,7 +39,8 @@ def verify(secret: str, token: str | None, *, now: datetime) -> int | None:
     if len(parts) != 5 or parts[0] != PREFIX:
         return None
     message, signature = ".".join(parts[:4]), parts[4]
-    if not hmac.compare_digest(signature, _signature(secret, message)):
+    # Bytes: compare_digest raises TypeError on str with non-ASCII characters (a forged token would 500).
+    if not hmac.compare_digest(signature.encode(), _signature(secret, message).encode()):
         return None
     try:
         user_id, expires = int(parts[1]), int(parts[2])

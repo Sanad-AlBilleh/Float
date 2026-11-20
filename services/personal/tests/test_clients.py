@@ -42,6 +42,13 @@ def test_a_server_error_is_unavailable():
         client(lambda request: httpx.Response(503, json={"title": "Starting up"})).events(7, after=0)
 
 
+@pytest.mark.parametrize("status", [401, 404, 422])
+def test_a_refused_read_is_unavailable_too(status):
+    """A wrong INTERNAL_API_KEY on one side must degrade the dashboard, not turn it into a 500."""
+    with pytest.raises(HouseholdsUnavailable):
+        client(lambda request: httpx.Response(status, json={"title": "No"})).events(7, after=0)
+
+
 def test_events_are_parsed():
     body = {"last_id": 9, "expenses": [{"audit_event_id": 9, "household_id": 1, "actor_user_id": 3,
                                         "description": "Pizza", "share_cents": 1500}],

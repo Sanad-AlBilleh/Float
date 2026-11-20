@@ -66,6 +66,7 @@ const Api = (() => {
       request.body = JSON.stringify(body);
     }
     if (auth && token()) request.headers.Authorization = `Bearer ${token()}`;
+    const repeatable = method === "GET" || Boolean(request.headers["Idempotency-Key"]);
     for (let attempt = 0; ; attempt += 1) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -82,6 +83,14 @@ const Api = (() => {
         || response.status === 502 || response.status === 504;
       if (startingUp) {
         if (!retry) throw new ApiError(503, data && data.title ? data : { title: "Unavailable", detail: "The service did not answer." });
+        // Repeating a GET, or a write with an Idempotency-Key (the server deduplicates it), is always safe.
+        // Any other write is repeated only after a 503, which means it was refused before it ran; after a
+        // timeout or a 502/504 it may have been saved, so it is not sent twice.
+        if (!repeatable && !(response && response.status === 503)) {
+          UI.clearBanner();
+          throw new ApiError(503, { title: "Not confirmed",
+            detail: "Float did not answer in time, so this may or may not have been saved. Reload the page to check before trying again." });
+        }
         if (attempt < RETRY_WAITS_MS.length) {
           UI.banner("Float is starting up (the database may be waking from a pause). Retrying…");
           await sleep(RETRY_WAITS_MS[attempt]);

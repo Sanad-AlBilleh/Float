@@ -66,7 +66,8 @@ const Api = (() => {
       request.body = JSON.stringify(body);
     }
     if (auth && token()) request.headers.Authorization = `Bearer ${token()}`;
-    const repeatable = method === "GET" || Boolean(request.headers["Idempotency-Key"]);
+    // A login changes nothing, so it is safe to repeat after a timeout (often the first request after idle).
+    const repeatable = method === "GET" || Boolean(request.headers["Idempotency-Key"]) || path === "/auth/login";
     for (let attempt = 0; ; attempt += 1) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -133,6 +134,12 @@ const Api = (() => {
     try { await call("personal", "POST", "/auth/logout"); } catch { /* signed out locally either way */ }
     setToken(null);
     location.replace("index.html");
+  }
+
+  // Wake both services as soon as any page opens (on Azure they scale to zero and their databases pause),
+  // so they are usually up by the time the user submits something. Fire and forget: errors are ignored.
+  for (const service of ["personal", "households"]) {
+    if (base(service)) fetch(`${base(service)}/health`, { cache: "no-store" }).catch(() => {});
   }
 
   return {

@@ -1,6 +1,12 @@
-# CD (Assignment 2 §5, §7): every merge to main. CI runs first on the same commit; only if it passes are the
-# images pushed to GHCR tagged with the commit SHA, deployed to Azure Container Apps, the UI uploaded to the
-# storage static website with the services' URLs, and /health checked on both services.
+# CD (Assignment 2 §5, §7): every merge to main. Jobs run in parallel wherever nothing depends on another:
+#
+#   ci (the whole CI workflow) ─┐
+#   images (personal, households: build and push to GHCR, SHA-tagged) ─┴─> deploy (personal, households)
+#                                                                         ├─> ui (config.js + upload)
+#                                                                         └─> health (personal, households)
+#
+# Images are built while CI runs, but nothing reaches Azure unless CI passed on the same commit: `deploy`
+# needs both `ci` and `images`. An image of a commit that fails CI can exist in GHCR; it is never deployed.
 # The pipeline signs in to Azure as the managed identity sgealbilleh-ieu2024-github through OIDC: no
 # Azure password exists anywhere. Database passwords and the shared secrets are GitHub secrets, passed to
 # Container Apps as secrets (secretref), never as plain environment variables.
@@ -12,58 +18,79 @@ on:
 
 concurrency:
   group: deploy-main
-  cancel-in-progress: false
+  cancel-in-progress: false  # a deploy is never cut in half; a newer merge waits for it
 
 permissions:
   contents: read
+
+env:
+  PREFIX: ${{ vars.PREFIX }}
+  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+  UI_STORAGE: ${{ vars.UI_STORAGE }}
+  SQL_SERVER: ${{ vars.SQL_SERVER }}
 
 jobs:
   ci:
     uses: ./.github/workflows/ci.yml
 
-  deploy:
-    needs: ci
-    # Skipped until the one-time Azure setup (infra/azure-setup.sh) has set these repository variables.
-    if: ${{ vars.RESOURCE_GROUP != '' }}
+  images:
+    name: Push ${{ matrix.service }} image
     runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write  # push images to GHCR
-      id-token: write  # OIDC token for azure/login
-    env:
-      PREFIX: ${{ vars.PREFIX }}
-      RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
-      UI_STORAGE: ${{ vars.UI_STORAGE }}
-      SQL_SERVER: ${{ vars.SQL_SERVER }}
+    strategy:
+      matrix:
+        service: [personal, households]
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Image names (GHCR needs lowercase)
+      - uses: actions/checkout@v5
+      - name: Image name (GHCR needs lowercase)
         run: echo "REGISTRY=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
-
+      - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push personal
-        uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v6
         with:
-          context: services/personal
+          context: services/${{ matrix.service }}
           push: true
           provenance: false  # a plain image manifest, which Container Apps can pull
           build-args: GIT_SHA=${{ github.sha }}
-          tags: ${{ env.REGISTRY }}/float-personal:${{ github.sha }}
+          tags: ${{ env.REGISTRY }}/float-${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max
 
-      - name: Build and push households
-        uses: docker/build-push-action@v6
-        with:
-          context: services/households
-          push: true
-          provenance: false
-          build-args: GIT_SHA=${{ github.sha }}
-          tags: ${{ env.REGISTRY }}/float-households:${{ github.sha }}
+  deploy:
+    name: Deploy ${{ matrix.service }}
+    needs: [ci, images]
+    # Skipped until the one-time Azure setup (infra/azure-setup.sh) has set these repository variables.
+    if: ${{ vars.RESOURCE_GROUP != '' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write  # OIDC token for azure/login
+    strategy:
+      fail-fast: false  # a failing leg must not cancel the other mid-update
+      matrix:
+        include:
+          - service: personal
+            password_secret: PERSONAL_DB_PASSWORD
+            other_env: HOUSEHOLDS_URL
+            other: households
+          - service: households
+            password_secret: HOUSEHOLDS_DB_PASSWORD
+            other_env: PERSONAL_URL
+            other: personal
+    # Both legs read the same three addresses, so whichever leg sets these outputs, they are the same.
+    outputs:
+      ui_origin: ${{ steps.addresses.outputs.ui_origin }}
+      personal_url: ${{ steps.addresses.outputs.personal_url }}
+      households_url: ${{ steps.addresses.outputs.households_url }}
+    steps:
+      - name: Image name (GHCR needs lowercase)
+        run: echo "REGISTRY=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
 
       - uses: azure/login@v2
         with:
@@ -72,39 +99,59 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Addresses (UI origin, service URLs)
+        id: addresses
         run: |
-          UI_ORIGIN="$(az storage account show -n "$UI_STORAGE" -g "$RESOURCE_GROUP" --query primaryEndpoints.web -o tsv)"
-          echo "UI_ORIGIN=${UI_ORIGIN%/}" >> "$GITHUB_ENV"
+          ui_origin="$(az storage account show -n "$UI_STORAGE" -g "$RESOURCE_GROUP" --query primaryEndpoints.web -o tsv)"
+          echo "ui_origin=${ui_origin%/}" >> "$GITHUB_OUTPUT"
           for svc in personal households; do
             fqdn="$(az containerapp show -n "${PREFIX}-${svc}" -g "$RESOURCE_GROUP" --query properties.configuration.ingress.fqdn -o tsv)"
-            echo "${svc^^}_URL=https://${fqdn}" >> "$GITHUB_ENV"
+            echo "${svc}_url=https://${fqdn}" >> "$GITHUB_OUTPUT"
           done
 
-      - name: Deploy both Container Apps (0 to 1 replicas, secrets by reference)
+      - name: Container Apps CLI extension
+        run: az extension add --name containerapp --upgrade --yes -o none
+
+      - name: Deploy the Container App (0 to 1 replicas, secrets by reference)
         env:
-          PERSONAL_DB_PASSWORD: ${{ secrets.PERSONAL_DB_PASSWORD }}
-          HOUSEHOLDS_DB_PASSWORD: ${{ secrets.HOUSEHOLDS_DB_PASSWORD }}
+          SVC: ${{ matrix.service }}
+          DB_PASSWORD: ${{ secrets[matrix.password_secret] }}
           TOKEN_SECRET: ${{ secrets.TOKEN_SECRET }}
           INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
+          OTHER_ENV: ${{ matrix.other_env }}
+          OTHER_URL: ${{ steps.addresses.outputs[format('{0}_url', matrix.other)] }}
+          # On Azure the other service may be scaling up from zero: 10 s instead of the 2 s default.
+          OTHER_TIMEOUT_ENV: ${{ format('{0}_TIMEOUT_S', matrix.other == 'personal' && 'PERSONAL' || 'HOUSEHOLDS') }}
+          UI_ORIGIN: ${{ steps.addresses.outputs.ui_origin }}
         run: |
-          deploy() {  # service, its password, the env var naming the other service, that service's URL
-            local svc="$1" password="$2" other_env="$3" other_url="$4"
-            local encoded db_url
-            encoded="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$password")"
-            db_url="mssql://${svc}_svc:${encoded}@${SQL_SERVER}.database.windows.net:1433/${PREFIX}-${svc}-db?encrypt=require"
-            echo "::add-mask::${db_url}"
-            az containerapp secret set -n "${PREFIX}-${svc}" -g "$RESOURCE_GROUP" --secrets \
-              "database-url=${db_url}" "token-secret=${TOKEN_SECRET}" "internal-api-key=${INTERNAL_API_KEY}" -o none
-            az containerapp update -n "${PREFIX}-${svc}" -g "$RESOURCE_GROUP" \
-              --image "${REGISTRY}/float-${svc}:${GITHUB_SHA}" --min-replicas 0 --max-replicas 1 \
-              --set-env-vars "DATABASE_URL=secretref:database-url" "TOKEN_SECRET=secretref:token-secret" \
-                "INTERNAL_API_KEY=secretref:internal-api-key" "${other_env}=${other_url}" \
-                "CORS_ORIGINS=${UI_ORIGIN}" "GIT_SHA=${GITHUB_SHA}" -o none
-          }
-          deploy personal "$PERSONAL_DB_PASSWORD" HOUSEHOLDS_URL "$HOUSEHOLDS_URL"
-          deploy households "$HOUSEHOLDS_DB_PASSWORD" PERSONAL_URL "$PERSONAL_URL"
+          encoded="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$DB_PASSWORD")"
+          db_url="mssql://${SVC}_svc:${encoded}@${SQL_SERVER}.database.windows.net:1433/${PREFIX}-${SVC}-db?encrypt=require"
+          echo "::add-mask::${db_url}"
+          az containerapp secret set -n "${PREFIX}-${SVC}" -g "$RESOURCE_GROUP" --secrets \
+            "database-url=${db_url}" "token-secret=${TOKEN_SECRET}" "internal-api-key=${INTERNAL_API_KEY}" -o none
+          az containerapp update -n "${PREFIX}-${SVC}" -g "$RESOURCE_GROUP" \
+            --image "${REGISTRY}/float-${SVC}:${GITHUB_SHA}" --min-replicas 0 --max-replicas 1 \
+            --set-env-vars "DATABASE_URL=secretref:database-url" "TOKEN_SECRET=secretref:token-secret" \
+              "INTERNAL_API_KEY=secretref:internal-api-key" "${OTHER_ENV}=${OTHER_URL}" \
+              "CORS_ORIGINS=${UI_ORIGIN}" "GIT_SHA=${GITHUB_SHA}" "${OTHER_TIMEOUT_ENV}=10" -o none
 
-      - name: Upload the UI with the services' URLs
+  ui:
+    name: Upload the UI
+    needs: deploy
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Write config.js with the services' URLs and upload to $web
+        env:
+          PERSONAL_URL: ${{ needs.deploy.outputs.personal_url }}
+          HOUSEHOLDS_URL: ${{ needs.deploy.outputs.households_url }}
         run: |
           printf 'window.FLOAT_CONFIG = {\n  personalUrl: "%s",\n  householdsUrl: "%s",\n};\n' \
             "$PERSONAL_URL" "$HOUSEHOLDS_URL" > ui/config.js
@@ -113,17 +160,27 @@ jobs:
           echo "::add-mask::${KEY}"
           az storage blob upload-batch --account-name "$UI_STORAGE" --account-key "$KEY" -d '$web' -s ui \
             --overwrite --content-cache-control "no-cache" -o none
+          echo "Live: ${{ needs.deploy.outputs.ui_origin }}"
 
-      - name: Health check (allows for a cold start and a resuming database)
+  health:
+    name: Health of ${{ matrix.service }}
+    needs: deploy
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [personal, households]
+    steps:
+      - name: /health returns ok with this commit's version (allows for a cold start and a resuming database)
+        env:
+          URL: ${{ needs.deploy.outputs[format('{0}_url', matrix.service)] }}
         run: |
-          for url in "$PERSONAL_URL" "$HOUSEHOLDS_URL"; do
-            ok=""
-            for i in $(seq 1 20); do  # up to about 5 minutes per service
-              body="$(curl -sS --max-time 40 "${url}/health" || true)"
-              if echo "$body" | grep -q '"status":"ok"' && echo "$body" | grep -q "${GITHUB_SHA}"; then ok=1; break; fi
-              echo "waiting for ${url} (${i}): ${body}"; sleep 15
-            done
-            [ -n "$ok" ] || { echo "::error::${url}/health did not return 200 with version ${GITHUB_SHA}"; exit 1; }
-            echo "${url}: ${body}"
+          for i in $(seq 1 20); do  # up to about 5 minutes
+            out="$(curl -sS --max-time 40 -w '\n%{http_code}' "${URL}/health" || true)"
+            code="${out##*$'\n'}"; body="${out%$'\n'*}"
+            if [ "$code" = "200" ] && echo "$body" | grep -q '"status":"ok"' && echo "$body" | grep -q "${GITHUB_SHA}"; then
+              echo "${URL}: ${code} ${body}"; exit 0
+            fi
+            echo "waiting for ${URL} (${i}): ${code} ${body}"; sleep 15
           done
-          echo "Live: ${UI_ORIGIN}"
+          echo "::error::${URL}/health did not return 200 with version ${GITHUB_SHA}"; exit 1

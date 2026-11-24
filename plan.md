@@ -198,7 +198,7 @@ ui/
   `ALTER TABLE memberships ADD member_name NVARCHAR(80) NULL; GO UPDATE memberships SET member_name = CONCAT('Member #', user_id) WHERE member_name IS NULL;`
   Rows already in the table keep everything and get a backfilled value. The service then refreshes it from `personal` when it can. It is the cache behind D5, so it is not a new feature.
   ~~A second one in `personal`: `002_transaction_source.sql`~~ dropped on 21 November: `transactions.origin` (manual, bill, shared, settlement, import) already records where a row came from, so the column would duplicate it.
-  **Order on Azure:** deploy with only `001` → create data through the UI → deploy the `002` files → screenshot the data before and after plus the startup log line (evidence for the report).
+  **Order on Azure (changed 24 November):** `002` is already on `main`, so the first deploy applies `001` and `002` together. The evidence uses `003` instead: first deploy → create data through the UI → merge `003` → screenshot the data before and after plus the startup log line (Day 7).
 - Seeding: an idempotent demo seed per service (`INSERT … WHERE NOT EXISTS`), run only when `SEED_DEMO=true` (locally yes, Azure no).
 - No code drops tables or recreates databases. Compose uses a named volume, which is never deleted to redeploy.
 
@@ -210,7 +210,7 @@ Within a 3 s budget: `UPDATE health_probe SET checked_at = SYSUTCDATETIME() WHER
 ### 7.4 Logs and connection retry
 
 - Middleware: `{"method":"GET","path":"/transactions","status":200,"duration_ms":12.4}` (JSON, stdout, one line per request).
-- `connect()` retries on errors 40613, 20002, 20003 and connection timeouts with exponential backoff (1, 2, 4, 8, 16, 30 s…) up to `DB_CONNECT_RETRIES`. Startup migration waits up to about 90 s for a paused Azure database.
+- `connect()` retries on errors 40613, 20002, 20003 and connection timeouts with exponential backoff (1, 2, 4, 8, 16, 30 s…) up to `DB_CONNECT_RETRIES`. Startup migration waits up to about 2 minutes (the backoff adds up to about 121 s) for a paused Azure database.
 
 ---
 
@@ -278,28 +278,28 @@ CI never connects to Azure SQL.
 
 ### 10.2 `cd.yml`: `on: push: branches: [main]`
 
-1. `ci: uses: ./.github/workflows/ci.yml`
-2. `deploy: needs: ci`, `permissions: { id-token: write, contents: read, packages: write }`
-   - `docker/login-action` to `ghcr.io` with `GITHUB_TOKEN`. Build and push `ghcr.io/sanad-albilleh/float-personal:${{ github.sha }}` and `float-households:${{ github.sha }}` (`provenance: false`, build-arg `GIT_SHA`).
+Replaced on 24 November by the parallel jobs in §10.4. The steps are the same; only the order changed:
+1. `ci: uses: ./.github/workflows/ci.yml`, and at the same time `images` (matrix): `docker/login-action` to `ghcr.io` with `GITHUB_TOKEN`, build and push `ghcr.io/sanad-albilleh/float-<service>:${{ github.sha }}` (`provenance: false`, build-arg `GIT_SHA`).
+2. `deploy` (matrix, `needs: [ci, images]`, `fail-fast: false`), `permissions: { id-token: write, contents: read }`:
    - `azure/login@v2` with `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` (OIDC, no password).
    - `az containerapp secret set` for `database-url`, `token-secret`, `internal-api-key` (built from GitHub secrets), then `az containerapp update --image …:${{ github.sha }} --min-replicas 0 --max-replicas 1 --set-env-vars DATABASE_URL=secretref:database-url … HOUSEHOLDS_URL=https://… CORS_ORIGINS=https://sgealbillehieu2024ui.z<N>.web.core.windows.net GIT_SHA=${{ github.sha }}`.
-   - Write `ui/config.js` with both Container App FQDNs (`az containerapp show --query properties.configuration.ingress.fqdn`).
-   - Upload: `az storage blob upload-batch -d '$web' -s ui --overwrite` using the account key from `az storage account keys list` (Contributor can list keys. The data-plane role is not needed).
-   - Health: loop for up to 5 minutes, `curl -fsS https://<app>/health` each 15 s for both services. Fail the run if either never returns 200.
-
-### 10.4 Keeping the pipeline fast (added 24 November)
-
-The last runs took about 1.5 minutes for CI, and the CD deploy job would add a serial chain on top: build personal, build households, deploy personal, deploy households, upload the UI, check health one service after the other. Changes, all in the workflow files only:
-
-- **CI:** the jobs already run in parallel (validate, test × 2, integration, build × 2). The slowest is `Test personal` (~90 s), which waits for SQL Server before installing anything. It now starts SQL Server first, installs and lints while it boots, and waits only right before `pytest`. `actions/checkout@v5` and `actions/setup-python@v6` (Node 24) replace the deprecated Node 20 versions. Image builds use the GitHub Actions layer cache.
-- **Superseded runs are cancelled:** a `concurrency` group per workflow, event and branch with `cancel-in-progress` on CI, so a new push to a branch stops the old run of the same kind. CD keeps `cancel-in-progress: false` (a deploy is never cut in half).
-- **CD:** split into parallel jobs: `images` (matrix: personal, households) builds and pushes both SHA-tagged images **at the same time as CI**; `deploy` (matrix) updates both Container Apps in parallel and needs both `ci` and `images`, so nothing reaches Azure unless CI passed on the same commit; then `ui` (upload) and `health` (matrix, both services checked at once) run in parallel after the deploy. An image of a commit that fails CI may exist in GHCR, but it is never deployed (ADR-9 states this).
+3. After `deploy`, side by side:
+   - `ui`: write `ui/config.js` with both Container App FQDNs, then `az storage blob upload-batch -d '$web' -s ui --overwrite` using the account key from `az storage account keys list` (Contributor can list keys; the data-plane role is not needed).
+   - `health` (matrix): up to 5 minutes, each 15 s, until `/health` returns HTTP 200 with `"status":"ok"` and this commit's SHA. Fail the run otherwise.
 
 ### 10.3 Secrets and variables (GitHub)
 
 Secrets: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `PERSONAL_DB_PASSWORD`, `HOUSEHOLDS_DB_PASSWORD`, `TOKEN_SECRET`, `INTERNAL_API_KEY`.
 Variables: `PREFIX=sgealbilleh-ieu2024`, `RESOURCE_GROUP=rg-sgealbilleh-ieu2024`, `UI_STORAGE=sgealbillehieu2024ui`, `SQL_SERVER=sgealbilleh-ieu2024-sql`.
 Before every commit: `git diff --cached` checked for passwords. If a secret ever leaks: rotate it within 24 h, update the GitHub secret, and log the incident in the README (§5).
+
+### 10.4 Keeping the pipeline fast (added 24 November)
+
+The last runs took about 1.5 minutes for CI, and the CD deploy job would add a serial chain on top: build personal, build households, deploy personal, deploy households, upload the UI, check health one service after the other. Changes, all in the workflow files only:
+
+- **CI:** the jobs already run in parallel (validate, test × 2, integration, build × 2). The slowest is `Test personal` (~90 s), which waits for SQL Server before installing anything. It now pulls and starts SQL Server in the background, installs and lints meanwhile, and waits only right before `pytest`. Measured on PR #23: `Test personal` 1m24–1m40 before, 1m06–1m14 after (before the background pull was added). `actions/checkout@v5` and `actions/setup-python@v6` (Node 24) replace the deprecated Node 20 versions. Image builds use the GitHub Actions layer cache.
+- **Superseded runs are cancelled:** a `concurrency` group per workflow, event and branch with `cancel-in-progress` on CI, so a new push to a branch stops the old run of the same kind. CD keeps `cancel-in-progress: false` (a deploy is never cut in half).
+- **CD:** split into parallel jobs: `images` (matrix: personal, households) builds and pushes both SHA-tagged images **at the same time as CI**; `deploy` (matrix) updates both Container Apps in parallel and needs both `ci` and `images`, so nothing reaches Azure unless CI passed on the same commit; then `ui` (upload) and `health` (matrix, both services checked at once, each requiring HTTP 200) run in parallel after the deploy. An image of a commit that fails CI may exist in GHCR, but it is never deployed (ADR-9 states this).
 
 ---
 
@@ -315,7 +315,7 @@ Run in **bash** (not zsh, see the guide's warning about `:r`).
 6. Managed identity `sgealbilleh-ieu2024-github`, Contributor on the resource group only. Federated credentials for `repo:Sanad-AlBilleh/Float:ref:refs/heads/main` **and** the numeric-ID form if login complains.
 7. GitHub secrets and variables (§10.3) with `gh secret set` / `gh variable set`.
 8. Reader role on the resource group for `amartini@faculty.ie.edu` and `bserra@faculty.ie.edu`.
-9. After the first CD run fails on the private GHCR packages (expected), make both packages public and re-run. That run is the "failed run that was fixed" evidence.
+9. Make both GHCR packages public **before** the first deploy (they exist since 24 November, when CD started pushing images before the Azure setup), so the first deploy does not fail on a private image. The "failed run that was fixed" evidence is the CD run of the PR #20 merge (`jsonschema` missing from the test requirements), fixed by PR #21.
 
 After this, nothing is changed in the portal. Only the pipeline deploys.
 
@@ -402,7 +402,7 @@ Branch `docs/plan-to-sunday`:
 - [x] `Plan the last week: all work by Friday, the weekend for fixes`: this schedule, §10.4, risks and change log.
 
 Branch `ci/parallel-pipeline`:
-- [ ] `Run the CD jobs in parallel and cancel superseded CI runs` (§10.4). Checked by the CI run on the pull request and the CD run on `main` (the deploy jobs stay skipped until the Azure setup sets the repository variables, but `images` pushes to GHCR).
+- [x] `Run the CD jobs in parallel and cancel superseded CI runs` (§10.4), ADR-9 brought up to date. Checked by the CI run on the pull request and the CD run on `main` (the deploy jobs stay skipped until the Azure setup sets the repository variables, but `images` pushes to GHCR).
 - [ ] Review of today's changes by a second reviewer, then a review of today's work and all of last week's (17 to 21 November), fixes in their own commits.
 - [ ] Azure: checked again in the morning and evening (`az rest … /subscriptions/<id>` → `state`). Still **Disabled** at the first check.
 - [ ] **Me:** email the professor today about the disabled subscription (what it says, that I did not press Upgrade or use IE Workspaces), and download `system.schema.json` from Blackboard (CI only warns while it is missing).
@@ -411,17 +411,18 @@ Branch `ci/parallel-pipeline`:
 Branch `feature/migration-003`, **merged only after real data exists on Azure** (see Risks): `002_member_name` is already on `main`, so the first deploy will apply `001` and `002` together and cannot be the §4.6 evidence.
 - [ ] `Add migration 003 …`: chosen from the schema. It must change a table that already holds data (add a column with a default or backfill, rename, or split a column), keep every row, and serve something the app already does (no new feature). Tests: applied over existing rows, a second boot applies nothing.
 - [ ] `system.schema.json` added and CI's schema check made a hard failure.
-- [ ] If Azure is enabled: run `infra/azure-setup.sh` (steps 1 to 8), the first CD deploy from `main`, register in the live UI and create data in both services, screenshots of the data. Then merge `003`, and capture the CD run, the startup log line `migration applied: 003_…` and the data after.
+- [ ] If Azure is enabled: run `infra/azure-setup.sh` (steps 1 to 8, including the Reader role for both professors right away), the first CD deploy from `main`, register in the live UI and create data in both services, screenshots of the data. Then merge `003`, and capture the CD run, the startup log line `migration applied: 003_…` and the data after.
 
 ### Day 8: Thursday 26 November: the report
 Branch `docs/report`:
-- [ ] `Write the Assignment 2 report` (4 to 5 pages, `docs/a2/report`): architecture before and after, deployment diagram naming every Azure resource, a database diagram per service matching the migrations, partial-failure evidence (screenshot of the dashboard with households stopped, and the 503 message on a write), pipeline evidence (a green CD run on `main` and the failed run #20, caused by `jsonschema` missing from the test requirements, fixed in #21).
+- [ ] `Write the Assignment 2 report` (4 to 5 pages, `docs/a2/report`): architecture before and after, deployment diagram naming every Azure resource, a database diagram per service matching the migrations, partial-failure evidence (screenshot of the dashboard with households stopped, and the 503 message on a write), pipeline evidence (a green CD run on `main` and the failed CD run of the PR #20 merge, caused by `jsonschema` missing from the test requirements, fixed in #21).
 - [ ] Azure evidence added if Wednesday had it. Otherwise the deploy is done today, the moment the subscription works.
 
 ### Day 9: Friday 27 November: everything finished
 Branch `docs/final`:
 - [ ] Live URL in the README, `system.yaml` (`public_url`) and the report. The cold-start check on Azure (open the UI after more than 60 minutes idle, screenshot of the "starting up" banner, then the page loading).
-- [ ] Reader role for both professors on the resource group (setup step 8).
+- [ ] Reader role for both professors checked (`az role assignment list -g rg-sgealbilleh-ieu2024`); added now if setup only ran today.
+- [ ] If Azure only started working on Thursday or Friday: the `003` evidence (CD run, startup log line, data before and after) goes into the report today.
 - [ ] Final AI log rows ("in my own words" written by me), README check against §8b, ADR-8 updated with what the real deployment showed.
 - [ ] Commit-count check: `git log --date=short --format=%ad main | sort | uniq -c` (at least 6 days, no day over 40%).
 - **End of Friday: no planned work is left.** Anything Azure still blocks is written in the README and report as blocked, with the date and what was tried.
@@ -430,7 +431,8 @@ Branch `docs/final`:
 Branch `fix/<what>` per fix, one commit per fix, each through a pull request and a green CD run.
 1. Walk through the live app and the clean-clone compose run (`git clone` → `docker compose up --build`) as a grader would.
 2. Fix only what is broken. No new work.
-3. Sunday: merge, wait for the green CD run, then `git tag submission <sha> && git push origin submission`, and put the full SHA in the submission.
+3. **Saturday evening:** tag the last green `main` commit, `git tag submission <sha> && git push origin submission`, so a failed run on Sunday cannot leave me without a tag.
+4. Sunday: only if a fix lands, wait for its green CD run and move the tag (`git tag -f submission <sha> && git push -f origin submission`). Put the full SHA of the tagged commit in the submission.
 
 ### Commit budget (content + merge)
 

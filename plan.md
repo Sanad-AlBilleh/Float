@@ -4,7 +4,7 @@ This is the plan for turning the Assignment 1 monolith into two services, a stat
 
 - **Repository:** the same one as Assignment 1, `Sanad-AlBilleh/Float`. Changes reach `main` only through pull requests.
 - **Student:** `sgealbilleh.ieu2024`. **Prefix:** `sgealbilleh-ieu2024`. **UI storage account:** `sgealbillehieu2024ui`.
-- **Deadline for a working deployment:** Saturday 21 November. Sunday 22 November is kept for fixes after my own review, the report, and the `submission` tag.
+- **Deadline (moved, 24 November):** Sunday 29 November. **Every part of the work is finished by Friday 27 November.** Saturday 28 and Sunday 29 are only for bug fixes from my own review, and the `submission` tag. (Originally: a working deployment by Saturday 21 November, fixes on Sunday 22.)
 
 ---
 
@@ -287,6 +287,14 @@ CI never connects to Azure SQL.
    - Upload: `az storage blob upload-batch -d '$web' -s ui --overwrite` using the account key from `az storage account keys list` (Contributor can list keys. The data-plane role is not needed).
    - Health: loop for up to 5 minutes, `curl -fsS https://<app>/health` each 15 s for both services. Fail the run if either never returns 200.
 
+### 10.4 Keeping the pipeline fast (added 24 November)
+
+The last runs took about 1.5 minutes for CI, and the CD deploy job would add a serial chain on top: build personal, build households, deploy personal, deploy households, upload the UI, check health one service after the other. Changes, all in the workflow files only:
+
+- **CI:** the jobs already run in parallel (validate, test × 2, integration, build × 2). The slowest is `Test personal` (~90 s), which waits for SQL Server before installing anything. It now starts SQL Server first, installs and lints while it boots, and waits only right before `pytest`. `actions/checkout@v5` and `actions/setup-python@v6` (Node 24) replace the deprecated Node 20 versions. Image builds use the GitHub Actions layer cache.
+- **Superseded runs are cancelled:** a `concurrency` group per workflow, event and branch with `cancel-in-progress` on CI, so a new push to a branch stops the old run of the same kind. CD keeps `cancel-in-progress: false` (a deploy is never cut in half).
+- **CD:** split into parallel jobs: `images` (matrix: personal, households) builds and pushes both SHA-tagged images **at the same time as CI**; `deploy` (matrix) updates both Container Apps in parallel and needs both `ci` and `images`, so nothing reaches Azure unless CI passed on the same commit; then `ui` (upload) and `health` (matrix, both services checked at once) run in parallel after the deploy. An image of a commit that fails CI may exist in GHCR, but it is never deployed (ADR-9 states this).
+
 ### 10.3 Secrets and variables (GitHub)
 
 Secrets: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `PERSONAL_DB_PASSWORD`, `HOUSEHOLDS_DB_PASSWORD`, `TOKEN_SECRET`, `INTERNAL_API_KEY`.
@@ -386,26 +394,60 @@ Branch `feature/migrations-on-azure` (built from 21:50 on the 20th, committed on
 - [x] `Fix what the review of all Assignment 2 work found`: a lost reply from personal is retried once with the same Idempotency-Key and the undo also covers a failed COMMIT; non-ASCII tokens get 401, not 500; the login lockout counts the address the Azure ingress appends (the last `X-Forwarded-For` entry); the UI repeats a write only after a 503 or when it has an Idempotency-Key; any refused read from households degrades the dashboard instead of a 500. Tests: personal 415 (96%), households 233 (92%), integration 4 of 4.
 - [ ] **Blocked by the disabled subscription:** the first deploy, `002` run on Azure with data created before it (the evidence §4.3 asks for), the cold-start check after Azure idles, and the live URL in the README and `system.yaml`.
 
-### Day 5: Sunday 22 November: review, fixes, report, submission
-Branch `fix/review` (+ `docs/report`).
-1. Fixes from my own walkthrough of the live app (one commit per fix).
-2. `Write the Assignment 2 report` (diagrams, evidence, links).
-3. Final AI log rows. Final check of commit counts (`git log --date=short --format=%ad main | sort | uniq -c`).
-4. Merge, wait for green CD, then `git tag submission <sha> && git push origin submission`.
+### Day 5: Sunday 22 and Monday 23 November: no commits
+Azure for Students was still disabled. No work was committed on these days.
+
+### Day 6: Tuesday 24 November: new plan, faster pipeline
+Branch `docs/plan-to-sunday`:
+- [x] `Plan the last week: all work by Friday, the weekend for fixes`: this schedule, §10.4, risks and change log.
+
+Branch `ci/parallel-pipeline`:
+- [ ] `Run the CD jobs in parallel and cancel superseded CI runs` (§10.4). Checked by the CI run on the pull request and the CD run on `main` (the deploy jobs stay skipped until the Azure setup sets the repository variables, but `images` pushes to GHCR).
+- [ ] Review of today's changes by a second reviewer, then a review of today's work and all of last week's (17 to 21 November), fixes in their own commits.
+- [ ] Azure: checked again in the morning and evening (`az rest … /subscriptions/<id>` → `state`). Still **Disabled** at the first check.
+- [ ] **Me:** email the professor today about the disabled subscription (what it says, that I did not press Upgrade or use IE Workspaces), and download `system.schema.json` from Blackboard (CI only warns while it is missing).
+
+### Day 7: Wednesday 25 November: migration 003 held back, Azure if enabled
+Branch `feature/migration-003`, **merged only after real data exists on Azure** (see Risks): `002_member_name` is already on `main`, so the first deploy will apply `001` and `002` together and cannot be the §4.6 evidence.
+- [ ] `Add migration 003 …`: chosen from the schema. It must change a table that already holds data (add a column with a default or backfill, rename, or split a column), keep every row, and serve something the app already does (no new feature). Tests: applied over existing rows, a second boot applies nothing.
+- [ ] `system.schema.json` added and CI's schema check made a hard failure.
+- [ ] If Azure is enabled: run `infra/azure-setup.sh` (steps 1 to 8), the first CD deploy from `main`, register in the live UI and create data in both services, screenshots of the data. Then merge `003`, and capture the CD run, the startup log line `migration applied: 003_…` and the data after.
+
+### Day 8: Thursday 26 November: the report
+Branch `docs/report`:
+- [ ] `Write the Assignment 2 report` (4 to 5 pages, `docs/a2/report`): architecture before and after, deployment diagram naming every Azure resource, a database diagram per service matching the migrations, partial-failure evidence (screenshot of the dashboard with households stopped, and the 503 message on a write), pipeline evidence (a green CD run on `main` and the failed run #20, caused by `jsonschema` missing from the test requirements, fixed in #21).
+- [ ] Azure evidence added if Wednesday had it. Otherwise the deploy is done today, the moment the subscription works.
+
+### Day 9: Friday 27 November: everything finished
+Branch `docs/final`:
+- [ ] Live URL in the README, `system.yaml` (`public_url`) and the report. The cold-start check on Azure (open the UI after more than 60 minutes idle, screenshot of the "starting up" banner, then the page loading).
+- [ ] Reader role for both professors on the resource group (setup step 8).
+- [ ] Final AI log rows ("in my own words" written by me), README check against §8b, ADR-8 updated with what the real deployment showed.
+- [ ] Commit-count check: `git log --date=short --format=%ad main | sort | uniq -c` (at least 6 days, no day over 40%).
+- **End of Friday: no planned work is left.** Anything Azure still blocks is written in the README and report as blocked, with the date and what was tried.
+
+### Day 10 and 11: Saturday 28 and Sunday 29 November: bug fixes only
+Branch `fix/<what>` per fix, one commit per fix, each through a pull request and a green CD run.
+1. Walk through the live app and the clean-clone compose run (`git clone` → `docker compose up --build`) as a grader would.
+2. Fix only what is broken. No new work.
+3. Sunday: merge, wait for the green CD run, then `git tag submission <sha> && git push origin submission`, and put the full SHA in the submission.
 
 ### Commit budget (content + merge)
 
 | Day | Content | Merges | Total |
 |---|---|---|---|
 | Tue 17 | 3 | 2 | 5 (done) |
-| Wed 18 | 0 | 0 | 0 (the work was committed after midnight) |
-| Thu 19 | 5 + 3 | 1 + 1 | 10 (Day 1's commits at 00:0x, then Day 2) |
-| Fri 20 | 7 | 1–2 | 9 |
-| Sat 21 | 4 | 1–2 | 6 |
-| Sun 22 | 3–5 | 1–2 | 5 |
-| **Total** | | | **~37** |
+| Thu 19 | 5 + 3 | 1 + 1 | 9 (done; Day 1's commits at 00:0x, then Day 2) |
+| Fri 20 | 5 | 1 | 6 (done) |
+| Sat 21 | 6 | 2 | 8 (done) |
+| Tue 24 | 3–4 | 2–3 | 6 |
+| Wed 25 | 2–3 | 1–2 | 4 |
+| Thu 26 | 1–2 | 1 | 3 |
+| Fri 27 | 2–3 | 1 | 4 |
+| Sat 28 / Sun 29 | fixes only | | 0–4 |
+| **Total** | | | **~45–49** |
 
-Largest day (Thu 19, about 10 of 37) ≈ 27%, under the 40% limit. **Only 5 distinct days are now possible up to Sunday 22 November (17, 19, 20, 21, 22)**; see the change log.
+Distinct days: 17, 19, 20, 21 done; **Tuesday 24 makes 5 and Wednesday 25 makes 6**, the §6 minimum, so both days must have a pushed commit. Largest day (Thu 19, 9 of ~45) ≈ 20%, under the 40% limit.
 
 ---
 
@@ -417,8 +459,10 @@ Largest day (Thu 19, about 10 of 37) ≈ 27%, under the 40% limit. **Only 5 dist
 | Free SQL offer not in my region | Put the SQL server in another allowed region (the guide allows this). |
 | `pymssql` on Python 3.14 | Use `python:3.13-slim`. Check day 1. |
 | OIDC subject mismatch | Register both name and numeric-ID subjects. Run setup in bash. |
-| Migration evidence needs data on Azure **before** `002` | First deploy must be on Friday at the latest. `002` is held back until Saturday. |
-| `system.schema.json` comes from Blackboard | Download it by Friday. CI validation depends on it. |
+| Migration evidence needs data on Azure **before** the migration | `002` is already on `main`, so the first deploy applies it. A new `003` is written on Wednesday and merged only after data exists on Azure. |
+| Azure for Students stays disabled | Email the professor on Tuesday 24. Everything else is finished by Friday regardless; what Azure blocks is documented as blocked, with dates. `IE Workspaces` and "Upgrade" stay unused. |
+| Parallel CD pushes an image before CI has passed | Deploy needs both `ci` and `images`; an untested image is never deployed (ADR-9). |
+| `system.schema.json` comes from Blackboard | Still missing on 24 November. Download it by Wednesday 25; CI only warns until then. |
 | Comprehension check | Each evening, re-read the day's Dockerfile/workflow/SQL lines and write the AI log "in my own words" column myself. |
 
 ---
@@ -428,3 +472,4 @@ Largest day (Thu 19, about 10 of 37) ≈ 27%, under the 40% limit. **Only 5 dist
 - **19 November, 00:00.** Day 1 was built on Wednesday 18 November but committed just after midnight, so Wednesday has no commit and the history has commits on 17 and 19 November so far. I did not backdate anything. The assignment needs commits on at least 6 distinct days; with Sunday 22 November as the last day, only 5 are left (17, 19, 20, 21, 22). Options: confirm whether the deadline allows a commit on Monday 23 November, or ask the professor how to handle it. Decision pending.
 - **20 November.** The Azure for Students subscription is disabled because its free credit expired. I did not use "IE Workspaces" or press "Upgrade" (that turns it into a paid subscription with a card). Everything that does not need Azure was built and tested locally; the CD deploy job waits for the repository variables that the setup script sets.
 - **21 November.** `002_transaction_source.sql` was dropped: `transactions.origin` already says where each row came from. The Azure part of Day 4 (deploying `002` over real data and taking the evidence) is still blocked by the subscription; the same steps were run locally on the compose stack instead, and will be repeated on Azure as soon as it is available.
+- **24 November.** The deadline moved to Sunday 29 November. No commits on 22 or 23 November (Azure for Students still disabled, checked again today: `state: Disabled`). New schedule (Days 6 to 11): all work finished by Friday 27, Saturday and Sunday only for bug fixes. The 6-distinct-days rule is now reachable (Tuesday 24 and Wednesday 25). `002` is already on `main`, so the Azure migration evidence will use a new `003`, held back until data exists on Azure. CD is split into parallel jobs (§10.4).

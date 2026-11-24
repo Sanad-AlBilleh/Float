@@ -402,7 +402,7 @@ Branch `docs/plan-to-sunday`:
 - [x] `Plan the last week: all work by Friday, the weekend for fixes`: this schedule, §10.4, risks and change log.
 
 Branch `ci/parallel-pipeline`:
-- [ ] `Run the CD jobs in parallel and cancel superseded CI runs` (§10.4). Checked by the CI run on the pull request and the CD run on `main` (the deploy jobs stay skipped until the Azure setup sets the repository variables, but `images` pushes to GHCR).
+- [x] `Run the CD jobs in parallel and cancel superseded CI runs` (§10.4), ADR-9 brought up to date. Checked by the CI run on the pull request and the CD run on `main` (the deploy jobs stay skipped until the Azure setup sets the repository variables, but `images` pushes to GHCR).
 - [ ] Review of today's changes by a second reviewer, then a review of today's work and all of last week's (17 to 21 November), fixes in their own commits.
 - [ ] Azure: checked again in the morning and evening (`az rest … /subscriptions/<id>` → `state`). Still **Disabled** at the first check.
 - [ ] **Me:** email the professor today about the disabled subscription (what it says, that I did not press Upgrade or use IE Workspaces), and download `system.schema.json` from Blackboard (CI only warns while it is missing).

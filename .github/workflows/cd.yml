@@ -72,6 +72,7 @@ jobs:
       contents: read
       id-token: write  # OIDC token for azure/login
     strategy:
+      fail-fast: false  # a failing leg must not cancel the other mid-update
       matrix:
         include:
           - service: personal
@@ -170,10 +171,11 @@ jobs:
           URL: ${{ needs.deploy.outputs[format('{0}_url', matrix.service)] }}
         run: |
           for i in $(seq 1 20); do  # up to about 5 minutes
-            body="$(curl -sS --max-time 40 "${URL}/health" || true)"
-            if echo "$body" | grep -q '"status":"ok"' && echo "$body" | grep -q "${GITHUB_SHA}"; then
-              echo "${URL}: ${body}"; exit 0
+            out="$(curl -sS --max-time 40 -w '\n%{http_code}' "${URL}/health" || true)"
+            code="${out##*$'\n'}"; body="${out%$'\n'*}"
+            if [ "$code" = "200" ] && echo "$body" | grep -q '"status":"ok"' && echo "$body" | grep -q "${GITHUB_SHA}"; then
+              echo "${URL}: ${code} ${body}"; exit 0
             fi
-            echo "waiting for ${URL} (${i}): ${body}"; sleep 15
+            echo "waiting for ${URL} (${i}): ${code} ${body}"; sleep 15
           done
           echo "::error::${URL}/health did not return 200 with version ${GITHUB_SHA}"; exit 1

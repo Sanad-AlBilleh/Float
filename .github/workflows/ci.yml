@@ -52,16 +52,16 @@ jobs:
         working-directory: services/${{ matrix.service }}
     steps:
       - uses: actions/checkout@v5
-      # SQL Server boots while Python is installed and the code is linted; the job waits for it only
-      # right before the tests.
+      # SQL Server is pulled and booted in the background while Python is installed and the code is
+      # linted; the job waits for it only right before the tests.
       - name: Start a throwaway SQL Server (password made up for this run only)
         run: |
           PASSWORD="Ci$(openssl rand -hex 16)Aa1"
           echo "::add-mask::${PASSWORD}"
           echo "MSSQL_PASSWORD=${PASSWORD}" >> "$GITHUB_ENV"
           echo "TEST_DATABASE_URL=mssql://sa:${PASSWORD}@localhost:1433/${{ matrix.service }}_test" >> "$GITHUB_ENV"
-          docker run -d --name mssql -p 1433:1433 -e ACCEPT_EULA=Y -e "MSSQL_SA_PASSWORD=${PASSWORD}" \
-            mcr.microsoft.com/mssql/server:2022-latest
+          nohup docker run -d --name mssql -p 1433:1433 -e ACCEPT_EULA=Y -e "MSSQL_SA_PASSWORD=${PASSWORD}" \
+            mcr.microsoft.com/mssql/server:2022-latest > "${RUNNER_TEMP}/mssql-start.log" 2>&1 &
       - uses: actions/setup-python@v6
         with:
           python-version: "3.14"
@@ -76,11 +76,11 @@ jobs:
           git diff --exit-code -- openapi.json
       - name: Wait for SQL Server
         run: |
-          for _ in $(seq 1 60); do
+          for _ in $(seq 1 90); do
             docker exec mssql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "${MSSQL_PASSWORD}" -Q "SELECT 1" -b -o /dev/null && exit 0
             sleep 2
           done
-          docker logs mssql; exit 1
+          cat "${RUNNER_TEMP}/mssql-start.log"; docker logs mssql; exit 1
       - name: Tests with coverage (fails below 70%)
         run: pytest --cov --cov-report=term --cov-fail-under=70
 
@@ -126,7 +126,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: docker/setup-buildx-action@v3
-      - name: docker build (a failed build fails the pipeline; layers cached for the next run and for CD)
+      - name: docker build (a failed build fails the pipeline; layers cached for later runs on the same branch)
         uses: docker/build-push-action@v6
         with:
           context: services/${{ matrix.service }}

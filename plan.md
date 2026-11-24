@@ -198,7 +198,7 @@ ui/
   `ALTER TABLE memberships ADD member_name NVARCHAR(80) NULL; GO UPDATE memberships SET member_name = CONCAT('Member #', user_id) WHERE member_name IS NULL;`
   Rows already in the table keep everything and get a backfilled value. The service then refreshes it from `personal` when it can. It is the cache behind D5, so it is not a new feature.
   ~~A second one in `personal`: `002_transaction_source.sql`~~ dropped on 21 November: `transactions.origin` (manual, bill, shared, settlement, import) already records where a row came from, so the column would duplicate it.
-  **Order on Azure:** deploy with only `001` → create data through the UI → deploy the `002` files → screenshot the data before and after plus the startup log line (evidence for the report).
+  **Order on Azure (changed 24 November):** `002` is already on `main`, so the first deploy applies `001` and `002` together. The evidence uses `003` instead: first deploy → create data through the UI → merge `003` → screenshot the data before and after plus the startup log line (Day 7).
 - Seeding: an idempotent demo seed per service (`INSERT … WHERE NOT EXISTS`), run only when `SEED_DEMO=true` (locally yes, Azure no).
 - No code drops tables or recreates databases. Compose uses a named volume, which is never deleted to redeploy.
 
@@ -210,7 +210,7 @@ Within a 3 s budget: `UPDATE health_probe SET checked_at = SYSUTCDATETIME() WHER
 ### 7.4 Logs and connection retry
 
 - Middleware: `{"method":"GET","path":"/transactions","status":200,"duration_ms":12.4}` (JSON, stdout, one line per request).
-- `connect()` retries on errors 40613, 20002, 20003 and connection timeouts with exponential backoff (1, 2, 4, 8, 16, 30 s…) up to `DB_CONNECT_RETRIES`. Startup migration waits up to about 90 s for a paused Azure database.
+- `connect()` retries on errors 40613, 20002, 20003 and connection timeouts with exponential backoff (1, 2, 4, 8, 16, 30 s…) up to `DB_CONNECT_RETRIES`. Startup migration waits up to about 2 minutes (the backoff adds up to about 121 s) for a paused Azure database.
 
 ---
 

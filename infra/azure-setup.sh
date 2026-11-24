@@ -27,8 +27,9 @@ az group create --name "${RG}" --location "${REGION}"
 # 3. The UI: a Storage static website. Its web endpoint is the public URL and the only CORS origin.
 az storage account create --name "${UI_STORAGE}" --resource-group "${RG}" --location "${REGION}" \
   --kind StorageV2 --sku Standard_LRS --allow-blob-public-access false
-az storage blob service-properties update --account-name "${UI_STORAGE}" --static-website \
-  --index-document index.html --auth-mode login
+UI_KEY="$(az storage account keys list --account-name "${UI_STORAGE}" --resource-group "${RG}" --query '[0].value' -o tsv)"
+az storage blob service-properties update --account-name "${UI_STORAGE}" --account-key "${UI_KEY}" \
+  --static-website --index-document index.html  # the key, so no Storage Blob Data role is needed
 az storage account show --name "${UI_STORAGE}" --resource-group "${RG}" --query "primaryEndpoints.web" -o tsv
 
 # 4. One SQL server, two serverless databases on the free offer (no --auto-pause-delay / --max-size).
@@ -49,8 +50,11 @@ done
 #      ALTER ROLE db_datawriter ADD MEMBER personal_svc;"
 #   (the same for households_svc in "${PREFIX}-households-db")
 
-# 5. Container Apps: one environment, one app per service, 0..1 replicas, placeholder image.
+# 5. Container Apps (the CLI extension first): one environment, one app per service, 0..1 replicas, placeholder image.
 #    CORS is done in the services' code, not with `az containerapp ingress cors`.
+az extension add --name containerapp --upgrade --yes
+# The environment also gets a Log Analytics workspace for the container logs (pay per GB ingested, no
+# fixed cost; ADR-8). It is where the migration's startup log line is read from.
 az containerapp env create --name "${ENV_NAME}" --resource-group "${RG}" --location "${REGION}"
 for svc in personal households; do
   az containerapp create --name "${PREFIX}-${svc}" --resource-group "${RG}" --environment "${ENV_NAME}" \

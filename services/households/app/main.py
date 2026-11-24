@@ -6,6 +6,7 @@ Run with ``uvicorn app.main:app --port 8000``.
 """
 
 import logging
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -20,7 +21,7 @@ from app.db.connection import connect
 from app.db.migrations import apply_migrations
 from app.shared.clock import Clock, SystemClock
 
-logging.basicConfig(level=logging.INFO, format="%(message)s")
+logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)  # §3: logs to stdout
 logger = logging.getLogger("float.startup")
 
 

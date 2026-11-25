@@ -76,3 +76,27 @@ def test_002_keeps_existing_memberships_and_gives_each_a_name(conn):
     after = conn.execute("SELECT id, user_id, role, status, member_name FROM memberships ORDER BY id").fetchall()
     assert [tuple(row)[:4] for row in after] == [tuple(row) for row in before]
     assert [row["member_name"] for row in after] == ["Member #7", "Member #8"]
+
+
+def test_003_keeps_every_membership_and_drops_only_the_stored_fallback_names(conn):
+    """The Azure evidence migration (Assignment 2 §4.3, §4.6), run against rows that already hold data:
+    undo 003, store names the way 002 left them (one real name, two "Member #id" fallbacks, one with no
+    name), apply 003 again, and every row is still there with only member_name changed."""
+    conn.run_batch("ALTER TABLE memberships DROP COLUMN member_name_saved_at")
+    conn.execute("DELETE FROM schema_migrations WHERE version = '003_member_name_saved_at'")
+    conn.execute("INSERT INTO households (name, owner_user_id, created_at) VALUES ('Flat', 7, 'x')")
+    household = conn.execute("SELECT MAX(id) FROM households").fetchone()[0]
+    for user_id, name in ((7, "Ana"), (8, "Member #8"), (9, None), (10, "member #10")):
+        conn.execute("INSERT INTO memberships (household_id, user_id, role, status, joined_at, member_name)"
+                     " VALUES (?, ?, 'member', 'active', 'x', ?)", (household, user_id, name))
+    before = conn.execute("SELECT id, user_id, role, status FROM memberships ORDER BY id").fetchall()
+
+    assert apply_migrations(conn) == ["003_member_name_saved_at"]
+    assert apply_migrations(conn) == []  # a second boot applies nothing
+
+    after = conn.execute("SELECT id, user_id, role, status, member_name, member_name_saved_at"
+                         " FROM memberships ORDER BY id").fetchall()
+    assert [tuple(row)[:4] for row in after] == [tuple(row) for row in before]
+    assert [row["member_name"] for row in after] == ["Ana", None, None, "member #10"]  # exact text only
+    assert [row["member_name_saved_at"] is not None for row in after] == [True, False, False, True]
+

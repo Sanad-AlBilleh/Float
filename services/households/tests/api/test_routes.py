@@ -64,6 +64,19 @@ def test_names_seen_once_are_still_shown_while_the_ledger_is_down(client, person
     assert {m["display_name"] for m in page.json()["members"]} == {"Ana", "BEN"}
 
 
+def test_a_saved_name_records_when_it_was_saved(client, personal, flat, conn):
+    """Migration 003: only a name personal returned is stored, with the time it was saved."""
+    conn.execute("UPDATE memberships SET member_name = NULL, member_name_saved_at = NULL")
+    personal.down = True
+    client.get(f"/api/v1/households/{flat}", headers=bearer(1))  # "Member #id" is shown but never stored
+    assert conn.execute("SELECT COUNT(*) FROM memberships WHERE member_name IS NOT NULL").fetchone()[0] == 0
+    personal.down = False
+    client.get(f"/api/v1/households/{flat}", headers=bearer(1))
+    rows = conn.execute("SELECT member_name, member_name_saved_at FROM memberships ORDER BY user_id").fetchall()
+    assert [row["member_name"] for row in rows] == ["Ana", "Ben"]
+    assert all(row["member_name_saved_at"] is not None for row in rows)
+
+
 def test_when_the_ledger_is_down_reads_degrade_and_writes_fail_clearly(client, personal, flat):
     client.post(f"/api/v1/households/{flat}/expenses", json=expense(), headers=bearer(1))
     personal.down = True

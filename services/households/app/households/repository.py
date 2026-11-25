@@ -57,22 +57,24 @@ def memberships(conn: Connection, *, household_id: int) -> list[Row]:
 
 
 def save_member_names(conn: Connection, names: dict[int, str]) -> None:
-    """Remember the names personal returned (migration 002); only rows whose name changed are written."""
+    """Remember the names personal returned (migrations 002 and 003), with when each was saved; only rows
+    whose name changed are written, so a page read does not write every time."""
     for user_id, name in names.items():
         name = name[:80]
         # BIN2: the default collation ignores case, so a rename from "ben" to "Ben" would not count as a change.
-        conn.execute("UPDATE memberships SET member_name = ? WHERE user_id = ?"
+        conn.execute("UPDATE memberships SET member_name = ?, member_name_saved_at = SYSUTCDATETIME()"
+                     " WHERE user_id = ?"
                      " AND (member_name IS NULL OR member_name COLLATE Latin1_General_BIN2 <> ?)", (name, user_id, name))
 
 
 def saved_member_names(conn: Connection, user_ids) -> dict[int, str]:
-    """The last name saved for each user, from their newest membership that has one."""
+    """The last name personal gave for each user (newest save first), from any of their memberships."""
     ids = sorted(set(user_ids))
     if not ids:
         return {}
     marks = ", ".join("?" for _ in ids)
     rows = conn.execute(f"SELECT user_id, member_name FROM memberships WHERE user_id IN ({marks})"
-                        " AND member_name IS NOT NULL ORDER BY id DESC", tuple(ids)).fetchall()
+                        " AND member_name IS NOT NULL ORDER BY member_name_saved_at DESC, id DESC", tuple(ids)).fetchall()
     names: dict[int, str] = {}
     for row in rows:
         names.setdefault(row["user_id"], row["member_name"])

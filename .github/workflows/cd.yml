@@ -119,8 +119,6 @@ jobs:
           INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
           OTHER_ENV: ${{ matrix.other_env }}
           OTHER_URL: ${{ steps.addresses.outputs[format('{0}_url', matrix.other)] }}
-          # On Azure the other service may be scaling up from zero: 10 s instead of the 2 s default.
-          OTHER_TIMEOUT_ENV: ${{ format('{0}_TIMEOUT_S', matrix.other == 'personal' && 'PERSONAL' || 'HOUSEHOLDS') }}
           UI_ORIGIN: ${{ steps.addresses.outputs.ui_origin }}
         run: |
           encoded="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$DB_PASSWORD")"
@@ -132,7 +130,7 @@ jobs:
             --image "${REGISTRY}/float-${SVC}:${GITHUB_SHA}" --min-replicas 0 --max-replicas 1 \
             --set-env-vars "DATABASE_URL=secretref:database-url" "TOKEN_SECRET=secretref:token-secret" \
               "INTERNAL_API_KEY=secretref:internal-api-key" "${OTHER_ENV}=${OTHER_URL}" \
-              "CORS_ORIGINS=${UI_ORIGIN}" "GIT_SHA=${GITHUB_SHA}" "${OTHER_TIMEOUT_ENV}=10" -o none
+              "CORS_ORIGINS=${UI_ORIGIN}" "GIT_SHA=${GITHUB_SHA}" -o none
 
   ui:
     name: Upload the UI

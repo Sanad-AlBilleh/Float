@@ -37,12 +37,12 @@ Everything is entered by hand. Float never connects to a bank, and the only curr
 
 The services are at `https://sgealbilleh-ieu2024-personal.nicehill-7a08d68f.swedencentral.azurecontainerapps.io` and `https://sgealbilleh-ieu2024-households.nicehill-7a08d68f.swedencentral.azurecontainerapps.io`, each with a `/health` endpoint. The first request after an hour idle can take up to a minute: the container starts and the database resumes, and the UI shows "starting up" meanwhile.
 
-Float is being split into two services, each with its own SQL Server database, a static web UI, and a pipeline that deploys to Azure. The full plan, day by day, is in `plan.md`; the decisions are ADR 6 to 10 in `ADR.md`.
+Float is split into two services, each with its own SQL Server database, plus a static web UI and a pipeline that deploys to Azure. The full plan, day by day, is in `plan.md`; the decisions are ADR 6 to 10 in `ADR.md`.
 
 - **personal** (`services/personal`): accounts and sign-in, the ledger, bills, goals, budgets, safe-to-spend, the forecast and alerts.
 - **households** (`services/households`): households, members, invitations, shared expenses, balances, settlements and household bills.
 
-They talk over HTTP. When a flatmate records a shared expense, the households service asks the personal service to add the payer's ledger row (`POST /internal/transactions`). When the dashboard needs your household terms, the personal service asks the households service (`GET /internal/users/{id}/position`). Every call has a 2-second timeout. If one service is down, the other keeps serving its own data and answers the cross-service actions with a clear "unavailable, nothing was saved" (503) instead of an error page.
+They talk over HTTP. When a flatmate records a shared expense, the households service asks the personal service to add the payer's ledger row (`POST /internal/transactions`). When the dashboard needs your household terms, the personal service asks the households service (`GET /internal/users/{id}/position`). Every call has a timeout: 10 seconds by default, because on Azure the other service may be starting from zero; compose sets 2 seconds locally. If one service is down, the other keeps serving its own data and answers the cross-service actions with a clear "unavailable, nothing was saved" (503) instead of an error page.
 
 The server-rendered pages of Assignment 1 are gone: both services now serve JSON only, and the browser UI is static files in `ui/` (HTML, CSS and plain JavaScript, no build step). It has the login, setup, dashboard, transactions, bills, goals, budgets, households and household pages. The A1 activity, forecast, categories and account pages were not rebuilt (their API routes still exist).
 
@@ -119,7 +119,7 @@ Each service reads only environment variables (Assignment 2 §7.7). Secrets have
 | `PORT` | both | `8000` | port inside the container |
 | `CORS_ORIGINS` | both | `http://localhost:8080` | the UI's origin, the only one allowed to call the API from a browser |
 | `HOUSEHOLDS_URL` / `PERSONAL_URL` | personal / households | `http://households:8000` / `http://personal:8000` | where the other service is |
-| `HOUSEHOLDS_TIMEOUT_S` / `PERSONAL_TIMEOUT_S` | personal / households | `2` | timeout for every call to the other service |
+| `HOUSEHOLDS_TIMEOUT_S` / `PERSONAL_TIMEOUT_S` | personal / households | `10` (compose sets `2`) | timeout in seconds for every call to the other service |
 | `GIT_SHA` | both | `dev` | reported by `/health`; set at build time |
 | `APP_TIMEZONE` | both | `Europe/Madrid` | the time zone for "today" |
 | `DB_CONNECT_RETRIES` | both | `8` | connection retries at startup while a paused Azure database resumes |
@@ -158,7 +158,7 @@ pytest tests/integration
 ## CI/CD
 
 - **CI** (`.github/workflows/ci.yml`) runs on every branch push and pull request: the system description and OpenAPI checks, ruff, each service's tests with coverage (it fails under 70%), the cross-service integration test on the compose stack, and a build of each image. Tests use a throwaway SQL Server container with a password made up for that run; CI never touches Azure SQL.
-- **CD** (`.github/workflows/cd.yml`) runs on every merge to `main`. While CI runs on that commit, it builds both images and pushes them to GHCR tagged with the commit SHA. Only when CI and both pushes have succeeded does it sign in to Azure through OIDC (no password) and deploy both Container Apps at once, with their secrets by reference. Then, side by side, it uploads `ui/` to the storage account's `$web` container with `config.js` pointing at the services, and waits until both `/health` answers return 200 with that commit's version. An image whose commit failed CI may be in GHCR, but it is never deployed. Until the one-time Azure setup has run, the deploy, UI and health jobs are skipped.
+- **CD** (`.github/workflows/cd.yml`) runs on every merge to `main`. While CI runs on that commit, it builds both images and pushes them to GHCR tagged with the commit SHA. Only when CI and both pushes have succeeded does it sign in to Azure through OIDC (no password) and deploy both Container Apps at once, with their secrets by reference. Then, side by side, it uploads `ui/` to the storage account's `$web` container with `config.js` pointing at the services, and waits until both `/health` answers return 200 with that commit's version. An image whose commit failed CI may be in GHCR, but it is never deployed.
 
 ## Project structure
 
@@ -200,4 +200,6 @@ Inside each service, the domain packages still only expose their `api.py` and ne
 
 ## Commit history
 
-The project was built in daily slices between 28 September and 4 October 2026, with one pull request merged per day. 63 commits were pushed on 6 different days (3, 9, 11, 8, 9 and 23), and the biggest day, 4 October, holds 37% of them, under the 40% limit.
+**Assignment 1** was built in daily slices between 28 September and 4 October 2026, with one pull request merged per day: 63 commits on 6 different days, the biggest day (4 October) holding 37%.
+
+**Assignment 2** ran from 17 to 28 November 2026. Every change reached `main` through a pull request from a branch, and CI ran on each. Commits were made at the end of each working session, so several share a minute: I built a slice, ran its tests, then committed it as a few separate changes. Commit days for A2: 17, 19, 20, 21, 24, 25 and 28 November. None of them holds more than about 20% of the A2 commits. Wednesday 18 November's work was committed just after midnight, on the 19th; nothing was backdated.

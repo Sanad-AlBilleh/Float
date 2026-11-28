@@ -71,6 +71,11 @@ az role assignment create --assignee-object-id "${PRINCIPAL_ID}" --assignee-prin
 az identity federated-credential create --name github-main --identity-name "${IDENTITY}" --resource-group "${RG}" \
   --issuer https://token.actions.githubusercontent.com --audiences api://AzureADTokenExchange \
   --subject "repo:${GH_REPO}:ref:refs/heads/main"
+# GitHub may send the subject with numeric IDs instead of names (setup guide, step 6), so register that form too.
+GH_IDS="$(gh api "repos/${GH_REPO}" --jq '"\(.owner.login)@\(.owner.id)/\(.name)@\(.id)"')"
+az identity federated-credential create --name github-main-ids --identity-name "${IDENTITY}" --resource-group "${RG}" \
+  --issuer https://token.actions.githubusercontent.com --audiences api://AzureADTokenExchange \
+  --subject "repo:${GH_IDS}:ref:refs/heads/main"
 
 # 7. GitHub secrets and variables (values from the commands above; passwords from the environment).
 gh secret set AZURE_CLIENT_ID --repo "${GH_REPO}" --body "$(az identity show --name "${IDENTITY}" --resource-group "${RG}" --query clientId -o tsv)"
@@ -85,6 +90,6 @@ gh variable set RESOURCE_GROUP --repo "${GH_REPO}" --body "${RG}"
 gh variable set UI_STORAGE --repo "${GH_REPO}" --body "${UI_STORAGE}"
 gh variable set SQL_SERVER --repo "${GH_REPO}" --body "${SQL_SERVER}"
 
-# 8. Reader for the professors (run only after confirming):
-#   az role assignment create --assignee amartini@faculty.ie.edu --role Reader --scope "${RG_ID}"
-#   az role assignment create --assignee bserra@faculty.ie.edu --role Reader --scope "${RG_ID}"
+# 8. Reader for the professors, so the deployment can be checked.
+az role assignment create --assignee amartini@faculty.ie.edu --role Reader --scope "${RG_ID}"
+az role assignment create --assignee bserra@faculty.ie.edu --role Reader --scope "${RG_ID}"

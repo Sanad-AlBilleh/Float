@@ -114,5 +114,5 @@ def load_settings(env: Mapping[str, str] | None = None, dotenv: Path | None = Pa
         git_sha=values.get("GIT_SHA", "").strip() or "dev",
         db_connect_retries=_integer(values, "DB_CONNECT_RETRIES", 8, 0, 20),
         personal_url=(values.get("PERSONAL_URL", "").strip() or "http://personal:8000").rstrip("/"),
-        personal_timeout_s=_number(values, "PERSONAL_TIMEOUT_S", 2.0, 0.1, 30.0),
+        personal_timeout_s=_number(values, "PERSONAL_TIMEOUT_S", 10.0, 0.1, 30.0),
     )

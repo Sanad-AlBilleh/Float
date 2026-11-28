@@ -70,7 +70,7 @@ The first start downloads SQL Server and takes a minute or two. Compose then:
 
 1. starts SQL Server (`db`) and waits until it answers;
 2. runs `db/init.sql` once (`db-init`), which creates the `personal` and `households` databases and one login per service, each allowed into its own database only;
-3. starts both services. Each applies its own migrations on startup and logs `migration applied: 001_init.sql` (households also `002_member_name.sql`, or `migrations: nothing to apply` on later starts);
+3. starts both services. Each applies its own migrations on startup and logs `migration applied: 001_init.sql` (households also `002_member_name.sql` and `003_member_name_saved_at.sql`, or `migrations: nothing to apply` on later starts);
 4. serves `ui/` with a stock `nginx` image on port 8080 (no Dockerfile: the folder is mounted read-only).
 
 Open the app at **http://localhost:8080**, create an account and follow the setup.

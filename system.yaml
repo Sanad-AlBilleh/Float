@@ -23,18 +23,18 @@ services:
     health: /health
     migrations: services/personal/migrations
     env:
-      PORT: { default: 8000, description: Port the service listens on }
-      DATABASE_URL: { secret: true, description: Connection string of the personal database (mssql://user:password@host:1433/db) }
-      TOKEN_SECRET: { secret: true, description: Signs sign-in tokens; shared with households, which checks them }
-      INTERNAL_API_KEY: { secret: true, description: Required on /internal calls between the services }
-      HOUSEHOLDS_URL: { default: "http://households:8000", description: Base URL of the households service }
-      HOUSEHOLDS_TIMEOUT_S: { default: 2, description: Timeout for every call to households }
-      CORS_ORIGINS: { default: "http://localhost:8080", description: The UI's origin, the only one allowed from a browser }
-      GIT_SHA: { default: dev, description: Commit the image was built from, reported by /health }
-      APP_TIMEZONE: { default: Europe/Madrid, description: Time zone for "today" }
-      DB_CONNECT_RETRIES: { default: 8, description: Connection retries at startup while a paused database resumes }
-      SESSION_IDLE_HOURS: { default: 48, description: A session ends after this long unused }
-      SESSION_MAX_DAYS: { default: 14, description: A session ends after this long in any case }
+      PORT: { default: 8000, description: "Port the service listens on" }
+      DATABASE_URL: { secret: true, description: "Connection string of the personal database (mssql://user:password@host:1433/db)" }
+      TOKEN_SECRET: { secret: true, description: "Signs sign-in tokens; shared with households, which checks them" }
+      INTERNAL_API_KEY: { secret: true, description: "Required on /internal calls between the services" }
+      HOUSEHOLDS_URL: { default: "http://households:8000", description: "Base URL of the households service" }
+      HOUSEHOLDS_TIMEOUT_S: { default: 2, description: "Timeout for every call to households" }
+      CORS_ORIGINS: { default: "http://localhost:8080", description: "The UI's origin, the only one allowed from a browser" }
+      GIT_SHA: { default: dev, description: "Commit the image was built from, reported by /health" }
+      APP_TIMEZONE: { default: Europe/Madrid, description: "Time zone for \"today\"" }
+      DB_CONNECT_RETRIES: { default: 8, description: "Connection retries at startup while a paused database resumes" }
+      SESSION_IDLE_HOURS: { default: 48, description: "A session ends after this long unused" }
+      SESSION_MAX_DAYS: { default: 14, description: "A session ends after this long in any case" }
     calls:
       - service: households
         url_env: HOUSEHOLDS_URL
@@ -52,16 +52,16 @@ services:
     health: /health
     migrations: services/households/migrations
     env:
-      PORT: { default: 8000, description: Port the service listens on }
-      DATABASE_URL: { secret: true, description: Connection string of the households database (mssql://user:password@host:1433/db) }
-      TOKEN_SECRET: { secret: true, description: Checks the sign-in tokens the personal service signs }
-      INTERNAL_API_KEY: { secret: true, description: Required on /internal calls between the services }
-      PERSONAL_URL: { default: "http://personal:8000", description: Base URL of the personal service }
-      PERSONAL_TIMEOUT_S: { default: 2, description: Timeout for every call to personal }
-      CORS_ORIGINS: { default: "http://localhost:8080", description: The UI's origin, the only one allowed from a browser }
-      GIT_SHA: { default: dev, description: Commit the image was built from, reported by /health }
-      APP_TIMEZONE: { default: Europe/Madrid, description: Time zone for "today" }
-      DB_CONNECT_RETRIES: { default: 8, description: Connection retries at startup while a paused database resumes }
+      PORT: { default: 8000, description: "Port the service listens on" }
+      DATABASE_URL: { secret: true, description: "Connection string of the households database (mssql://user:password@host:1433/db)" }
+      TOKEN_SECRET: { secret: true, description: "Checks the sign-in tokens the personal service signs" }
+      INTERNAL_API_KEY: { secret: true, description: "Required on /internal calls between the services" }
+      PERSONAL_URL: { default: "http://personal:8000", description: "Base URL of the personal service" }
+      PERSONAL_TIMEOUT_S: { default: 2, description: "Timeout for every call to personal" }
+      CORS_ORIGINS: { default: "http://localhost:8080", description: "The UI's origin, the only one allowed from a browser" }
+      GIT_SHA: { default: dev, description: "Commit the image was built from, reported by /health" }
+      APP_TIMEZONE: { default: Europe/Madrid, description: "Time zone for \"today\"" }
+      DB_CONNECT_RETRIES: { default: 8, description: "Connection retries at startup while a paused database resumes" }
     calls:
       - service: personal
         url_env: PERSONAL_URL

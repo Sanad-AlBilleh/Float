@@ -31,7 +31,9 @@ Everything is entered by hand. Float never connects to a bank, and the only curr
 - A JSON API at `/api/v1` with docs at `/api/docs`.
 - Works on desktop and phone (bottom tab bar on small screens).
 
-## Assignment 2: two services (in progress)
+## Assignment 2: two services
+
+**Live URL:** `https://sgealbillehieu2024ui.zN.web.core.windows.net`, not live yet: the Azure for Students subscription is disabled (see *Initial Azure setup*). It goes here, in `system.yaml` and in the report as soon as the first deploy runs.
 
 Float is being split into two services, each with its own SQL Server database, a static web UI, and a pipeline that deploys to Azure. The full plan, day by day, is in `plan.md`; the decisions are ADR 6 to 10 in `ADR.md`.
 
@@ -101,7 +103,7 @@ Without the other service running, the cross-service parts answer "unavailable" 
 
 ## Initial Azure setup (one time)
 
-Every Azure resource is created once by `infra/azure-setup.sh` (run in **bash** after `az login`), following the course's setup guide; after that only the CD pipeline changes anything. It creates, all in `rg-sgealbilleh-ieu2024`: the static website storage account `sgealbillehieu2024ui`, the SQL server `sgealbilleh-ieu2024-sql` with the serverless free-offer databases `sgealbilleh-ieu2024-personal-db` and `sgealbilleh-ieu2024-households-db`, the Container Apps environment `sgealbilleh-ieu2024-env` with `sgealbilleh-ieu2024-personal` and `sgealbilleh-ieu2024-households` (0 to 1 replicas), and the pipeline identity `sgealbilleh-ieu2024-github` (Contributor on the resource group, OIDC for `main` only). Passwords come from environment variables and GitHub secrets, never from a file. The script leaves one step to do by hand, because it needs a password typed into `sqlcmd`: create the contained user of each service in its own database (`personal_svc`, `households_svc`, with `db_ddladmin`, `db_datareader`, `db_datawriter`; the commands are in step 4 of the script), with my IP opened in the SQL firewall only for that and closed afterwards. Before the first deploy, make both GHCR packages public (GitHub → Packages → `float-personal` and `float-households` → Package settings → Change visibility → Public), because the Container Apps pull them without registry credentials. They exist since 24 November, when CD started pushing images before the Azure setup. **Status: written on 19 November, not run yet (Azure for Students disabled; checked again on 24 November).**
+Every Azure resource is created once by `infra/azure-setup.sh` (run in **bash** after `az login`), following the course's setup guide; after that only the CD pipeline changes anything. It creates, all in `rg-sgealbilleh-ieu2024`: the static website storage account `sgealbillehieu2024ui`, the SQL server `sgealbilleh-ieu2024-sql` with the serverless free-offer databases `sgealbilleh-ieu2024-personal-db` and `sgealbilleh-ieu2024-households-db`, the Container Apps environment `sgealbilleh-ieu2024-env` with `sgealbilleh-ieu2024-personal` and `sgealbilleh-ieu2024-households` (0 to 1 replicas), and the pipeline identity `sgealbilleh-ieu2024-github` (Contributor on the resource group, OIDC for `main` only). Passwords come from environment variables and GitHub secrets, never from a file. The script leaves one step to do by hand, because it needs a password typed into `sqlcmd`: create the contained user of each service in its own database (`personal_svc`, `households_svc`, with `db_ddladmin`, `db_datareader`, `db_datawriter`; the commands are in step 4 of the script), with my IP opened in the SQL firewall only for that and closed afterwards. Before the first deploy, make both GHCR packages public (GitHub → Packages → `float-personal` and `float-households` → Package settings → Change visibility → Public), because the Container Apps pull them without registry credentials. They exist since 24 November, when CD started pushing images before the Azure setup. **Status: written on 19 November, not run yet (Azure for Students disabled since 20 November: "Your free credit has expired"; checked again on 24, 25 and 28 November).**
 
 ## Configuration
 
@@ -188,7 +190,8 @@ Inside each service, the domain packages still only expose their `api.py` and ne
 - `ADR.md`: my architecture decisions (1 to 5 from Assignment 1, 6 to 10 from Assignment 2).
 - `plan.md`: the Assignment 2 plan.
 - `AI_USAGE.md`: how I used AI tools, prompt by prompt.
-- `docs/report.md`: the project report with the architecture and database diagrams.
+- `docs/a2/report.md`: the Assignment 2 report (architecture before and after, deployment, databases, migration, partial-failure and pipeline evidence).
+- `docs/report.md`: the Assignment 1 project report.
 - `PRD.md` and `SRS.md`: the product and software requirements.
 - `EXECUTION_PLAN.md` and `planned-commits.md`: the day-by-day build plan.
 - `docs/acceptance-2026-10-04.md`: the final checks on 4 October.

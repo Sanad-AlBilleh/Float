@@ -27,7 +27,25 @@ Cents = Annotated[int, Field(ge=-(10**9), le=10**9)]  # the services apply the e
 Model = TypeVar("Model", bound=BaseModel)
 
 
+def _unstorable(value: Any, loc: tuple = ()) -> list[dict]:
+    """Strings SQL Server cannot store as sent: NUL and other control characters (newline and tab are
+    allowed), and lone surrogates, which are not valid Unicode. They are refused as a 422 here, once for
+    every body, instead of failing later in the database driver as a 500."""
+    if isinstance(value, str):
+        bad = any(ch not in "\n\r\t" and (ord(ch) < 0x20 or ord(ch) == 0x7F or 0xD800 <= ord(ch) <= 0xDFFF)
+                  for ch in value)
+        return [{"type": "value_error", "loc": ("body", *loc), "input": None,
+                 "msg": "Remove control characters and invalid Unicode from this text."}] if bad else []
+    if isinstance(value, dict):
+        return [e for key, item in value.items() for e in _unstorable(item, (*loc, str(key)))]
+    if isinstance(value, list):
+        return [e for index, item in enumerate(value) for e in _unstorable(item, (*loc, index))]
+    return []
+
+
 def parse(model: type[Model], payload: Any) -> Model:
+    if errors := _unstorable(payload):
+        raise RequestValidationError(errors)
     try:
         return model.model_validate(payload if payload is not None else {})
     except PydanticError as error:

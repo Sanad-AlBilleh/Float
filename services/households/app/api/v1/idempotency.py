@@ -21,7 +21,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse, Response
 
 from app.api.v1.problems import problem
-from app.db.connection import Connection
+from app.db.connection import Connection, IntegrityError
 from app.db.unit_of_work import transaction
 from app.shared.clock import Clock, to_utc_text
 
@@ -49,14 +49,19 @@ def run(conn: Connection, request: Request, *, user_id: int, payload: Any, clock
         return problem(400, "Invalid Idempotency-Key", "Use 1 to 64 visible ASCII characters.")
     digest = _request_hash(request, payload)
     now = clock.now_utc()
-    with transaction(conn):
-        conn.execute("DELETE FROM idempotency_keys WHERE created_at < ?", (to_utc_text(now - TTL),))
-        row = conn.execute("SELECT request_hash, status_code, response_json FROM idempotency_keys"
-                           " WHERE user_id = ? AND [key] = ?", (user_id, key)).fetchone()
-        if row is None:
-            conn.execute("INSERT INTO idempotency_keys (user_id, [key], request_hash, status_code, response_json,"
-                         " created_at) VALUES (?, ?, ?, ?, '{}', ?)",
-                         (user_id, key, digest, IN_PROGRESS, to_utc_text(now)))
+    try:
+        with transaction(conn):
+            conn.execute("DELETE FROM idempotency_keys WHERE created_at < ?", (to_utc_text(now - TTL),))
+            row = conn.execute("SELECT request_hash, status_code, response_json FROM idempotency_keys"
+                               " WHERE user_id = ? AND [key] = ?", (user_id, key)).fetchone()
+            if row is None:
+                conn.execute("INSERT INTO idempotency_keys (user_id, [key], request_hash, status_code,"
+                             " response_json, created_at) VALUES (?, ?, ?, ?, '{}', ?)",
+                             (user_id, key, digest, IN_PROGRESS, to_utc_text(now)))
+    except IntegrityError:
+        # Two requests with the same key arrived together: both found no row, and the other one's
+        # reservation won the primary key. This one is the duplicate, so it is refused like any other.
+        return problem(409, "Request in progress", "A request with that key is still being processed.")
     if row is not None:
         if row["request_hash"] != digest:
             return problem(409, "Idempotency-Key reused", "That key was already used for a different request.")

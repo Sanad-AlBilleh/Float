@@ -31,12 +31,7 @@ jobs:
       - name: system.yaml matches the code (env vars, cross-seam endpoints, paths)
         run: python scripts/check_system.py
       - name: system.yaml is valid against system.schema.json
-        run: |
-          if [ -f system.schema.json ]; then
-            check-jsonschema --schemafile system.schema.json system.yaml
-          else
-            echo "::warning::system.schema.json is missing: copy it from Blackboard to the repository root"
-          fi
+        run: check-jsonschema --schemafile system.schema.json system.yaml
       - name: Each OpenAPI document is valid
         run: openapi-spec-validator services/personal/openapi.json services/households/openapi.json
 

@@ -42,14 +42,17 @@
 
   const row = (label, cents, sign = "−") => h("tr", {}, h("th", { scope: "row" }, `${sign} ${label}`),
     h("td", { class: "num" }, money(cents)));
+  // With households down, in_household is unknown (false), so say "unavailable", not "no household yet".
+  const householdLabel = (label) => !view.households_available ? `${label} (unavailable)`
+    : view.in_household ? label : `${label} (no household yet)`;
   const breakdown = h("section", { class: "card" },
     h("div", { class: "card-head" }, h("h2", {}, "How Float worked it out")),
     h("div", { class: "table-scroll" }, h("table", { class: "table breakdown" }, h("tbody", {},
       row("Recorded balance", t.recorded_balance_cents, ""),
       row(`Bills due before ${view.next_allowance}`, t.personal_bills_cents),
-      row(view.in_household ? "Household bill shares" : "Household bill shares (no household yet)", t.household_bill_shares_cents),
+      row(householdLabel("Household bill shares"), t.household_bill_shares_cents),
       row("Protected savings", t.protected_savings_cents),
-      row(view.in_household ? "What you owe flatmates" : "What you owe flatmates (no household yet)", t.household_payables_cents),
+      row(householdLabel("What you owe flatmates"), t.household_payables_cents),
       row("Goal plan reserve", t.goal_plan_reserve_cents),
       h("tr", { class: "total" }, h("th", { scope: "row" }, "= Discretionary"),
         h("td", { class: "num" }, money(view.discretionary_cents)))))),

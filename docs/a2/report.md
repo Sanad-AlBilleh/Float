@@ -2,7 +2,7 @@
 
 Sanad Albilleh (`sgealbilleh.ieu2024`) · Repository: https://github.com/Sanad-AlBilleh/Float · Graded commit: the one tagged `submission`
 
-**Live URL:** `https://sgealbillehieu2024ui.zN.web.core.windows.net` (not live yet: see §6, *What Azure blocked*)
+**Live URL:** https://sgealbillehieu2024ui.z1.web.core.windows.net (deployed 28 November 2026, region swedencentral)
 
 ## 1. What changed
 
@@ -143,16 +143,17 @@ erDiagram
 ## 4. Migration evidence
 
 - **`002_member_name`** (on `main`, data-preserving): adds `memberships.member_name` as `NULL`, then fills every existing row with the name the pages already showed (`Member #<id>`). Nothing is dropped. The next successful read from personal replaces the fallback with the real name, so household pages keep real names while personal is down (§5, part 3 of the evidence).
-- **`003_member_name_saved_at`** (branch `feature/migration-003`, draft PR #24) is held back on purpose. The first deploy applies `001` and `002` to empty databases, so it cannot show a migration running on data. `003` will run on data that already exists on Azure:
+- **`003_member_name_saved_at`** (PR #24) was held back on purpose. The first deploy applied `001` and `002` to empty databases, so it could not show a migration running on data. `003` changes a table that already holds data:
   - It adds `member_name_saved_at`.
-  - It clears the stored `Member #<id>` fallbacks, which were never real names.
-  - It stamps the real ones.
-  - **Locally, on a database holding 13 memberships:** all 13 rows were kept, the 7 fallbacks became `NULL` and the 6 real names were stamped. The startup log shows `migration applied: 003_member_name_saved_at.sql`, and a second boot applied nothing.
-- **On Azure: not captured yet (§6).** The steps once the subscription works:
-  1. First deploy.
-  2. Register two users in the live UI and create a household with expenses.
-  3. Merge #24.
-  4. Capture the CD run, the `migration applied: 003_…` line from `az containerapp logs show`, and the same household's data before and after.
+  - It clears any stored `Member #<id>` fallbacks, which were never real names.
+  - It stamps the real names with the time they were saved.
+- **On Azure, 28 November** (full output in `docs/a2/evidence/migration-003-azure.md`):
+  1. The first deploy ([run 46156463620](https://github.com/Sanad-AlBilleh/Float/actions/runs/46156463620)) applied `001` and `002`.
+  2. In the live system, three users registered, two joined Ana's household, and three shared expenses were recorded.
+  3. **Before:** `schema_migrations` holds `001_init` and `002_member_name`; 3 memberships (Ana, Ben, Carla); 3 shared expenses.
+  4. I merged PR #24, and [CD run 46159868937](https://github.com/Sanad-AlBilleh/Float/actions/runs/46159868937) deployed it. The households container logged `migration applied: 003_member_name_saved_at.sql` at startup.
+  5. **After:** `003_member_name_saved_at` is recorded; the same 3 memberships and 3 expenses are there; every real name has `member_name_saved_at` set. There were no fallbacks to clear on Azure, because every name had been read from personal.
+- **Locally,** on a database holding 13 memberships, `003` kept all 13 rows, set the 7 fallbacks to `NULL` and stamped the 6 real names; a second boot applied nothing.
 
 ## 5. Partial-failure evidence
 
@@ -185,34 +186,28 @@ A *slow* service (as opposed to a stopped one) is cut off by the timeout: 2 s lo
 
   Measured coverage: personal 96%, households 91%.
 - **CD** runs on every merge to `main`. `ci` and `images` run in parallel, then `deploy` (matrix), then `ui` and `health` in parallel (ADR-9).
-- **Green CD run on `main`:** https://github.com/Sanad-AlBilleh/Float/actions/runs/45582875394 (the merge of PR #25). The Azure jobs show as skipped until the setup has run: they need the repository variables that it sets.
+- **Green CD runs on `main` that deployed to Azure:** https://github.com/Sanad-AlBilleh/Float/actions/runs/46156463620 (the first deploy) and https://github.com/Sanad-AlBilleh/Float/actions/runs/46159868937 (migration 003). Every job passed: CI, both image pushes, both deploys, the UI upload and both health checks, which require `200`, `"status":"ok"` and the commit's SHA.
 - **Failed run that was fixed:** https://github.com/Sanad-AlBilleh/Float/actions/runs/44833781904, the CD run of the PR #20 merge.
   - *Cause:* the tests started checking every response against its OpenAPI schema with `jsonschema`, which was installed on my machine but missing from `requirements-dev.txt`. So on a clean runner, `conftest.py` failed with `ModuleNotFoundError: No module named 'jsonschema'`.
   - *Fix:* PR #21 added it to the test requirements, and the next run was green.
   - *Lesson:* CI is the clean machine I don't have locally.
 
-### What Azure blocked
+### The subscription problem
 
-My Azure for Students subscription (`805ac3d4-…`) has been **Disabled** since 20 November: "Your free credit has expired". I checked on 24, 25 and 28 November. Under the course rules it can't be charged, and resources are stopped, so nothing could be created. I reported it to the professors by email.
+My Azure for Students subscription (`805ac3d4-…`) was **Disabled** from 20 November to 28 November: "Your free credit has expired". "Reactivate" in the portal answered "Contact Azure Support". So that I could deploy before the deadline, on 28 November I upgraded the same subscription to pay-as-you-go. Nothing else changed: the same subscription, names, region policy and free allowances.
+- Both databases are on the free offer with `AutoPause` when it runs out.
+- The Container Apps scale to zero.
 
-Everything that does not need a working subscription is done and runs in CI:
-- the setup script
-- the CD deploy, `ui` and `health` jobs, which are written and skipped until the setup has run
-- migration 003 and its tests
-
-Once the subscription is active again, these steps take about an hour:
-1. Run `infra/azure-setup.sh`.
-2. Create the two contained SQL users.
-3. Make the GHCR packages public.
-4. Re-run CD.
-
-At that point the live URL, the Reader role, the Azure migration evidence and a green run with the Azure jobs replace this section.
+The expected cost is under €1 a month. Until then, everything that did not need Azure was built and tested in CI, so the whole Azure phase took about an hour:
+1. `infra/azure-setup.sh`
+2. the two contained SQL users
+3. re-running CD
 
 ## 7. What I would do differently
 
 - **Moving a transaction across a network call.** In A1, "record a shared expense and the payer's ledger row" was one SQLite transaction. Now it is a call followed by a commit. I chose "refuse with 503, nothing saved" over a queue, because it is simple to explain and to test. The cost is that recording money needs both services up.
 - **Holding a migration back.** `003` exists only to be the on-data evidence. In a real system I would have run migrations on a staging copy of production data.
-- **The subscription risk.** I would check the cloud account on day 1, not when the first deploy is due. I wrote the deploy so it does not depend on the subscription to be tested, and that is what kept the rest of the work moving.
+- **The subscription risk.** I would check the cloud account on day 1, not when the first deploy is due. Writing the deploy so it could be tested without the subscription is what kept the rest of the work moving, and it made the real deploy take an hour.
 
 ## 8. AI disclosure
 

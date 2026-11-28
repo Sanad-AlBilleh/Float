@@ -9,7 +9,7 @@ SECRETS = {"DATABASE_URL": "mssql://u:p@db:1433/households", "TOKEN_SECRET": "t"
 
 def test_defaults_apply_to_everything_but_the_secrets(tmp_path):
     settings = load_settings(SECRETS, dotenv=tmp_path / "missing.env")
-    assert (settings.port, settings.personal_url, settings.personal_timeout_s) == (8000, "http://personal:8000", 2.0)
+    assert (settings.port, settings.personal_url, settings.personal_timeout_s) == (8000, "http://personal:8000", 10.0)
     assert settings.cors_origins == ("http://localhost:8080",) and settings.git_sha == "dev"
 
 

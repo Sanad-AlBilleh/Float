@@ -59,3 +59,36 @@ def test_a_concurrent_duplicate_is_refused_while_the_first_runs(client, database
     duplicate = api.post("/transactions", BODY, headers={"Idempotency-Key": "first"})
     assert duplicate.status_code == 409 and duplicate.json()["title"] == "Request in progress"
     assert len(api.get("/transactions").json()) == 1
+
+
+def test_two_requests_racing_for_one_key_get_a_409_not_a_500(client, monkeypatch):
+    from contextlib import contextmanager
+
+    from app.api.v1 import idempotency
+    from app.db.connection import IntegrityError
+
+    api = signed_up(client)
+    real = idempotency.transaction
+
+    @contextmanager
+    def raced(conn):  # the other request's reservation commits first and wins the primary key
+        with real(conn):
+            yield
+        raise IntegrityError("Violation of PRIMARY KEY constraint", 2627)
+
+    monkeypatch.setattr(idempotency, "transaction", raced)
+    response = api.post("/transactions", BODY, headers={"Idempotency-Key": "double-click"})
+    assert response.status_code == 409 and response.json()["title"] == "Request in progress"
+    monkeypatch.undo()
+    assert api.get("/transactions").json() == []
+
+
+def test_text_the_database_cannot_store_is_a_422_not_a_500(client):
+    api = signed_up(client)
+    import json
+
+    for note in ("a\x00b", "a\ud800", "a\x07b"):  # sent as JSON escapes, as a browser would
+        response = api.browser.post("/api/v1/transactions", content=json.dumps({**BODY, "note": note}),
+                                    headers=api._headers({"Content-Type": "application/json"}))
+        assert response.status_code == 422 and "note" in response.json()["errors"]
+    assert api.post("/transactions", {**BODY, "note": "line one\nline two\ttabbed"}).status_code == 201

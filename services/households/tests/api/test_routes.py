@@ -115,3 +115,36 @@ def test_the_internal_api_answers_the_personal_service(client, personal, flat):
         (1, "Groceries", 1500)]
     later = client.get("/internal/users/2/events", params={"after": events["last_id"]}, headers=key).json()
     assert later["expenses"] == [] and later["last_id"] == events["last_id"]
+
+
+@pytest.mark.parametrize("text", ["Flat\x003B", "Flat \ud800", "Flat\x1b3B"])
+def test_text_the_database_cannot_store_is_a_422_not_a_500(client, personal, flat, text):
+    import json
+
+    send = {"headers": {**bearer(1), "Content-Type": "application/json"}}  # JSON escapes, as a browser sends them
+    response = client.post("/api/v1/households", content=json.dumps({"name": text}), **send)
+    assert response.status_code == 422 and "name" in response.json()["errors"]
+    described = client.post(f"/api/v1/households/{flat}/expenses",
+                            content=json.dumps({**expense(), "description": text}), **send)
+    assert described.status_code == 422 and personal.ledger(1, "shared") == []  # refused before the seam
+
+
+def test_two_requests_racing_for_one_idempotency_key_get_a_409_not_a_500(client, personal, flat, monkeypatch):
+    from contextlib import contextmanager
+
+    from app.api.v1 import idempotency
+    from app.db.connection import IntegrityError
+
+    real = idempotency.transaction
+
+    @contextmanager
+    def raced(conn):  # the other request's reservation commits first and wins the primary key
+        with real(conn):
+            yield
+        raise IntegrityError("Violation of PRIMARY KEY constraint", 2627)
+
+    monkeypatch.setattr(idempotency, "transaction", raced)
+    response = client.post(f"/api/v1/households/{flat}/expenses", json=expense(),
+                           headers={**bearer(1), "Idempotency-Key": "double-click"})
+    assert response.status_code == 409 and response.json()["title"] == "Request in progress"
+    assert personal.ledger(1, "shared") == []

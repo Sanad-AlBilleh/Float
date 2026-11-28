@@ -116,7 +116,7 @@ def load_settings(env: Mapping[str, str] | None = None, dotenv: Path | None = Pa
         git_sha=values.get("GIT_SHA", "").strip() or "dev",
         db_connect_retries=_integer(values, "DB_CONNECT_RETRIES", 8, 0, 20),
         households_url=(values.get("HOUSEHOLDS_URL", "").strip() or "http://households:8000").rstrip("/"),
-        households_timeout_s=_number(values, "HOUSEHOLDS_TIMEOUT_S", 2.0, 0.1, 30.0),
+        households_timeout_s=_number(values, "HOUSEHOLDS_TIMEOUT_S", 10.0, 0.1, 30.0),
         session_idle_hours=_integer(values, "SESSION_IDLE_HOURS", 48, 1, 720),
         session_max_days=_integer(values, "SESSION_MAX_DAYS", 14, 1, 90),
     )

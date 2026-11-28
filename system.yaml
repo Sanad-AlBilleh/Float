@@ -28,7 +28,7 @@ services:
       TOKEN_SECRET: { secret: true, description: "Signs sign-in tokens; shared with households, which checks them" }
       INTERNAL_API_KEY: { secret: true, description: "Required on /internal calls between the services" }
       HOUSEHOLDS_URL: { default: "http://households:8000", description: "Base URL of the households service" }
-      HOUSEHOLDS_TIMEOUT_S: { default: 2, description: "Timeout for every call to households" }
+      HOUSEHOLDS_TIMEOUT_S: { default: 10, description: "Timeout in seconds for every call to households; 10 allows for the other app starting from zero on Azure (compose sets 2)" }
       CORS_ORIGINS: { default: "http://localhost:8080", description: "The UI's origin, the only one allowed from a browser" }
       GIT_SHA: { default: dev, description: "Commit the image was built from, reported by /health" }
       APP_TIMEZONE: { default: Europe/Madrid, description: "Time zone for \"today\"" }
@@ -39,7 +39,7 @@ services:
       - service: households
         url_env: HOUSEHOLDS_URL
         endpoints: ["GET /internal/users/{user_id}/position", "GET /internal/users/{user_id}/shares", "GET /internal/users/{user_id}/events"]
-        timeout_s: 2
+        timeout_s: 10
         on_failure: The dashboard is shown without household terms and says household balances are unavailable; alerts are left unchanged.
     azure:
       container_app: sgealbilleh-ieu2024-personal
@@ -57,7 +57,7 @@ services:
       TOKEN_SECRET: { secret: true, description: "Checks the sign-in tokens the personal service signs" }
       INTERNAL_API_KEY: { secret: true, description: "Required on /internal calls between the services" }
       PERSONAL_URL: { default: "http://personal:8000", description: "Base URL of the personal service" }
-      PERSONAL_TIMEOUT_S: { default: 2, description: "Timeout for every call to personal" }
+      PERSONAL_TIMEOUT_S: { default: 10, description: "Timeout in seconds for every call to personal; 10 allows for the other app starting from zero on Azure (compose sets 2)" }
       CORS_ORIGINS: { default: "http://localhost:8080", description: "The UI's origin, the only one allowed from a browser" }
       GIT_SHA: { default: dev, description: "Commit the image was built from, reported by /health" }
       APP_TIMEZONE: { default: Europe/Madrid, description: "Time zone for \"today\"" }
@@ -66,7 +66,7 @@ services:
       - service: personal
         url_env: PERSONAL_URL
         endpoints: ["GET /internal/users", "GET /internal/users/{user_id}/profile", "POST /internal/transactions", "PATCH /internal/transactions/{transaction_id}", "DELETE /internal/transactions/{transaction_id}"]
-        timeout_s: 2
+        timeout_s: 10
         on_failure: Households, balances and settlements are still shown with names as "Member #id"; anything that records money answers 503 "Ledger unavailable, nothing was saved".
     azure:
       container_app: sgealbilleh-ieu2024-households

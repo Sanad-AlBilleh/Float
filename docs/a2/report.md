@@ -37,8 +37,8 @@ flowchart LR
     end
     browser -- "HTTPS, Bearer token" --> papi
     browser -- "HTTPS, Bearer token" --> hapi
-    papi -- "GET /internal/users/{id}/position, /shares, /events<br/>timeout 2 s (10 s on Azure)" --> hapi
-    hapi -- "GET /internal/users, /users/{id}/profile<br/>POST · PATCH · DELETE /internal/transactions<br/>timeout 2 s (10 s on Azure)" --> papi
+    papi -- "GET /internal/users/{id}/position, /shares, /events<br/>timeout 10 s (2 s in compose)" --> hapi
+    hapi -- "GET /internal/users, /users/{id}/profile<br/>POST · PATCH · DELETE /internal/transactions<br/>timeout 10 s (2 s in compose)" --> papi
     papi --> pdb[("personal-db<br/>18 tables")]
     hapi --> hdb[("households-db<br/>12 tables")]
 ```
@@ -58,7 +58,7 @@ flowchart LR
     cd --> img["images (matrix): build + push<br/>SHA-tagged, provenance: false"]
     img --> ghcr[("GHCR<br/>ghcr.io/sanad-albilleh/float-personal:&lt;sha&gt;<br/>ghcr.io/sanad-albilleh/float-households:&lt;sha&gt;")]
     ciw & img --> dep["deploy (matrix)<br/>azure/login via OIDC as sgealbilleh-ieu2024-github"]
-    subgraph RG["Azure: rg-sgealbilleh-ieu2024 (Azure for Students)"]
+    subgraph RG["Azure: rg-sgealbilleh-ieu2024 (subscription Azure for Students, now pay-as-you-go: §6)"]
         subgraph ENV["Container Apps env: sgealbilleh-ieu2024-env (+ Log Analytics workspace)"]
             cap["sgealbilleh-ieu2024-personal<br/>0–1 replicas"]
             cah["sgealbilleh-ieu2024-households<br/>0–1 replicas"]
@@ -119,7 +119,7 @@ erDiagram
 
 `login_attempts` and `health_probe` stand alone and are not shown.
 
-**households-db** (`001_init.sql` + `002_member_name.sql`, 12 tables):
+**households-db** (`001_init.sql`, `002_member_name.sql`, `003_member_name_saved_at.sql`; 12 tables):
 
 ```mermaid
 erDiagram
@@ -135,6 +135,7 @@ erDiagram
     memberships {
         int user_id "plain INT: the user lives in personal-db"
         nvarchar member_name "added by 002: last name personal returned"
+        datetime2 member_name_saved_at "added by 003: when that name was saved"
     }
 ```
 
@@ -167,7 +168,7 @@ These are real responses from the compose stack, captured with `scripts/capture_
 | **personal stopped**, `POST /households/{id}/expenses` | `503` in 0.01 s: `{"title":"Ledger unavailable","detail":"Your ledger is unavailable right now, so nothing was saved. Try again in a minute."}` |
 | Both back | The household's expenses are `[3000]`: the refused €5.00 expense was not half-saved |
 
-A *slow* service (as opposed to a stopped one) is cut off by the timeout: 2 s locally, and 10 s on Azure, where the other app may be starting from zero.
+A *slow* service (as opposed to a stopped one) is cut off by the timeout: 10 s by default, which is what Azure runs, because the other app may be starting from zero; 2 s in compose.
 
 **Cold start** (§7.5). On Azure the first request after idle can get `503 "App port is not ready"` while the container starts and the database resumes. The UI (`ui/js/api.js`) handles it like this:
 - Reads, logins and idempotent writes are retried with a "Float is starting up… Retrying" banner. After the last try, the banner offers a Retry button.

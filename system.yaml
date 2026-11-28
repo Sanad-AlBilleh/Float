@@ -3,8 +3,8 @@
 # seam and its Azure resources. It must match the code (services/*/app/config.py) and the deployment.
 student: sgealbilleh.ieu2024
 prefix: sgealbilleh-ieu2024
-# The storage account's static website endpoint; the zone number (z<N>) is known once it is created.
-public_url: https://sgealbillehieu2024ui.zN.web.core.windows.net
+# The storage account's static website endpoint.
+public_url: https://sgealbillehieu2024ui.z1.web.core.windows.net
 ui:
   path: ui
   storage_account: sgealbillehieu2024ui
